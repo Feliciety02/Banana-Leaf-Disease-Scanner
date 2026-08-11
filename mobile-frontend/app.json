@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "BananaCare Field",
+    "slug": "bananacare-field",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "scheme": "bananacare",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#173f35"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bananacare.field"
+    },
+    "android": {
+      "package": "com.bananacare.field",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#173f35"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow BananaCare to select a banana leaf image for diagnosis.",
+          "cameraPermission": "Allow BananaCare to photograph banana leaves for diagnosis.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
+}
