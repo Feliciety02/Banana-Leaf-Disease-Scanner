@@ -4,6 +4,18 @@ This is the working checklist for the DahonMD thesis member responsible for the
 dataset, model training, evaluation, TensorFlow Lite artifacts, and research
 evidence. Check an item only when its required evidence has been saved.
 
+## Current status
+
+Status reviewed on 2026-08-13 against the repository and automated tests.
+
+- Current count: **31 verified complete**, **232 remaining**.
+- `[x]` means the requirement is currently implemented and directly verifiable in the repository.
+- `[ ]` means it still needs real dataset work, adviser/domain approval, a completed experiment, generated artifacts, or retained evidence.
+- Completed implementation checks must be rechecked if the corresponding code or research protocol changes.
+- The virtual environment and required packages are present.
+- `ai/.env`, the approved dataset, `split_manifest.json`, `label_map.json`, trained checkpoints, and TFLite model files are not present yet.
+- Therefore, no dataset-ready, trained-model, evaluation, mobile-benchmark, or thesis-submission gate is being marked complete.
+
 The production model remains the existing Coordinate Attention-enhanced
 MobileNetV3-Small. The research baseline is the standard supervised
 MobileNetV3-Small. Do not change either variant without an approved thesis
@@ -12,16 +24,16 @@ protocol amendment.
 ## Fixed research contract
 
 - [ ] Confirm the five supported classes with the thesis adviser and agricultural/domain reviewer.
-- [ ] Preserve the exact output-index order from `ai/config/labels.py`:
+- [x] Preserve the exact output-index order from `ai/config/labels.py`:
   - `0` — `healthy`
   - `1` — `moko-disease`
   - `2` — `black-sigatoka`
   - `3` — `yellow-sigatoka`
   - `4` — `cordana-leaf-spot`
-- [ ] Confirm both models use MobileNetV3-Small with the same width multiplier.
-- [ ] Confirm model input is RGB, `224 x 224`, float32 `[0, 1]` before model-internal rescaling.
-- [ ] Confirm the baseline contains no Coordinate Attention, teacher, SSL, knowledge distillation, or feature distillation.
-- [ ] Confirm normal farmer diagnosis uses the enhanced model only.
+- [x] Confirm both models use MobileNetV3-Small with the same width multiplier.
+- [x] Confirm model input is RGB, `224 x 224`, float32 `[0, 1]` before model-internal rescaling.
+- [x] Confirm the baseline contains no Coordinate Attention, teacher, SSL, knowledge distillation, or feature distillation.
+- [x] Confirm normal farmer diagnosis uses the enhanced model only.
 - [ ] Record the approved protocol version and approval date in the experiment log.
 
 Evidence required: signed/approved protocol note, class contract, active configuration snapshot.
@@ -99,8 +111,8 @@ Evidence required: QC report, exclusion register, duplicate report, class/source
 - [ ] For a pre-split dataset, use `train`, `validation` or `val`, and `test` directories consistently.
 - [ ] Copy `ai/.env.example` to `ai/.env` locally.
 - [ ] Set `DATASET_ROOT` to the approved dataset location.
-- [ ] Create and activate the project virtual environment.
-- [ ] Install `ai/requirements.txt`.
+- [x] Create and activate the project virtual environment.
+- [x] Install `ai/requirements.txt`.
 - [ ] Record Python, TensorFlow, CUDA/cuDNN if applicable, operating system, CPU, GPU, RAM, and package versions.
 - [ ] Confirm sufficient storage for checkpoints, reports, matrices, and TFLite exports.
 
@@ -141,16 +153,16 @@ Evidence required: validator output, split counts, `split_manifest.json`, `label
 
 ## 7. Preprocessing and augmentation audit
 
-- [ ] Verify decoding produces three-channel RGB.
-- [ ] Verify resize is bilinear with antialiasing at `224 x 224`.
-- [ ] Verify decoded tensors are float32 `[0, 1]`.
-- [ ] Verify each model rescales only once to `[-1, 1]` internally.
-- [ ] Confirm there is no double normalization.
+- [x] Verify decoding produces three-channel RGB.
+- [x] Verify resize is bilinear with antialiasing at `224 x 224`.
+- [x] Verify decoded tensors are float32 `[0, 1]`.
+- [x] Verify each model rescales only once to `[-1, 1]` internally.
+- [x] Confirm there is no double normalization.
 - [ ] Confirm validation, test, TFLite comparison, and mobile inference receive no random augmentation.
-- [ ] Confirm augmentation is applied only to training batches.
+- [x] Confirm augmentation is applied only to training batches.
 - [ ] Save representative before/after augmentation examples for visual review.
 - [ ] Confirm rotations, flips, brightness, contrast, zoom, and translation do not create biologically misleading samples.
-- [ ] Keep baseline and enhanced supervised training augmentation identical.
+- [x] Keep baseline and enhanced supervised training augmentation identical.
 
 Evidence required: preprocessing contract, augmentation samples, reviewer notes, active augmentation configuration.
 
@@ -177,10 +189,10 @@ Evidence required: experiment register and immutable configuration/log folder pe
 
 ## 9. Standard MobileNetV3-Small baseline
 
-- [ ] Review `ai/models/mobilenetv3_baseline.py` and confirm it builds stock Keras MobileNetV3-Small.
+- [x] Review `ai/models/mobilenetv3_baseline.py` and confirm it builds stock Keras MobileNetV3-Small.
 - [ ] Confirm ImageNet initialization policy matches the approved experiment design and is disclosed.
-- [ ] Confirm the five-logit classifier uses the canonical label order.
-- [ ] Confirm no enhanced-only component is imported into baseline training.
+- [x] Confirm the five-logit classifier uses the canonical label order.
+- [x] Confirm no enhanced-only component is imported into baseline training.
 - [ ] Train the classifier with the backbone frozen.
 - [ ] Fine-tune using the approved lower learning rate unless the protocol explicitly disables it.
 - [ ] Use validation data only for checkpoint selection, early stopping, and learning-rate decisions.
@@ -201,16 +213,16 @@ Evidence required: configuration, console log, `baseline_history.json`, best che
 
 ## 10. Existing enhanced training workflow
 
-- [ ] Confirm the enhanced architecture remains `MobileNetV3SmallCoordinateAttention`.
-- [ ] Confirm the existing Coordinate Attention implementation is unchanged unless an approved defect is documented.
+- [x] Confirm the enhanced architecture remains `MobileNetV3SmallCoordinateAttention`.
+- [x] Confirm the existing Coordinate Attention implementation is unchanged unless an approved defect is documented.
 - [ ] Train the ResNet-101 teacher using only the approved pipeline and shared split.
 - [ ] Save and evaluate `best_teacher.keras`.
-- [ ] Confirm the teacher is frozen during student distillation.
+- [x] Confirm the teacher is frozen during student distillation.
 - [ ] Train the enhanced student with the approved hard-label, logit-distillation, and feature-distillation settings.
 - [ ] Save `best_student.keras` using validation performance only.
 - [ ] Save teacher and student histories and configuration snapshots.
-- [ ] Do not deploy ResNet-101 to the mobile application.
-- [ ] Do not mix baseline training with teacher, SSL, Coordinate Attention, or distillation.
+- [x] Do not deploy ResNet-101 to the mobile application.
+- [x] Do not mix baseline training with teacher, SSL, Coordinate Attention, or distillation.
 
 Commands:
 
@@ -368,11 +380,11 @@ Evidence required: baseline/enhanced INT8 reports, matrices, runtime/hardware re
 ## 16. Single-image research comparison validation
 
 - [ ] Run one shared decoded tensor through baseline first and enhanced second.
-- [ ] Verify the baseline interpreter is released before enhanced loading.
-- [ ] Verify the report includes timestamp, runtime, model size, prediction, probabilities, confidence, and invocation latency.
-- [ ] Verify agreement and differences are calculated correctly.
-- [ ] Verify the UI does not state that higher confidence means better accuracy.
-- [ ] Confirm research comparisons are not written to farmer diagnosis history.
+- [x] Verify the baseline interpreter is released before enhanced loading.
+- [x] Verify the report includes timestamp, runtime, model size, prediction, probabilities, confidence, and invocation latency.
+- [x] Verify agreement and differences are calculated correctly.
+- [x] Verify the UI does not state that higher confidence means better accuracy.
+- [x] Confirm research comparisons are not written to farmer diagnosis history.
 - [ ] Test agreement and disagreement cases with real validated artifacts.
 - [ ] Test invalid label maps, missing model files, corrupt images, and incompatible tensor shapes.
 
@@ -449,8 +461,8 @@ Evidence required: adviser approval, ablation configurations, full result table,
   - model version identifiers
   - evaluation reports
 - [ ] Confirm model filenames and paths with the application member before integration.
-- [ ] Confirm farmer mode references enhanced only.
-- [ ] Confirm research mode references both models in the correct order.
+- [x] Confirm farmer mode references enhanced only.
+- [x] Confirm research mode references both models in the correct order.
 - [ ] Provide known-good test images with expected raw outputs for integration testing.
 - [ ] Do not hand off ResNet-101 teacher weights for mobile deployment.
 - [ ] Do not mark production inference ready until application and model outputs are cross-checked.
@@ -533,7 +545,7 @@ Evidence required: archived reproducibility package and inventory document.
 
 ### Enhanced ready
 
-- [ ] Existing enhanced architecture preserved.
+- [x] Existing enhanced architecture preserved.
 - [ ] Teacher and enhanced student trained with approved settings.
 - [ ] Best validation checkpoint saved.
 - [ ] Locked test evaluation and TFLite validation complete.
@@ -543,7 +555,7 @@ Evidence required: archived reproducibility package and inventory document.
 - [ ] Experiment-contract fingerprints match.
 - [ ] Baseline and enhanced metrics come from identical test images.
 - [ ] Sequential comparison works with real artifacts.
-- [ ] Farmer history remains enhanced-only.
+- [x] Farmer history remains enhanced-only.
 - [ ] Conclusions use held-out metrics, not confidence alone.
 
 ### Thesis submission ready
