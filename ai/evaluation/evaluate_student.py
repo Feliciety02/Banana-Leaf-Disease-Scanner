@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 
 from ai.data.dataset import make_supervised_dataset, prepare_splits
+from ai.evaluation.experiment_contract import experiment_contract
 from ai.evaluation.gradcam import save_gradcam_examples
 from ai.evaluation.metrics import benchmark_keras_latency, classification_metrics, count_flops, save_confusion_matrix, save_json
 from ai.models.coordinate_attention import CoordinateAttention  # Registers custom serialization.
@@ -20,6 +21,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     add_common_arguments(parser)
     parser.add_argument("--student-model", required=True)
+    parser.add_argument(
+        "--split-manifest",
+        help="Exact shared split_manifest.json. Defaults to OUTPUT_DIR/split_manifest.json.",
+    )
     parser.add_argument("--gradcam-count", type=int, default=5, help="Maximum correct and incorrect examples")
     parser.add_argument("--gradcam-layer", default="coordinate_attention")
     parser.add_argument("--latency-runs", type=int, default=100)
@@ -29,7 +34,10 @@ def parse_args() -> argparse.Namespace:
 def evaluate(args: argparse.Namespace) -> dict:
     config = configured_experiment(args, "student_evaluation_config.json")
     output_dir = Path(config.runtime.output_dir)
-    splits = prepare_splits(config, output_dir / "split_manifest.json")
+    manifest = Path(args.split_manifest) if args.split_manifest else output_dir / "split_manifest.json"
+    if not manifest.is_file():
+        raise FileNotFoundError(f"Shared split manifest not found: {manifest}")
+    splits = prepare_splits(config, manifest)
     model_path = Path(args.student_model)
     if not model_path.is_file():
         raise FileNotFoundError(f"Student model not found: {model_path}")
@@ -50,6 +58,8 @@ def evaluate(args: argparse.Namespace) -> dict:
         true_labels.extend(labels.numpy().astype(int).tolist())
         predicted_labels.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
     metrics = classification_metrics(true_labels, predicted_labels, splits.class_names)
+    metrics["model"] = "enhanced"
+    metrics["experiment_contract"] = experiment_contract(manifest, splits.class_names, config.image_size)
     metrics["resources"] = {
         "parameters": int(deployable.count_params()),
         "training_model_parameters_including_optional_distillation_adapter": int(model.count_params()),
