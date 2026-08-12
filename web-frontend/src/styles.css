@@ -909,7 +909,7 @@ body { background: var(--page); }
 }
 
 @media (max-height: 700px) {
-  .auth-page { overflow-y: auto; place-items: start center; padding-block: 20px; }
+  .auth-page { overflow-y: auto; place-items: center; padding-block: 20px; }
 }
 
 /* Authentication experience */
@@ -1045,15 +1045,58 @@ body { background: var(--page); }
 }
 
 @media (max-height: 700px) and (min-width: 801px) {
-  .auth-page { place-items: start center; }
+  .auth-page { place-items: center; }
   .auth-shell { min-height: 640px; }
+}
+
+/* Research model comparison */
+.comparison-workspace { display: grid; gap: 16px; }
+.comparison-image-panel {
+  min-height: 300px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #b8c9bf;
+  border-radius: 14px;
+  background: #f4f8f5;
+}
+.comparison-image-panel > div { display: grid; justify-items: center; gap: 8px; padding: 28px; color: #6f7e75; text-align: center; }
+.comparison-image-panel strong { color: #263c32; font-size: 16px; }
+.comparison-image-panel small { font-size: 12px; }
+.comparison-image-panel img { display: block; width: 100%; height: 360px; object-fit: contain; background: #e7eee9; }
+.comparison-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.comparison-actions button { flex: 1 1 210px; justify-content: center; }
+.comparison-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.comparison-model-card { min-width: 0; padding: 22px; border: 1px solid #dce5df; border-radius: 14px; background: #fff; box-shadow: 0 12px 34px rgba(25, 59, 43, .06); }
+.comparison-model-card > span, .comparison-summary > span { color: #267348; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.comparison-model-card h2, .comparison-summary h2 { margin: 7px 0 18px; color: #183d2d; font-size: 20px; }
+.comparison-model-card dl, .comparison-summary dl { margin: 0; display: grid; gap: 1px; overflow: hidden; border: 1px solid #e3e9e5; border-radius: 10px; background: #e3e9e5; }
+.comparison-model-card dl > div, .comparison-summary dl > div { min-width: 0; padding: 11px 13px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #fff; }
+.comparison-model-card dt, .comparison-summary dt { color: #718078; font-size: 12px; }
+.comparison-model-card dd, .comparison-summary dd { min-width: 0; margin: 0; color: #203a2e; font-size: 13px; font-weight: 800; text-align: right; overflow-wrap: anywhere; }
+.comparison-summary p { margin: 15px 0 0; color: #69776f; font-size: 12px; line-height: 1.65; }
+
+@media (max-width: 720px) {
+  .comparison-results { grid-template-columns: 1fr; }
+  .comparison-image-panel { min-height: 220px; }
+  .comparison-image-panel img { height: 280px; }
+  .comparison-actions { flex-direction: column; }
+  .comparison-actions button { width: 100%; flex-basis: auto; }
+}
+
+@media (max-width: 420px) {
+  .comparison-model-card { padding: 16px; }
+  .comparison-model-card dl > div, .comparison-summary dl > div { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .comparison-model-card dd, .comparison-summary dd { text-align: left; }
 }
 
 /* Reference-matched banana leaf sign-in */
 .auth-page {
   min-height: 100dvh;
   padding: 28px 16px;
+  display: grid;
   place-items: center;
+  align-content: center;
   background-color: #f7faef;
   background-image: linear-gradient(rgba(250, 252, 244, .08), rgba(250, 252, 244, .08)), url('/assets/banana-leaf-auth-background.png');
   background-size: cover;
@@ -1062,6 +1105,7 @@ body { background: var(--page); }
 }
 .auth-page::before, .auth-page::after { display: none; }
 .role-auth-card {
+  margin: auto;
   width: min(430px, 100%);
   padding: 28px 28px 22px;
   display: block;
@@ -1177,7 +1221,7 @@ body { background: var(--page); }
 }
 
 @media (max-height: 760px) {
-  .auth-page { place-items: start center; padding-block: 14px; }
+  .auth-page { place-items: center; padding-block: 14px; }
   .auth-brand-lockup { margin-bottom: 14px; }
   .auth-brand-lockup > span { width: 46px; height: 46px; }
   .auth-form { margin-top: 18px; gap: 11px; }
