@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\DiagnosisController as AdminDiagnosisController;
 use App\Http\Controllers\Admin\DiseaseController as AdminDiseaseController;
+use App\Http\Controllers\Admin\ModelComparisonController;
 use App\Http\Controllers\Admin\ResearchSourceController;
 use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
@@ -41,6 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard', DashboardController::class);
         Route::get('/analytics', DashboardController::class);
         Route::get('/system', [SystemController::class, 'show']);
+        Route::post('/model-comparison', ModelComparisonController::class);
         Route::get('/farmers', [AdminUserController::class, 'indexFarmers']);
         Route::post('/farmers', [AdminUserController::class, 'storeFarmer']);
         Route::get('/farmers/{user}', [AdminUserController::class, 'showFarmer']);

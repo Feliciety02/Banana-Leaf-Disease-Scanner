@@ -20,3 +20,7 @@ When the Python/TFLite inference service is connected, the backend must treat up
 PNG versus WEBP is not itself a class signal because the decoder supplies pixels to the model. Accuracy can still differ when compression or capture conditions change those pixels. Preserve the original prediction, model version, inference time, uncertainty/simulation state, and image provenance needed for later review. Never silently replace an original prediction with an agricultural review decision.
 
 The five-entry `label_map.json` must travel with the deployed model. The API should not advertise real inference readiness merely because a label file exists; readiness also requires a validated model artifact, preprocessing compatibility, successful health checks, and deployment evaluation.
+
+## Research Model Comparison
+
+`POST /api/admin/model-comparison` is an administrator-only proxy for the separate baseline-versus-enhanced research runtime. It does not create a `diagnoses` row, so experimental runs never appear in farmer history. Leave `AI_COMPARISON_URL` empty until both validated TFLite models and their canonical label map are deployed behind a service that returns the documented comparison contract. The endpoint returns `503` while unconfigured rather than fabricating predictions.
