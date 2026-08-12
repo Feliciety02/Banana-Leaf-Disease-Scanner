@@ -67,6 +67,35 @@ The API is the source of truth for accounts, diseases, synchronized diagnoses, a
 
 ## Before You Start
 
+### Docker quick start
+
+The authoritative API and web client can run together with Docker Desktop. From the repository root, run:
+
+```powershell
+docker compose up --build
+```
+
+Then open `http://localhost:4173`. The API is also available directly at `http://localhost:8001/api`, including for the Expo mobile client. The first startup installs the image dependencies, creates a persistent SQLite database, runs migrations, and seeds the development accounts.
+
+Stop the stack with:
+
+```powershell
+docker compose down
+```
+
+Application data and the generated Laravel key remain in the `dahonmd_backend_data` Docker volume. To deliberately reset all Docker-managed application data, use `docker compose down --volumes`.
+
+To change the seeded development password without editing tracked files, set `DEV_USER_PASSWORD` before the first startup:
+
+```powershell
+$env:DEV_USER_PASSWORD = "choose-a-local-password"
+docker compose up --build
+```
+
+The Expo app remains a host/device development process; start it from `mobile-frontend/` as described below and point `EXPO_PUBLIC_API_URL` at port `8001` on the Docker host. The deprecated `mobile-backend/` is not included in the Compose stack.
+
+### Native development
+
 This guide uses **PowerShell on Windows**. Install these tools first:
 
 - PHP 8.2 or newer with SQLite enabled
