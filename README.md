@@ -1,6 +1,6 @@
 <div align="center">
 
-# BananaCare
+# DahonMD
 
 ### Banana Leaf Disease Detection and Field Diagnosis System
 
@@ -18,7 +18,7 @@ One backend, one source of truth, and two clients designed for connected and off
 
 ## Overview
 
-BananaCare is a monorepo for identifying banana leaf diseases, recording diagnoses, and synchronizing field observations. The React web application and Expo mobile application share one authoritative Laravel REST API, one identity system, and one central database.
+DahonMD is a monorepo for identifying banana leaf diseases, recording diagnoses, and synchronizing field observations. The React web application and Expo mobile application share one authoritative Laravel REST API, one identity system, and one central database.
 
 The mobile application also maintains a private on-device SQLite database. This allows an authenticated farmer to view local history and save pending diagnoses when a network connection is unavailable. Pending records are synchronized to the central API when connectivity returns.
 
@@ -218,17 +218,17 @@ The default mobile setting works with an Android emulator. A physical phone need
 
 ## Test Accounts
 
-The first-run command `php artisan migrate --seed` creates demonstration accounts. All seeded users use the password `BananaCare@2026`.
+The first-run command `php artisan migrate --seed` creates demonstration accounts. All seeded users use the password `DahonMD@2026`.
 
 | Email | Role |
 | --- | --- |
-| `admin@bananacare.test` | Administrator |
-| `maria.santos@bananacare.test` | Farmer |
-| `juan.delacruz@bananacare.test` | Farmer |
-| `liza.mercado@bananacare.test` | Farmer |
-| `ramon.bautista@bananacare.test` | Farmer |
-| `elena.villanueva@bananacare.test` | Farmer |
-| `daniel.flores@bananacare.test` | Farmer |
+| `admin@dahonmd.test` | Administrator |
+| `maria.santos@dahonmd.test` | Farmer |
+| `juan.delacruz@dahonmd.test` | Farmer |
+| `liza.mercado@dahonmd.test` | Farmer |
+| `ramon.bautista@dahonmd.test` | Farmer |
+| `elena.villanueva@dahonmd.test` | Farmer |
+| `daniel.flores@dahonmd.test` | Farmer |
 
 These accounts are for local development only. Change `DEV_USER_PASSWORD` in `web-backend/.env` before reseeding if your group wants a different test password. They are never seeded when `APP_ENV=production`.
 
@@ -349,6 +349,7 @@ The classifier is a screening aid, not laboratory confirmation. Model confidence
 - `disease_management`: category, technical and farmer recommendation, evidence strength, professional/referral flag, regulatory-review flag/date, and display order.
 - `research_sources`: APA-ready authorship and publication fields, DOI/URL, source type, geography, peer-review and Philippine flags, access date, and notes.
 - `disease_evidence`: disease/source mapping at claim level, claim type/text, evidence strength, and disagreement/context notes.
+- `pesticide_regulatory_checks`: separate product/crop/target registration status, expiry, FPA/regulatory source, approved-label URL, reviewer, and check date linked to a chemical management claim.
 - `diagnoses`: immutable original prediction, confidence, model version, inference time, diagnosis date, source, simulation flag, and separate optional expert-review fields.
 
 The finalized AI architecture remains unchanged: ResNet-101 teacher with BYOL, NT-Xent contrastive learning and masked image modeling; five-class fine-tuning; and a custom Coordinate Attention MobileNetV3-Small student distilled and deployed as INT8 TensorFlow Lite.

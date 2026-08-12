@@ -10,9 +10,10 @@ export type Diagnosis = {
   modelVersion: string;
   diagnosedAt: string;
   synced: boolean;
+  isSimulated: boolean;
 };
 
-export type User = { id: number; name: string; email: string; role: 'user' | 'admin' };
+export type User = { id: number; name: string; email: string; role: 'farmer' | 'admin' };
 export type Session = { user: User; token: string; apiUrl: string };
 
 export type Disease = {
@@ -23,4 +24,8 @@ export type Disease = {
   summary: string;
   symptoms: string[];
   management: string;
+  prevention: string;
+  imageOnlyLimitations: string;
+  professionalReferral: string;
+  isVerified: boolean;
 };

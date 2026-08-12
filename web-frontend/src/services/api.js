@@ -1,5 +1,5 @@
 const API_URL = import.meta.env.VITE_WEB_API_URL ?? 'http://127.0.0.1:8001/api';
-const TOKEN_KEY = 'bananacare-web-token';
+const TOKEN_KEY = 'dahonmd-web-token';
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token) => token ? localStorage.setItem(TOKEN_KEY, token) : localStorage.removeItem(TOKEN_KEY);

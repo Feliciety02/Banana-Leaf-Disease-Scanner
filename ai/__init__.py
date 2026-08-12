@@ -1,1 +1,1 @@
-"""BananaCare research, training, evaluation, and deployment package."""
+"""DahonMD research, training, evaluation, and deployment package."""

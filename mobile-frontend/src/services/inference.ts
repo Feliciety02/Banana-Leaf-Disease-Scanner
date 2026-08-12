@@ -5,10 +5,19 @@ export type InferenceResult = {
   confidence: number;
   latency: number;
   modelVersion: string;
+  isSimulated: boolean;
+  isUncertain: boolean;
 };
 
-// Swap this adapter for the final TFLite bridge without changing any screen code.
+// This safe placeholder is replaced only when the validated INT8 TFLite artifact
+// and its exact five-class label map are supplied together.
 export async function analyzeLeaf(_imageUri: string): Promise<InferenceResult> {
-  await new Promise((resolve) => setTimeout(resolve, 1400));
-  return { diseaseId: 'black-sigatoka', confidence: 94.2, latency: 84, modelVersion: 'EMV3-INT8 demo' };
+  return {
+    diseaseId: 'development-unconfigured',
+    confidence: 0,
+    latency: 0,
+    modelVersion: 'SIMULATED / DEVELOPMENT — labels pending',
+    isSimulated: true,
+    isUncertain: true,
+  };
 }

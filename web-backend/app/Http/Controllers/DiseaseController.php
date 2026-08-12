@@ -10,11 +10,16 @@ class DiseaseController extends Controller
 {
     public function index(): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => 'Disease information retrieved.', 'data' => DiseaseResource::collection(Disease::query()->orderBy('id')->get())]);
+        $diseases = Disease::query()->where('verification_status', 'verified')->where('is_verified', true)
+            ->with(['symptomRecords', 'managementRecords.regulatoryChecks'])->orderBy('id')->get();
+
+        return response()->json(['success' => true, 'message' => 'Verified disease information retrieved.', 'data' => DiseaseResource::collection($diseases)]);
     }
 
     public function show(Disease $disease): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => 'Disease information retrieved.', 'data' => new DiseaseResource($disease)]);
+        abort_unless($disease->is_verified && $disease->verification_status === 'verified', 404);
+
+        return response()->json(['success' => true, 'message' => 'Verified disease information retrieved.', 'data' => new DiseaseResource($disease->load(['symptomRecords', 'managementRecords.regulatoryChecks']))]);
     }
 }

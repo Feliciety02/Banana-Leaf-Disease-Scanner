@@ -13,17 +13,14 @@ class InferenceController extends Controller
 
         // Replace this response with the Python inference-service HTTP call.
         return response()->json(['data' => [
-            'diseaseId' => 'black-sigatoka',
-            'confidence' => 94.2,
-            'latency' => 84,
-            'model' => 'EMV3-INT8 web demo',
-            'probabilities' => [
-                ['label' => 'Black Sigatoka', 'value' => 94.2],
-                ['label' => 'Yellow Sigatoka', 'value' => 3.1],
-                ['label' => 'Healthy', 'value' => 1.4],
-                ['label' => 'Fusarium Wilt', 'value' => 0.8],
-                ['label' => 'Bunchy Top', 'value' => 0.5],
-            ],
+            'diseaseId' => 'development-unconfigured',
+            'confidence' => 0,
+            'latency' => 0,
+            'model' => 'SIMULATED / DEVELOPMENT — labels pending',
+            'probabilities' => [],
+            'is_simulated' => true,
+            'is_uncertain' => true,
+            'content_status' => 'DISEASE CONTENT PENDING — final dataset class labels have not yet been established.',
         ]]);
     }
 }

@@ -14,7 +14,7 @@ class AuthController extends Controller
 {
     public function register(RegisterRequest $request): JsonResponse
     {
-        $user = User::query()->create([...$request->validated(), 'password' => Hash::make($request->password), 'role' => 'user']);
+        $user = User::query()->create([...$request->validated(), 'password' => Hash::make($request->password), 'role' => 'farmer']);
         $token = $user->createToken($request->string('device_name', 'web')->toString())->plainTextToken;
 
         return response()->json(['success' => true, 'message' => 'Registration successful.', 'data' => ['user' => new UserResource($user), 'token' => $token]], 201);

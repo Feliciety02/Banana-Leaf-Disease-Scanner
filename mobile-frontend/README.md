@@ -1,6 +1,6 @@
-# BananaCare Field App
+# DahonMD Field App
 
-Expo React Native application for iOS and Android. Login, registration, profile/password management, secure session restoration with Expo SecureStore, camera/gallery capture, per-user SQLite history, connection status, and acknowledged queued synchronization are implemented. A previously authenticated user can continue local diagnosis and history offline. Authentication, disease data, and `/api/mobile/sync` all use the authoritative `../web-backend` API.
+Expo React Native farmer field application for iOS and Android. Login, farmer registration, profile/password management, secure session restoration with Expo SecureStore, camera/gallery preview, plain-language result states, per-farmer SQLite history, connection status, and acknowledged queued synchronization are implemented. A previously authenticated farmer can continue local screening and history offline. Authentication, disease data, and `/api/mobile/sync` all use the authoritative `../web-backend` API.
 
 ```powershell
 Copy-Item .env.example .env

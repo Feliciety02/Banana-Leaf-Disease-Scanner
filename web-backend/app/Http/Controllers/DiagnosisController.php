@@ -27,6 +27,7 @@ class DiagnosisController extends Controller
     {
         $data = $request->safe()->except('image');
         $data['user_id'] = $request->user()->id;
+        $data['is_simulated'] = config('banana.ai_mode') !== 'PRODUCTION';
         $data['image_path'] = $request->hasFile('image') ? $request->file('image')->store('diagnoses', 'public') : null;
         $data['sync_status'] = $data['source'] === 'mobile' ? 'synced' : null;
         $diagnosis = Diagnosis::query()->create($data);

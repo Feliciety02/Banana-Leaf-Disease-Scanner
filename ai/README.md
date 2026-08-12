@@ -1,4 +1,4 @@
-# BananaCare AI Pipeline
+# DahonMD AI Pipeline
 
 This folder contains Python source code only. Actual images belong in the root `datasets/` directory and generated checkpoints belong in `ai/artifacts/`; neither is committed.
 

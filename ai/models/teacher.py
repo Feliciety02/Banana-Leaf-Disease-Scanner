@@ -9,7 +9,7 @@ from ai.models.byol_heads import prediction_head, projection_head
 from ai.models.mim_head import mim_reconstruction_head
 
 
-@tf.keras.utils.register_keras_serializable(package="BananaCare")
+@tf.keras.utils.register_keras_serializable(package="DahonMD")
 class ResNet101Preprocessing(tf.keras.layers.Layer):
     """Convert shared RGB [0, 1] inputs to ResNet-101's Caffe-style input space."""
 

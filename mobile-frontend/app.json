@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "BananaCare Field",
-    "slug": "bananacare-field",
+    "name": "DahonMD Field",
+    "slug": "dahonmd-field",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "bananacare",
+    "scheme": "dahonmd",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,10 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.bananacare.field"
+      "bundleIdentifier": "com.dahonmd.field"
     },
     "android": {
-      "package": "com.bananacare.field",
+      "package": "com.dahonmd.field",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#173f35"
@@ -34,8 +34,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow BananaCare to select a banana leaf image for diagnosis.",
-          "cameraPermission": "Allow BananaCare to photograph banana leaves for diagnosis.",
+          "photosPermission": "Allow DahonMD to select a banana leaf image for diagnosis.",
+          "cameraPermission": "Allow DahonMD to photograph banana leaves for diagnosis.",
           "microphonePermission": false
         }
       ],

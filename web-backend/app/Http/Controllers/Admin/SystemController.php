@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Support\ClassLabelRegistry;
+use Illuminate\Http\JsonResponse;
+
+class SystemController extends Controller
+{
+    public function show(ClassLabelRegistry $registry): JsonResponse
+    {
+        return response()->json(['success' => true, 'message' => 'System information retrieved.', 'data' => [
+            'model' => 'Enhanced MobileNetV3-Small',
+            'attention' => 'Coordinate Attention',
+            'deployment' => 'TensorFlow Lite INT8',
+            'version' => config('banana.model_version'),
+            'input_size' => config('banana.input_size'),
+            'classes' => $registry->labels(),
+            'final_model_classes_known' => $registry->isEstablished(),
+            'disease_content_status' => $registry->isEstablished() ? 'READY FOR SOURCE-VALIDATED RESEARCH' : 'DISEASE CONTENT PENDING — final dataset class labels have not yet been established.',
+            'confidence_threshold' => (float) config('banana.confidence_threshold'),
+            'ai_mode' => config('banana.ai_mode'),
+        ]]);
+    }
+}
