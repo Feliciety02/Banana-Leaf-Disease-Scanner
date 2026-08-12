@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import { Session, User } from '../types';
 import { API_URL } from './apiConfig';
 
-const SESSION_KEY = 'bananacare.session';
+const SESSION_KEY = 'dahonmd.session';
 
 async function request(path: string, options: RequestInit = {}, token?: string) {
   const response = await fetch(`${API_URL}${path}`, {

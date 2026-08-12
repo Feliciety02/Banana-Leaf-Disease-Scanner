@@ -8,7 +8,7 @@ from ai.config.config import ExperimentConfig
 from ai.models.coordinate_attention import CoordinateAttention
 
 
-@tf.keras.utils.register_keras_serializable(package="BananaCare")
+@tf.keras.utils.register_keras_serializable(package="DahonMD")
 class HardSwish(tf.keras.layers.Layer):
     def call(self, inputs: tf.Tensor) -> tf.Tensor:
         return inputs * tf.nn.relu6(inputs + 3.0) / 6.0

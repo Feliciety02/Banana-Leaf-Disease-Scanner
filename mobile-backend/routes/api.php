@@ -7,7 +7,7 @@ use App\Http\Controllers\SyncController;
 use App\Models\Disease;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/health', fn () => response()->json(['service' => 'bananacare-mobile-api', 'status' => 'ok']));
+Route::get('/health', fn () => response()->json(['service' => 'dahonmd-mobile-api', 'status' => 'ok']));
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::get('/diseases', fn () => response()->json(['success' => true, 'message' => 'Disease information retrieved.', 'data' => Disease::query()->orderBy('id')->get()]));

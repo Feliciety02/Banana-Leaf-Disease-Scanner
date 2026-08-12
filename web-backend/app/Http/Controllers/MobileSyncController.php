@@ -36,7 +36,7 @@ class MobileSyncController extends Controller
             }
 
             $disease = Disease::query()->where('slug', $data['predicted_class'])->first();
-            Diagnosis::query()->create([...$data, 'user_id' => $request->user()->id, 'disease_id' => $disease?->id, 'source' => 'mobile', 'sync_status' => 'synced']);
+            Diagnosis::query()->create([...$data, 'user_id' => $request->user()->id, 'disease_id' => $disease?->id, 'source' => 'mobile', 'is_simulated' => config('banana.ai_mode') !== 'PRODUCTION', 'sync_status' => 'synced']);
             $results[] = ['sync_uuid' => $data['sync_uuid'], 'status' => 'created'];
         }
 

@@ -14,7 +14,7 @@ class AuthController extends Controller
     public function register(Request $request): JsonResponse
     {
         $data = $request->validate(['name' => ['required', 'string', 'max:255'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'password' => ['required', 'confirmed', Password::min(8)]]);
-        $user = User::query()->create([...$data, 'password' => Hash::make($data['password']), 'role' => 'user']);
+        $user = User::query()->create([...$data, 'password' => Hash::make($data['password']), 'role' => 'farmer']);
 
         return response()->json(['success' => true, 'message' => 'Registration successful.', 'data' => ['user' => new UserResource($user), 'token' => $user->createToken('mobile')->plainTextToken]], 201);
     }

@@ -5,7 +5,7 @@ from __future__ import annotations
 import tensorflow as tf
 
 
-@tf.keras.utils.register_keras_serializable(package="BananaCare")
+@tf.keras.utils.register_keras_serializable(package="DahonMD")
 class CoordinateAttention(tf.keras.layers.Layer):
     """Encode long-range spatial context separately along height and width."""
 

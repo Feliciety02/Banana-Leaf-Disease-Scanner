@@ -13,6 +13,12 @@ class AuthenticationCrudTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['banana.label_map_path' => base_path('tests/fixtures/label_map.json')]);
+    }
+
     private function disease(array $overrides = []): Disease
     {
         return Disease::query()->create([...[
@@ -33,8 +39,8 @@ class AuthenticationCrudTest extends TestCase
     public function test_registration_login_duplicate_credentials_and_logout(): void
     {
         $this->getJson('/api/profile')->assertUnauthorized();
-        $payload = ['name' => 'Field User', 'email' => 'field@example.test', 'password' => 'secret123', 'password_confirmation' => 'secret123'];
-        $response = $this->postJson('/api/auth/register', $payload)->assertCreated()->assertJsonPath('data.user.role', 'user');
+        $payload = ['name' => 'Field Farmer', 'email' => 'field@example.test', 'password' => 'secret123', 'password_confirmation' => 'secret123', 'role' => 'admin'];
+        $response = $this->postJson('/api/auth/register', $payload)->assertCreated()->assertJsonPath('data.user.role', 'farmer');
         $this->postJson('/api/auth/register', $payload)->assertUnprocessable()->assertJsonPath('success', false);
         $this->postJson('/api/auth/login', ['email' => $payload['email'], 'password' => 'wrong-password'])->assertUnprocessable();
         $login = $this->postJson('/api/auth/login', ['email' => $payload['email'], 'password' => $payload['password']])->assertOk();
@@ -53,7 +59,7 @@ class AuthenticationCrudTest extends TestCase
         $this->putJson('/api/profile/password', ['current_password' => 'secret123', 'password' => 'changed123', 'password_confirmation' => 'changed123'])->assertOk();
     }
 
-    public function test_users_only_access_and_delete_their_own_diagnoses(): void
+    public function test_farmers_only_access_and_delete_their_own_diagnoses(): void
     {
         $owner = User::factory()->create();
         $other = User::factory()->create();
@@ -67,7 +73,7 @@ class AuthenticationCrudTest extends TestCase
         $this->deleteJson("/api/diagnoses/{$own->id}")->assertNoContent();
     }
 
-    public function test_user_can_create_diagnosis_without_trusting_client_user_id(): void
+    public function test_farmer_can_create_diagnosis_without_trusting_client_user_id(): void
     {
         $user = User::factory()->create();
         $other = User::factory()->create();
@@ -93,6 +99,43 @@ class AuthenticationCrudTest extends TestCase
         $this->deleteJson("/api/admin/users/{$admin->id}")->assertUnprocessable();
     }
 
+    public function test_farmer_management_is_scoped_and_admin_role_escalation_is_blocked(): void
+    {
+        $farmer = User::factory()->farmer()->create();
+        Sanctum::actingAs($farmer);
+        $this->getJson('/api/admin/farmers')->assertForbidden();
+        $this->postJson('/api/admin/users', [
+            'name' => 'Escalated', 'email' => 'escalated@example.test', 'role' => 'admin',
+            'password' => 'secret123', 'password_confirmation' => 'secret123',
+        ])->assertForbidden();
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $created = $this->postJson('/api/admin/farmers', [
+            'name' => 'New Farmer', 'email' => 'new-farmer@example.test', 'role' => 'admin',
+            'password' => 'secret123', 'password_confirmation' => 'secret123',
+        ])->assertCreated()->assertJsonPath('data.role', 'farmer');
+        $this->getJson('/api/admin/farmers')->assertOk()->assertJsonPath('data.items.0.role', 'farmer');
+        $this->putJson('/api/admin/farmers/'.$created->json('data.id'), [
+            'name' => 'Updated Farmer', 'role' => 'admin',
+        ])->assertOk()->assertJsonPath('data.role', 'farmer');
+    }
+
+    public function test_admin_dashboard_and_system_information_use_persisted_and_configured_values(): void
+    {
+        User::factory()->farmer()->count(2)->create();
+        $admin = User::factory()->admin()->create();
+        $this->diagnosis(User::factory()->farmer()->create(), ['confidence' => 65]);
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/admin/dashboard')->assertOk()
+            ->assertJsonPath('data.total_farmers', 3)
+            ->assertJsonPath('data.total_diagnoses', 1)
+            ->assertJsonPath('data.uncertain_predictions', 1);
+        $this->getJson('/api/admin/system')->assertOk()
+            ->assertJsonPath('data.ai_mode', 'SIMULATED / DEVELOPMENT')
+            ->assertJsonPath('data.model', 'Enhanced MobileNetV3-Small');
+    }
+
     public function test_disease_information_permissions(): void
     {
         $disease = $this->disease();
@@ -103,16 +146,28 @@ class AuthenticationCrudTest extends TestCase
 
         Sanctum::actingAs(User::factory()->admin()->create());
         $created = $this->postJson('/api/admin/diseases', [
-            'slug' => 'placeholder-two', 'name' => 'Placeholder two', 'description' => 'Pending label map.',
-            'symptoms' => ['Pending'], 'management' => 'Pending research validation.',
+            'slug' => 'fixture-class-1', 'model_class_key' => 'fixture-class-1', 'name' => 'Fixture class one',
+            'curative_status' => 'unclear_evidence', 'evidence_level' => 'limited',
         ])->assertCreated();
         $id = $created->json('data.id');
         $this->putJson("/api/admin/diseases/{$id}", [
-            'slug' => 'placeholder-two', 'name' => 'Updated placeholder', 'description' => 'Pending label map.',
-            'symptoms' => ['Pending'], 'management' => 'Pending research validation.',
+            'slug' => 'fixture-class-1', 'model_class_key' => 'fixture-class-1', 'name' => 'Updated fixture',
+            'curative_status' => 'unclear_evidence', 'evidence_level' => 'limited',
         ])->assertOk();
-        $this->deleteJson("/api/admin/diseases/{$id}")->assertNoContent();
+        $this->deleteJson("/api/admin/diseases/{$id}")->assertOk()->assertJsonPath('message', 'Disease knowledge record archived.');
         $this->assertDatabaseHas('diseases', ['id' => $disease->id]);
+        $this->assertDatabaseHas('diseases', ['id' => $id, 'verification_status' => 'archived']);
+    }
+
+    public function test_disease_content_is_blocked_when_final_label_map_is_missing(): void
+    {
+        config(['banana.label_map_path' => base_path('tests/fixtures/missing.json')]);
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->postJson('/api/admin/diseases', [
+            'slug' => 'invented', 'model_class_key' => 'invented', 'name' => 'Invented',
+            'curative_status' => 'unclear_evidence', 'evidence_level' => 'limited',
+        ])->assertUnprocessable()->assertJsonValidationErrors('model_class_key');
     }
 
     public function test_mobile_sync_uuid_is_idempotent(): void
