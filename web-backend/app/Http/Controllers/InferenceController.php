@@ -16,11 +16,11 @@ class InferenceController extends Controller
             'diseaseId' => 'development-unconfigured',
             'confidence' => 0,
             'latency' => 0,
-            'model' => 'SIMULATED / DEVELOPMENT — labels pending',
+            'model' => 'SIMULATED / DEVELOPMENT — trained model pending',
             'probabilities' => [],
             'is_simulated' => true,
             'is_uncertain' => true,
-            'content_status' => 'DISEASE CONTENT PENDING — final dataset class labels have not yet been established.',
+            'content_status' => 'DISEASE CONTENT PENDING — a validated trained-model label map is not yet available.',
         ]]);
     }
 }

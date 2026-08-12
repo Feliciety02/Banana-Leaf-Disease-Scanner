@@ -18,7 +18,7 @@ class SystemController extends Controller
             'input_size' => config('banana.input_size'),
             'classes' => $registry->labels(),
             'final_model_classes_known' => $registry->isEstablished(),
-            'disease_content_status' => $registry->isEstablished() ? 'READY FOR SOURCE-VALIDATED RESEARCH' : 'DISEASE CONTENT PENDING — final dataset class labels have not yet been established.',
+            'disease_content_status' => $registry->isEstablished() ? 'READY FOR SOURCE-VALIDATED RESEARCH' : 'DISEASE CONTENT PENDING — a validated trained-model label map is not yet available.',
             'confidence_threshold' => (float) config('banana.confidence_threshold'),
             'ai_mode' => config('banana.ai_mode'),
         ]]);

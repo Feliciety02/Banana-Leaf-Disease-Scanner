@@ -30,6 +30,13 @@ class UserController extends Controller
         return $this->index($request);
     }
 
+    public function indexExperts(Request $request): JsonResponse
+    {
+        $request->merge(['role' => 'agricultural_expert']);
+
+        return $this->index($request);
+    }
+
     public function show(User $user): JsonResponse
     {
         return response()->json(['success' => true, 'message' => 'Account retrieved.', 'data' => new UserResource($user->loadCount('diagnoses')->loadMax('diagnoses', 'diagnosed_at'))]);
@@ -56,6 +63,14 @@ class UserController extends Controller
         $data['password'] = Hash::make($data['password']);
 
         return response()->json(['success' => true, 'message' => 'Farmer created.', 'data' => new UserResource(User::query()->create($data))], 201);
+    }
+
+    public function storeExpert(StoreUserRequest $request): JsonResponse
+    {
+        $data = [...$request->validated(), 'role' => 'agricultural_expert'];
+        $data['password'] = Hash::make($data['password']);
+
+        return response()->json(['success' => true, 'message' => 'Agricultural reviewer created.', 'data' => new UserResource(User::query()->create($data))], 201);
     }
 
     public function update(UpdateUserRequest $request, User $user): JsonResponse
@@ -88,9 +103,30 @@ class UserController extends Controller
         return response()->json(['success' => true, 'message' => 'Farmer updated.', 'data' => new UserResource($user->fresh())]);
     }
 
+    public function updateExpert(UpdateUserRequest $request, User $user): JsonResponse
+    {
+        abort_unless($user->isAgriculturalExpert(), 404);
+        $data = [...$request->validated(), 'role' => 'agricultural_expert'];
+        if (empty($data['password'])) {
+            unset($data['password']);
+        } else {
+            $data['password'] = Hash::make($data['password']);
+        }
+        $user->update($data);
+
+        return response()->json(['success' => true, 'message' => 'Agricultural reviewer updated.', 'data' => new UserResource($user->fresh())]);
+    }
+
     public function destroyFarmer(Request $request, User $user): JsonResponse
     {
         abort_unless($user->isFarmer(), 404);
+
+        return $this->destroy($request, $user);
+    }
+
+    public function destroyExpert(Request $request, User $user): JsonResponse
+    {
+        abort_unless($user->isAgriculturalExpert(), 404);
 
         return $this->destroy($request, $user);
     }

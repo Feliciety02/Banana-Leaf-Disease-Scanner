@@ -32,9 +32,9 @@ export async function restoreSession(): Promise<Session | null> {
   catch { return null; }
 }
 
-export async function authenticate(mode: 'login' | 'register', fields: Record<string, string>): Promise<Session> {
+export async function authenticate(mode: 'login' | 'register', fields: Record<string, string>, remember = true): Promise<Session> {
   const payload = await request(`/auth/${mode}`, { method: 'POST', body: JSON.stringify(fields) });
-  const session = { ...(payload.data as Omit<Session, 'apiUrl'>), apiUrl: API_URL }; await persist(session); return session;
+  const session = { ...(payload.data as Omit<Session, 'apiUrl'>), apiUrl: API_URL }; if (remember) await persist(session); return session;
 }
 
 export async function updateProfile(session: Session, fields: Pick<User, 'name' | 'email'>): Promise<Session> {

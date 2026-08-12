@@ -19,13 +19,24 @@ class DevelopmentUserSeeder extends Seeder
         $password = env('DEV_USER_PASSWORD', 'DahonMD@2026');
         $users = [
             ['name' => 'DahonMD Administrator', 'email' => 'admin@dahonmd.test', 'role' => 'admin'],
+            ['name' => 'Dr. Ana Reyes', 'email' => 'reviewer@dahonmd.test', 'role' => 'agricultural_expert'],
             ['name' => 'Maria Santos', 'email' => 'maria.santos@dahonmd.test', 'role' => 'farmer'],
-            ['name' => 'Juan Dela Cruz', 'email' => 'juan.delacruz@dahonmd.test', 'role' => 'farmer'],
-            ['name' => 'Liza Mercado', 'email' => 'liza.mercado@dahonmd.test', 'role' => 'farmer'],
-            ['name' => 'Ramon Bautista', 'email' => 'ramon.bautista@dahonmd.test', 'role' => 'farmer'],
-            ['name' => 'Elena Villanueva', 'email' => 'elena.villanueva@dahonmd.test', 'role' => 'farmer'],
-            ['name' => 'Daniel Flores', 'email' => 'daniel.flores@dahonmd.test', 'role' => 'farmer'],
         ];
+
+        User::query()->whereIn('email', [
+            'admin@bananacare.test',
+            'maria.santos@bananacare.test',
+            'juan.delacruz@bananacare.test',
+            'liza.mercado@bananacare.test',
+            'ramon.bautista@bananacare.test',
+            'elena.villanueva@bananacare.test',
+            'daniel.flores@bananacare.test',
+            'juan.delacruz@dahonmd.test',
+            'liza.mercado@dahonmd.test',
+            'ramon.bautista@dahonmd.test',
+            'elena.villanueva@dahonmd.test',
+            'daniel.flores@dahonmd.test',
+        ])->delete();
 
         foreach ($users as $user) {
             User::query()->updateOrCreate(

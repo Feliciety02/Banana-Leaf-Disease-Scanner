@@ -16,7 +16,7 @@ export async function analyzeLeaf(_imageUri: string): Promise<InferenceResult> {
     diseaseId: 'development-unconfigured',
     confidence: 0,
     latency: 0,
-    modelVersion: 'SIMULATED / DEVELOPMENT — labels pending',
+    modelVersion: 'SIMULATED / DEVELOPMENT — trained model pending',
     isSimulated: true,
     isUncertain: true,
   };

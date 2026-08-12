@@ -55,6 +55,16 @@ class User extends Authenticatable
         return $this->hasMany(Diagnosis::class);
     }
 
+    public function diagnosisReviews(): HasMany
+    {
+        return $this->hasMany(DiagnosisReview::class, 'expert_id');
+    }
+
+    public function diseaseVerifications(): HasMany
+    {
+        return $this->hasMany(DiseaseVerification::class, 'expert_id');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
@@ -63,5 +73,10 @@ class User extends Authenticatable
     public function isFarmer(): bool
     {
         return $this->role === 'farmer';
+    }
+
+    public function isAgriculturalExpert(): bool
+    {
+        return $this->role === 'agricultural_expert';
     }
 }

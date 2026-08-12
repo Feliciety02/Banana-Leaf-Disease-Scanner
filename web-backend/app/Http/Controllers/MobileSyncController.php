@@ -19,7 +19,7 @@ class MobileSyncController extends Controller
             $validator = Validator::make($item, [
                 'sync_uuid' => ['required', 'uuid'], 'predicted_class' => ['required', 'string', 'max:100'],
                 'confidence' => ['required', 'numeric', 'between:0,100'], 'model_version' => ['nullable', 'string', 'max:100'],
-                'inference_time_ms' => ['nullable', 'integer', 'min:0'], 'diagnosed_at' => ['required', 'date'],
+                'inference_time_ms' => ['nullable', 'integer', 'min:0'], 'farmer_notes' => ['nullable', 'string', 'max:1000'], 'diagnosed_at' => ['required', 'date'],
             ]);
             if ($validator->fails()) {
                 $results[] = ['sync_uuid' => $item['sync_uuid'] ?? null, 'status' => 'rejected', 'errors' => $validator->errors()];

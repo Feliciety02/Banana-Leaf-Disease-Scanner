@@ -14,6 +14,7 @@ class StoreDiagnosisRequest extends ApiRequest
             'predicted_class' => ['required', 'string', 'max:100'],
             'confidence' => ['required', 'numeric', 'between:0,100'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'farmer_notes' => ['nullable', 'string', 'max:1000'],
             'model_version' => ['nullable', 'string', 'max:100'],
             'inference_time_ms' => ['nullable', 'integer', 'min:0'],
             'source' => ['required', Rule::in(['web', 'mobile'])],

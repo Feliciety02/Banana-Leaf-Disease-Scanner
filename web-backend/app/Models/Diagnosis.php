@@ -5,20 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Diagnosis extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'disease_id', 'predicted_class', 'confidence', 'image_path', 'gradcam_path',
+        'user_id', 'disease_id', 'predicted_class', 'confidence', 'image_path', 'gradcam_path', 'farmer_notes',
         'model_version', 'inference_time_ms', 'source', 'is_simulated', 'sync_uuid', 'sync_status', 'diagnosed_at',
-        'expert_review_status', 'expert_verified_label', 'expert_notes', 'expert_id', 'expert_reviewed_at',
     ];
 
     protected function casts(): array
     {
-        return ['confidence' => 'float', 'inference_time_ms' => 'integer', 'is_simulated' => 'boolean', 'diagnosed_at' => 'datetime', 'expert_reviewed_at' => 'datetime'];
+        return ['confidence' => 'float', 'inference_time_ms' => 'integer', 'is_simulated' => 'boolean', 'diagnosed_at' => 'datetime'];
     }
 
     protected static function booted(): void
@@ -39,5 +39,15 @@ class Diagnosis extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function review(): HasOne
+    {
+        return $this->hasOne(DiagnosisReview::class);
+    }
+
+    public function datasetCandidate(): HasOne
+    {
+        return $this->hasOne(DatasetCandidate::class);
     }
 }

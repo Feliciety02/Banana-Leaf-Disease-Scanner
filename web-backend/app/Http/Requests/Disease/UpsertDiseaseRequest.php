@@ -38,7 +38,7 @@ class UpsertDiseaseRequest extends ApiRequest
         return [function (Validator $validator) {
             $registry = app(ClassLabelRegistry::class);
             if (! $registry->isEstablished()) {
-                $validator->errors()->add('model_class_key', 'DISEASE CONTENT PENDING — final dataset class labels have not yet been established.');
+                $validator->errors()->add('model_class_key', 'DISEASE CONTENT PENDING — a validated trained-model label map is not yet available.');
 
                 return;
             }

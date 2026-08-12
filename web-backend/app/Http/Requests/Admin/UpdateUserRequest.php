@@ -15,7 +15,7 @@ class UpdateUserRequest extends ApiRequest
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users')->ignore($id)],
-            'role' => ['sometimes', 'required', Rule::in(['farmer', 'admin'])],
+            'role' => ['sometimes', 'required', Rule::in(['farmer', 'agricultural_expert', 'admin'])],
             'password' => ['nullable', 'confirmed', Password::min(8)],
         ];
     }

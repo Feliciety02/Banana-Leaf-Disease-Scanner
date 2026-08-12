@@ -53,4 +53,9 @@ class UserFactory extends Factory
     {
         return $this->state(fn () => ['role' => 'farmer']);
     }
+
+    public function agriculturalExpert(): static
+    {
+        return $this->state(fn () => ['role' => 'agricultural_expert']);
+    }
 }
