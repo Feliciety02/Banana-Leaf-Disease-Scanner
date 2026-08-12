@@ -1,0 +1,48 @@
+name: dahonmd
+
+services:
+  api:
+    build:
+      context: ./web-backend
+    environment:
+      APP_NAME: DahonMD
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8001
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /var/www/html/.docker-data/database.sqlite
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      WEB_FRONTEND_ORIGINS: http://localhost:4173,http://127.0.0.1:4173
+      DEV_USER_PASSWORD: ${DEV_USER_PASSWORD:-DahonMD@2026}
+    init: true
+    ports:
+      - "8001:8001"
+    volumes:
+      - backend_data:/var/www/html/.docker-data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8001/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web-frontend
+      args:
+        VITE_WEB_API_URL: /api
+        VITE_CONFIDENCE_THRESHOLD: ${VITE_CONFIDENCE_THRESHOLD:-70}
+    depends_on:
+      api:
+        condition: service_healthy
+    init: true
+    ports:
+      - "4173:80"
+    restart: unless-stopped
+
+volumes:
+  backend_data:
