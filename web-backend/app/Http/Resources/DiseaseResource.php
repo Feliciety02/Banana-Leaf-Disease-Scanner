@@ -10,7 +10,8 @@ class DiseaseResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        $isAdminView = $request->user()?->isAdmin() && $request->is('api/admin/*');
+        $isAdminView = ($request->user()?->isAdmin() && $request->is('api/admin/*'))
+            || ($request->user()?->isAgriculturalExpert() && $request->is('api/expert/*'));
         $managementItems = collect();
         if ($this->relationLoaded('managementRecords')) {
             $managementItems = $isAdminView ? $this->managementRecords : $this->managementRecords->filter(function ($item) {
@@ -41,6 +42,7 @@ class DiseaseResource extends JsonResource
             'management_items' => $this->whenLoaded('managementRecords', fn () => $managementItems),
             'management' => $farmerManagement ?: $this->management, 'prevention' => $farmerPrevention ?: $this->prevention,
             'sources_count' => $this->whenCounted('evidence'),
+            'verifications' => $this->whenLoaded('verifications'),
             'image_url' => $this->image_path ? Storage::disk('public')->url($this->image_path) : null,
         ];
     }

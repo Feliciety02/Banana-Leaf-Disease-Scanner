@@ -13,7 +13,7 @@ class DiagnosisController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Diagnosis::query()->with(['user', 'disease'])->latest('diagnosed_at');
+        $query = Diagnosis::query()->with(['user', 'disease', 'review.expert'])->latest('diagnosed_at');
         $query->when($request->filled('user'), fn ($q) => $q->where('user_id', $request->integer('user')))
             ->when($request->filled('class'), fn ($q) => $q->where('predicted_class', $request->string('class')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('diagnosed_at', '>=', $request->date('date_from')))
@@ -28,7 +28,7 @@ class DiagnosisController extends Controller
 
     public function show(Diagnosis $diagnosis): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => 'Diagnosis retrieved.', 'data' => new DiagnosisResource($diagnosis->load(['user', 'disease']))]);
+        return response()->json(['success' => true, 'message' => 'Diagnosis retrieved.', 'data' => new DiagnosisResource($diagnosis->load(['user', 'disease', 'review.expert']))]);
     }
 
     public function destroy(Diagnosis $diagnosis): JsonResponse

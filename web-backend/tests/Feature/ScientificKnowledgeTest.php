@@ -55,9 +55,13 @@ class ScientificKnowledgeTest extends TestCase
         }
 
         $this->putJson("/api/admin/diseases/{$disease['id']}/status", ['status' => 'verified'])
-            ->assertOk()->assertJsonPath('data.is_verified', true);
+            ->assertUnprocessable();
+        Sanctum::actingAs(User::factory()->agriculturalExpert()->create());
+        $this->postJson("/api/expert/diseases/{$disease['id']}/verification", ['status' => 'verified', 'notes' => 'Evidence and farmer guidance reviewed.'])
+            ->assertCreated()->assertJsonPath('data.disease.is_verified', true);
         $this->getJson('/api/diseases')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'Test fixture disease');
 
+        Sanctum::actingAs(User::factory()->admin()->create());
         $this->putJson("/api/admin/diseases/{$disease['id']}", [
             'slug' => 'fixture-class-0', 'model_class_key' => 'fixture-class-0', 'name' => 'Edited test fixture disease',
             'causal_agent' => 'Test fixture organism', 'pathogen_type' => 'other',

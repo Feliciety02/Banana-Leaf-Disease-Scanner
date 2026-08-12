@@ -50,4 +50,9 @@ class Disease extends Model
     {
         return $this->belongsTo(User::class, 'verified_by');
     }
+
+    public function verifications(): HasMany
+    {
+        return $this->hasMany(DiseaseVerification::class)->latest();
+    }
 }

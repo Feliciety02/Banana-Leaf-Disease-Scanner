@@ -9,6 +9,11 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiagnosisController;
 use App\Http\Controllers\DiseaseController;
+use App\Http\Controllers\Expert\DashboardController as ExpertDashboardController;
+use App\Http\Controllers\Expert\DatasetCandidateController;
+use App\Http\Controllers\Expert\DiagnosisReviewController;
+use App\Http\Controllers\Expert\DiseaseVerificationController;
+use App\Http\Controllers\Expert\ResearchSourceController as ExpertResearchSourceController;
 use App\Http\Controllers\InferenceController;
 use App\Http\Controllers\MobileSyncController;
 use App\Http\Controllers\ProfileController;
@@ -27,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile/password', [ProfileController::class, 'password']);
     Route::delete('/profile', [ProfileController::class, 'destroy']);
     Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
+    Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview']);
     Route::post('/inference', InferenceController::class);
     Route::post('/mobile/sync', MobileSyncController::class);
 
@@ -40,6 +46,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/farmers/{user}', [AdminUserController::class, 'showFarmer']);
         Route::match(['put', 'patch'], '/farmers/{user}', [AdminUserController::class, 'updateFarmer']);
         Route::delete('/farmers/{user}', [AdminUserController::class, 'destroyFarmer']);
+        Route::get('/experts', [AdminUserController::class, 'indexExperts']);
+        Route::post('/experts', [AdminUserController::class, 'storeExpert']);
+        Route::match(['put', 'patch'], '/experts/{user}', [AdminUserController::class, 'updateExpert']);
+        Route::delete('/experts/{user}', [AdminUserController::class, 'destroyExpert']);
         Route::apiResource('users', AdminUserController::class)->except(['edit', 'create']);
         Route::apiResource('diseases', AdminDiseaseController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
         Route::put('/diseases/{disease}/status', [AdminDiseaseController::class, 'setStatus']);
@@ -52,5 +62,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/diseases/{disease}/evidence/{evidence}', [AdminDiseaseController::class, 'destroyEvidence']);
         Route::apiResource('research-sources', ResearchSourceController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::apiResource('diagnoses', AdminDiagnosisController::class)->only(['index', 'show', 'destroy']);
+    });
+
+    Route::prefix('expert')->middleware('agricultural_expert')->group(function () {
+        Route::get('/dashboard', ExpertDashboardController::class);
+        Route::get('/diagnosis-reviews', [DiagnosisReviewController::class, 'index']);
+        Route::get('/diagnosis-reviews/{diagnosis}', [DiagnosisReviewController::class, 'show']);
+        Route::put('/diagnosis-reviews/{diagnosis}', [DiagnosisReviewController::class, 'update']);
+        Route::get('/diseases', [DiseaseVerificationController::class, 'index']);
+        Route::get('/diseases/{disease}', [DiseaseVerificationController::class, 'show']);
+        Route::post('/diseases/{disease}/verification', [DiseaseVerificationController::class, 'store']);
+        Route::get('/research-sources', [ExpertResearchSourceController::class, 'index']);
+        Route::get('/dataset-candidates', [DatasetCandidateController::class, 'index']);
+        Route::post('/dataset-candidates/from-diagnosis/{diagnosis}', [DatasetCandidateController::class, 'store']);
+        Route::put('/dataset-candidates/{candidate}', [DatasetCandidateController::class, 'update']);
     });
 });

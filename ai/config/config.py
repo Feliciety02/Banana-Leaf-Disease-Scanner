@@ -17,6 +17,8 @@ from typing import Any, Dict, Optional
 import numpy as np
 from dotenv import load_dotenv
 
+from ai.config.labels import CLASS_LABELS
+
 
 AI_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(AI_ROOT / ".env")
@@ -39,6 +41,8 @@ class DataConfig:
     image_height: int = 224
     image_width: int = 224
     num_classes: int = 5
+    # Fixed model output-index order. Dataset directory names must match these keys.
+    class_names: tuple[str, ...] = CLASS_LABELS
     train_fraction: float = 0.70
     validation_fraction: float = 0.15
     test_fraction: float = 0.15
@@ -138,8 +142,13 @@ class ExperimentConfig:
         )
         if any(x <= 0 for x in fractions) or not np.isclose(sum(fractions), 1.0):
             raise ValueError("train/validation/test fractions must be positive and sum to 1.0")
-        if self.data.num_classes != 5:
-            raise ValueError("This thesis pipeline requires exactly five classes")
+        if self.data.num_classes != len(CLASS_LABELS):
+            raise ValueError(f"This thesis pipeline requires exactly {len(CLASS_LABELS)} classes")
+        if tuple(self.data.class_names) != CLASS_LABELS:
+            raise ValueError(
+                "data.class_names and their output-index order are fixed to "
+                f"{list(CLASS_LABELS)}"
+            )
         if self.teacher.backbone != "ResNet101":
             raise ValueError("The finalized thesis teacher architecture is fixed to ResNet101")
         if self.teacher.feature_dim != 2048:

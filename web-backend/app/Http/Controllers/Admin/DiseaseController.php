@@ -31,7 +31,7 @@ class DiseaseController extends Controller
 
     public function show(Disease $disease): JsonResponse
     {
-        $disease->load(['symptomRecords', 'managementRecords.regulatoryChecks.source', 'evidence.source', 'verifier'])->loadCount(['evidence as sources_count' => fn ($query) => $query->select(DB::raw('count(distinct source_id)'))]);
+        $disease->load(['symptomRecords', 'managementRecords.regulatoryChecks.source', 'evidence.source', 'verifier', 'verifications.expert:id,name'])->loadCount(['evidence as sources_count' => fn ($query) => $query->select(DB::raw('count(distinct source_id)'))]);
 
         return response()->json(['success' => true, 'message' => 'Disease knowledge record retrieved.', 'data' => [
             'disease' => new DiseaseResource($disease),
@@ -70,13 +70,8 @@ class DiseaseController extends Controller
 
     public function setStatus(Request $request, Disease $disease): JsonResponse
     {
-        $status = $request->validate(['status' => ['required', Rule::in(['draft', 'researched', 'verified', 'archived'])]])['status'];
-        if ($status === 'verified') {
-            $this->validateForVerification($disease);
-            $disease->update(['verification_status' => 'verified', 'is_verified' => true, 'verified_at' => now(), 'verified_by' => $request->user()->id, 'last_reviewed_at' => now()]);
-        } else {
-            $disease->update(['verification_status' => $status, 'is_verified' => false, 'verified_at' => null, 'verified_by' => null]);
-        }
+        $status = $request->validate(['status' => ['required', Rule::in(['draft', 'researched', 'archived'])]])['status'];
+        $disease->update(['verification_status' => $status, 'is_verified' => false, 'verified_at' => null, 'verified_by' => null]);
 
         return response()->json(['success' => true, 'message' => 'Verification status updated.', 'data' => new DiseaseResource($disease->fresh())]);
     }
@@ -198,38 +193,6 @@ class DiseaseController extends Controller
     {
         if ($disease->is_verified) {
             $disease->update(['verification_status' => 'researched', 'is_verified' => false, 'verified_at' => null, 'verified_by' => null]);
-        }
-    }
-
-    private function validateForVerification(Disease $disease): void
-    {
-        $disease->load(['evidence.source', 'symptomRecords', 'managementRecords.regulatoryChecks']);
-        $sources = $disease->evidence->pluck('source')->filter()->unique('id');
-        $errors = [];
-        if ($sources->where('peer_reviewed', true)->count() < 2) {
-            $errors['sources'][] = 'At least two peer-reviewed sources are required.';
-        }
-        $authoritative = ['government_guideline', 'FAO_guideline', 'university_extension', 'regulatory_document', 'research_institute'];
-        if (! $sources->contains(fn ($source) => in_array($source->source_type, $authoritative, true))) {
-            $errors['sources'][] = 'At least one authoritative agricultural or institutional source is required.';
-        }
-        $isHealthyClass = str_contains(strtolower($disease->model_class_key.' '.$disease->name), 'healthy');
-        foreach ($isHealthyClass ? [] : ['causal_agent', 'curative_status'] as $claimType) {
-            if (! $disease->evidence->contains('claim_type', $claimType)) {
-                $errors['evidence'][] = "A {$claimType} claim mapping is required.";
-            }
-        }
-        if ($disease->symptomRecords->isNotEmpty() && ! $disease->evidence->contains('claim_type', 'symptom')) {
-            $errors['evidence'][] = 'Symptom content requires a symptom evidence mapping.';
-        }
-        if ($disease->managementRecords->isNotEmpty() && ! $disease->evidence->contains(fn ($item) => in_array($item->claim_type, ['management', 'prevention', 'chemical_management'], true))) {
-            $errors['evidence'][] = 'Management content requires a management evidence mapping.';
-        }
-        if ($disease->managementRecords->contains(fn ($item) => $item->category === 'chemical' && ! $item->regulatoryChecks->contains(fn ($check) => $check->registration_status === 'registered' && $check->checked_at->gte(now()->subMonths(config('banana.regulatory_review_months'))) && (! $check->registration_expires_at || $check->registration_expires_at->isFuture())))) {
-            $errors['regulatory'][] = 'REGULATORY RE-CHECK REQUIRED for chemical guidance.';
-        }
-        if ($errors) {
-            throw ValidationException::withMessages($errors);
         }
     }
 }

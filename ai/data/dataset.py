@@ -130,16 +130,28 @@ def _class_directories(root: Path) -> dict[str, Path]:
     return {path.name: path for path in sorted(root.iterdir()) if path.is_dir() and not path.name.startswith(".")}
 
 
+def _validate_class_directories(
+    directories: dict[str, Path], expected_names: Sequence[str], location: Path
+) -> list[str]:
+    expected = list(expected_names)
+    actual = set(directories)
+    expected_set = set(expected)
+    if actual != expected_set:
+        missing = sorted(expected_set - actual)
+        unexpected = sorted(actual - expected_set)
+        raise ValueError(
+            f"Dataset classes at {location} do not match the fixed five-class contract. "
+            f"Missing: {missing or 'none'}; unexpected: {unexpected or 'none'}; "
+            f"expected output order: {expected}"
+        )
+    return expected
+
+
 def _split_unsplit_dataset(
     root: Path, config: ExperimentConfig, group_map: dict[str, str] | None
 ) -> DatasetSplits:
     classes = _class_directories(root)
-    if len(classes) != config.data.num_classes:
-        raise ValueError(
-            f"Expected exactly {config.data.num_classes} class directories directly under {root}, "
-            f"found {len(classes)}: {sorted(classes)}"
-        )
-    class_names = sorted(classes)
+    class_names = _validate_class_directories(classes, config.data.class_names, root)
     records = _records_for_classes(classes, class_names, config, root, group_map)
     _validate_hash_labels(records)
 
@@ -183,15 +195,13 @@ def _load_presplit_dataset(
     split_dirs = {"train": root / "train", "validation": root / validation_name, "test": root / "test"}
     if not all(path.is_dir() for path in split_dirs.values()):
         return None
-    class_sets = [set(_class_directories(path)) for path in split_dirs.values()]
-    if any(classes != class_sets[0] for classes in class_sets[1:]):
-        raise ValueError("Pre-split train, validation/val, and test directories must contain identical class names")
-    class_names = sorted(class_sets[0])
-    if len(class_names) != config.data.num_classes:
-        raise ValueError(f"Expected exactly {config.data.num_classes} classes, found {len(class_names)}")
+    directories_by_split = {name: _class_directories(path) for name, path in split_dirs.items()}
+    class_names = list(config.data.class_names)
+    for split_name, directories in directories_by_split.items():
+        _validate_class_directories(directories, class_names, split_dirs[split_name])
     values: dict[str, list[ImageRecord]] = {}
     for split_name, split_dir in split_dirs.items():
-        directories = {name: split_dir / name for name in class_names}
+        directories = directories_by_split[split_name]
         values[split_name] = _records_for_classes(directories, class_names, config, root, group_map)
     all_records = values["train"] + values["validation"] + values["test"]
     _validate_hash_labels(all_records)
@@ -231,17 +241,32 @@ def _write_manifest(splits: DatasetSplits, root: Path, destination: Path) -> Non
     destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def _read_manifest(path: Path, root: Path, expected_classes: int, verify_images: bool) -> DatasetSplits:
+def _read_manifest(
+    path: Path, root: Path, expected_class_names: Sequence[str], verify_images: bool
+) -> DatasetSplits:
     payload = json.loads(path.read_text(encoding="utf-8"))
     class_names = payload.get("class_names", [])
-    if len(class_names) != expected_classes:
-        raise ValueError(f"Manifest {path} does not describe exactly {expected_classes} classes")
+    expected = list(expected_class_names)
+    if class_names != expected:
+        raise ValueError(
+            f"Manifest {path} class names/order do not match the fixed contract. "
+            f"Expected {expected}, received {class_names}"
+        )
     values: dict[str, list[ImageRecord]] = {}
     for split_name in ("train", "validation", "test"):
         if split_name not in payload.get("splits", {}):
             raise ValueError(f"Manifest is missing split '{split_name}': {path}")
         values[split_name] = []
         for item in payload["splits"][split_name]:
+            label = item.get("label")
+            class_name = item.get("class_name")
+            if not isinstance(label, int) or not 0 <= label < len(expected):
+                raise ValueError(f"Manifest contains an invalid class index in split '{split_name}': {label}")
+            if class_name != expected[label]:
+                raise ValueError(
+                    f"Manifest label mismatch in split '{split_name}': index {label} must be "
+                    f"'{expected[label]}', received '{class_name}'"
+                )
             image_path = (root / item["path"]).resolve()
             if not image_path.is_file():
                 raise FileNotFoundError(f"Manifest image no longer exists: {image_path}")
@@ -288,7 +313,7 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
         ):
             raise ValueError("data.group_manifest must be a JSON object mapping relative paths to non-empty group IDs")
     if manifest.is_file():
-        splits = _read_manifest(manifest, root, config.data.num_classes, config.data.verify_images)
+        splits = _read_manifest(manifest, root, config.data.class_names, config.data.verify_images)
         if group_map is not None:
             for record in splits.train + splits.validation + splits.test:
                 relative = str(Path(record.path).relative_to(root)).replace("\\", "/")

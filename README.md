@@ -31,7 +31,12 @@ The mobile application also maintains a private on-device SQLite database. This 
 - Web and synchronized mobile diagnoses share the same central history.
 - Mobile diagnoses remain available offline through on-device SQLite.
 - UUID-based synchronization safely handles retries without duplicate records.
-- Administrator routes provide protected farmer, disease, diagnosis, analytics, and system/model management.
+- Three scoped roles separate field use, agricultural review, and system administration.
+- Agricultural reviewers assess uncertain diagnoses and verify researched disease content without changing original AI outputs.
+- Review queues prioritize farmer requests, low-confidence results, and repeated uncertain scans.
+- Structured reviewer feedback records assessment, image quality, recommended next steps, and field-inspection needs for agreement analysis.
+- Reviewed images may be nominated for a separate manual research-candidate workflow but are never added to training data automatically.
+- Administrator routes provide protected farmer/reviewer management, disease editing, analytics, and system/model configuration.
 - The AI workspace separates teacher training, student distillation, evaluation, and TFLite deployment tooling.
 
 ## System Architecture
@@ -247,17 +252,13 @@ The default mobile setting works with an Android emulator. A physical phone need
 
 ## Test Accounts
 
-The first-run command `php artisan migrate --seed` creates demonstration accounts. All seeded users use the password `DahonMD@2026`.
+The first-run command `php artisan migrate --seed` creates exactly three demonstration accounts, one for each supported role. All seeded users use the password `DahonMD@2026`.
 
 | Email | Role |
 | --- | --- |
 | `admin@dahonmd.test` | Administrator |
+| `reviewer@dahonmd.test` | Agricultural Reviewer |
 | `maria.santos@dahonmd.test` | Farmer |
-| `juan.delacruz@dahonmd.test` | Farmer |
-| `liza.mercado@dahonmd.test` | Farmer |
-| `ramon.bautista@dahonmd.test` | Farmer |
-| `elena.villanueva@dahonmd.test` | Farmer |
-| `daniel.flores@dahonmd.test` | Farmer |
 
 These accounts are for local development only. Change `DEV_USER_PASSWORD` in `web-backend/.env` before reseeding if your group wants a different test password. They are never seeded when `APP_ENV=production`.
 
@@ -309,6 +310,10 @@ This flow prevents retry-related duplicates while keeping field diagnosis availa
 | `GET, POST /api/diagnoses` | List or create diagnoses | Farmer |
 | `POST /api/inference` | Submit an inference request | Farmer |
 | `POST /api/mobile/sync` | Synchronize queued mobile diagnoses | Farmer |
+| `POST /api/diagnoses/{diagnosis}/review-request` | Request agricultural review of an owned diagnosis | Farmer |
+| `/api/expert/diagnosis-reviews/*` | Assess uncertain and farmer-requested cases | Agricultural Reviewer |
+| `/api/expert/diseases/*` | Verify or return researched disease content | Agricultural Reviewer |
+| `/api/expert/dataset-candidates/*` | Manually nominate and review future-dataset candidates | Agricultural Reviewer |
 | `/api/admin/*` | Manage users, diseases, diagnoses, and analytics | Administrator |
 
 ## Development Checks
@@ -351,6 +356,23 @@ Banana leaf dataset
 
 The ResNet-101 teacher is used only during offline training. It is never packaged into either client. The mobile application is designed to receive only the optimized student model; its current inference service is an adapter that can be replaced by the final TFLite bridge without changing screen code.
 
+## Image Compatibility and Accuracy
+
+The training decoder accepts JPG/JPEG, PNG, BMP, and WEBP. The client-facing diagnosis flow uses the common field formats JPG/JPEG, PNG, and WEBP. A file's extension is not supplied to the neural network: every supported image is decoded to three-channel RGB, resized to `224 x 224`, converted to `float32`, and normalized to `[0, 1]` before inference. A farmer's PNG capture can therefore be classified by a model trained from WEBP files.
+
+Matching tensor shapes does not guarantee matching field accuracy. Lossy WEBP or JPEG artifacts, camera processing, lighting, blur, distance, background, cultivar, disease stage, and acquisition device can all create a distribution shift. A model trained from one curated source may learn source-specific visual cues that are absent from farmer photographs.
+
+Dataset and evaluation rules:
+
+- Include genuine field photographs from the intended phones and capture workflow; do not rely only on format-converted copies.
+- Keep all images of the same leaf, plant, or capture session in one split by supplying specimen/plant group IDs.
+- Reserve an untouched test set containing the formats and capture conditions expected during deployment.
+- Never place a WEBP image and a PNG conversion of that same image in different splits. Conversion does not restore information lost by compression and can cause leakage.
+- Apply exactly the same orientation handling, RGB conversion, resize, normalization, label order, and INT8 quantization parameters in Python, web-service, and mobile inference paths.
+- Report performance overall and, when sample counts permit, by device, source, file format, image quality, and class. Small subgroups should be reported with their support counts and interpreted cautiously.
+
+See [the dataset guide](datasets/README.md) for layout and quality requirements and [the AI guide](ai/README.md) for the complete training sequence.
+
 ## Documentation
 
 - [System architecture](docs/architecture.md)
@@ -361,13 +383,13 @@ The ResNet-101 teacher is used only during offline training. It is never package
 
 ## Scientific Content Governance
 
-Disease content is not hard-coded from AI-generated text. The authoritative API reads the exact model classes from a five-entry `label_map.json` supplied through `AI_LABEL_MAP_PATH`; until that artifact exists and passes structural validation, the system reports **DISEASE CONTENT PENDING — final dataset class labels have not yet been established** and does not seed disease records.
+Disease content is not hard-coded from AI-generated text. The target contract is fixed to Healthy, Moko disease, Black Sigatoka, Yellow Sigatoka, and Cordana leaf spot, using the stable model keys documented in `datasets/README.md`. The authoritative API reads the trained model's five-entry `label_map.json` through `AI_LABEL_MAP_PATH`; until that artifact exists and passes structural validation, the system reports **DISEASE CONTENT PENDING — a validated trained-model label map is not yet available** and does not seed disease records.
 
 Content follows a controlled lifecycle: `DRAFT` → `RESEARCHED` → `VERIFIED` → `ARCHIVED`. Only `VERIFIED` records are returned by the farmer disease API. Editing verified disease content or a supporting source automatically returns affected content to `RESEARCHED` for another review. Normal farmers cannot access knowledge or source mutation routes.
 
 Scientific facts and farmer recommendations must be supported by claim-level evidence. Peer-reviewed and authoritative agricultural sources are prioritized, with Philippine evidence preferred whenever available. A disease cannot be verified without at least two peer-reviewed sources, one authoritative institutional source, causal-agent and curative-status mappings, and mappings for any symptom or management content. Missing evidence is represented as “Insufficient verified evidence available,” never guessed.
 
-Chemical guidance is not inferred from academic efficacy studies. It is marked separately as requiring regulatory review and is withheld from farmer responses unless its Philippine regulatory check is current. Administrators see `REGULATORY RE-CHECK REQUIRED` when a time-sensitive check is missing or stale. Exact product directions must come from the current FPA-approved label or a licensed agricultural professional; the system does not invent doses, intervals, application methods, re-entry intervals, or pre-harvest intervals.
+Chemical guidance is not inferred from academic efficacy studies. It is marked separately as requiring regulatory review and is withheld from farmer responses unless its Philippine regulatory check is current. Administrators and agricultural reviewers see `REGULATORY RE-CHECK REQUIRED` when a time-sensitive check is missing or stale. Exact product directions must come from the current FPA-approved label or a licensed agricultural professional; the system does not invent doses, intervals, application methods, re-entry intervals, or pre-harvest intervals.
 
 The classifier is a screening aid, not laboratory confirmation. Model confidence measures the strength of a match to learned class patterns and is not the biological probability that a plant has a disease. The healthy class must not be presented as proof that a plant is disease-free. Image results cannot perform PCR, culture, isolation, or molecular diagnosis. Simulated records are explicitly flagged and remain distinct from later research-deployment records.
 
@@ -379,7 +401,10 @@ The classifier is a screening aid, not laboratory confirmation. Model confidence
 - `research_sources`: APA-ready authorship and publication fields, DOI/URL, source type, geography, peer-review and Philippine flags, access date, and notes.
 - `disease_evidence`: disease/source mapping at claim level, claim type/text, evidence strength, and disagreement/context notes.
 - `pesticide_regulatory_checks`: separate product/crop/target registration status, expiry, FPA/regulatory source, approved-label URL, reviewer, and check date linked to a chemical management claim.
-- `diagnoses`: immutable original prediction, confidence, model version, inference time, diagnosis date, source, simulation flag, and separate optional expert-review fields.
+- `diagnoses`: immutable original prediction, confidence, model version, inference time, diagnosis date, source, and simulation flag.
+- `diagnosis_reviews`: separate agricultural assessment, supported label, image-quality category, structured next steps, professional notes, field-inspection flag, reviewer, and review timestamps; original predictions are never overwritten.
+- `disease_verifications`: auditable agricultural-review decisions and notes for researched disease records.
+- `dataset_candidates`: manual research-only nominations and approval decisions linked to reviewed diagnoses; approval does not itself export or train on an image.
 
 The finalized AI architecture remains unchanged: ResNet-101 teacher with BYOL, NT-Xent contrastive learning and masked image modeling; five-class fine-tuning; and a custom Coordinate Attention MobileNetV3-Small student distilled and deployed as INT8 TensorFlow Lite.
 

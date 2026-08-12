@@ -9,7 +9,7 @@ class DiagnosisPolicy
 {
     public function view(User $user, Diagnosis $diagnosis): bool
     {
-        return $user->isAdmin() || $diagnosis->user_id === $user->id;
+        return $user->isAdmin() || $user->isAgriculturalExpert() || $diagnosis->user_id === $user->id;
     }
 
     public function delete(User $user, Diagnosis $diagnosis): bool
