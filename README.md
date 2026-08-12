@@ -371,7 +371,7 @@ Dataset and evaluation rules:
 - Apply exactly the same orientation handling, RGB conversion, resize, normalization, label order, and INT8 quantization parameters in Python, web-service, and mobile inference paths.
 - Report performance overall and, when sample counts permit, by device, source, file format, image quality, and class. Small subgroups should be reported with their support counts and interpreted cautiously.
 
-See [the dataset guide](datasets/README.md) for layout and quality requirements and [the AI guide](ai/README.md) for the complete training sequence.
+See [the dataset guide](datasets/README.md) for layout and quality requirements, [the AI guide](ai/README.md) for the complete training sequence, and [the dataset/model trainer checklist](docs/dataset-model-trainer-todo.md) for the assigned thesis-member tasks and required evidence.
 
 ## Documentation
 
@@ -406,7 +406,7 @@ The classifier is a screening aid, not laboratory confirmation. Model confidence
 - `disease_verifications`: auditable agricultural-review decisions and notes for researched disease records.
 - `dataset_candidates`: manual research-only nominations and approval decisions linked to reviewed diagnoses; approval does not itself export or train on an image.
 
-The finalized AI architecture remains unchanged: ResNet-101 teacher with BYOL, NT-Xent contrastive learning and masked image modeling; five-class fine-tuning; and a custom Coordinate Attention MobileNetV3-Small student distilled and deployed as INT8 TensorFlow Lite.
+The finalized production AI architecture remains unchanged: ResNet-101 teacher with BYOL, NT-Xent contrastive learning and masked image modeling; five-class fine-tuning; and a custom Coordinate Attention MobileNetV3-Small student distilled and deployed as INT8 TensorFlow Lite. A separate stock MobileNetV3-Small supervised baseline now exists under `ai/` for controlled research comparison only; farmer diagnosis remains enhanced-only.
 
 ---
 
