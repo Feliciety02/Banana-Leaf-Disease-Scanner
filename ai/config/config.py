@@ -116,6 +116,20 @@ class StudentConfig:
 
 
 @dataclass
+class BaselineConfig:
+    """Plain supervised control model for the enhanced student experiment."""
+
+    backbone: str = "MobileNetV3Small"
+    imagenet_weights: bool = True
+    dropout_rate: float = 0.20
+    frozen_backbone_epochs: int = 20
+    fine_tune_epochs: int = 10
+    frozen_backbone_learning_rate: float = 1e-3
+    fine_tune_learning_rate: float = 1e-5
+    weight_decay: float = 1e-5
+
+
+@dataclass
 class RuntimeConfig:
     seed: int = 42
     output_dir: str = "ai/artifacts"
@@ -132,6 +146,7 @@ class ExperimentConfig:
     masking: MaskingConfig = field(default_factory=MaskingConfig)
     teacher: TeacherConfig = field(default_factory=TeacherConfig)
     student: StudentConfig = field(default_factory=StudentConfig)
+    baseline: BaselineConfig = field(default_factory=BaselineConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
 
     def validate(self) -> None:
@@ -155,6 +170,8 @@ class ExperimentConfig:
             raise ValueError("ResNet101 teacher feature_dim must remain 2048")
         if self.student.backbone != "MobileNetV3SmallCoordinateAttention":
             raise ValueError("The deployed student is fixed to Coordinate Attention-Enhanced MobileNetV3Small")
+        if self.baseline.backbone != "MobileNetV3Small":
+            raise ValueError("The research baseline must use the same MobileNetV3-Small variant as the enhanced student")
         if self.student.imagenet_weights:
             raise ValueError("Stock MobileNetV3 weights are incompatible after replacing SE with Coordinate Attention")
         if self.student.feature_distillation_enabled and self.student.feature_distillation_weight <= 0:
@@ -166,6 +183,15 @@ class ExperimentConfig:
             "data.batch_size": self.data.batch_size,
             "student.width_multiplier": self.student.width_multiplier,
             "student.coordinate_attention_reduction": self.student.coordinate_attention_reduction,
+            "baseline.frozen_backbone_epochs": self.baseline.frozen_backbone_epochs,
+            "baseline.fine_tune_epochs": self.baseline.fine_tune_epochs,
+        }.items():
+            if value <= 0:
+                raise ValueError(f"{name} must be positive")
+        for name, value in {
+            "baseline.frozen_backbone_learning_rate": self.baseline.frozen_backbone_learning_rate,
+            "baseline.fine_tune_learning_rate": self.baseline.fine_tune_learning_rate,
+            "baseline.weight_decay": self.baseline.weight_decay,
         }.items():
             if value <= 0:
                 raise ValueError(f"{name} must be positive")

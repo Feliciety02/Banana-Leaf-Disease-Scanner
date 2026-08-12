@@ -10,6 +10,7 @@ import numpy as np
 
 from ai.data.dataset import decode_and_resize, prepare_splits
 from ai.deployment.tflite_utils import TFLiteRunner
+from ai.evaluation.experiment_contract import experiment_contract
 from ai.evaluation.metrics import classification_metrics, save_confusion_matrix, save_json
 from ai.training.common import add_common_arguments, configured_experiment
 
@@ -18,11 +19,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     add_common_arguments(parser)
     parser.add_argument("--tflite-model", required=True)
+    parser.add_argument("--model-kind", choices=("baseline", "enhanced"), default="enhanced")
+    parser.add_argument(
+        "--split-manifest",
+        help="Exact shared split_manifest.json. Defaults to OUTPUT_DIR/split_manifest.json.",
+    )
     parser.add_argument(
         "--fp32-tflite-model",
-        help="FP32 TFLite reference; defaults to OUTPUT_DIR/enhanced_mobilenetv3_fp32.tflite when present",
+        help="Optional matching FP32 TFLite reference",
     )
-    parser.add_argument("--fp32-metrics", help="Defaults to OUTPUT_DIR/student_evaluation.json")
+    parser.add_argument("--fp32-metrics", help="Optional matching Keras evaluation report")
     parser.add_argument("--num-threads", type=int, default=1)
     parser.add_argument("--warmup-runs", type=int, default=10)
     return parser.parse_args()
@@ -31,10 +37,15 @@ def parse_args() -> argparse.Namespace:
 def benchmark(args: argparse.Namespace) -> dict:
     config = configured_experiment(args, "tflite_benchmark_config.json")
     output_dir = Path(config.runtime.output_dir)
-    splits = prepare_splits(config, output_dir / "split_manifest.json")
+    manifest = Path(args.split_manifest) if args.split_manifest else output_dir / "split_manifest.json"
+    if not manifest.is_file():
+        raise FileNotFoundError(f"Shared split manifest not found: {manifest}")
+    splits = prepare_splits(config, manifest)
     model_path = Path(args.tflite_model)
     runner = TFLiteRunner(model_path, num_threads=args.num_threads)
-    default_fp32_path = output_dir / "enhanced_mobilenetv3_fp32.tflite"
+    default_fp32_path = output_dir / (
+        "baseline_mobilenetv3_small_fp32.tflite" if args.model_kind == "baseline" else "enhanced_mobilenetv3_fp32.tflite"
+    )
     fp32_model_path = Path(args.fp32_tflite_model) if args.fp32_tflite_model else default_fp32_path
     fp32_runner = TFLiteRunner(fp32_model_path, num_threads=args.num_threads) if fp32_model_path.is_file() else None
     blank = np.zeros((1, *config.image_size, 3), dtype=np.float32)
@@ -59,6 +70,8 @@ def benchmark(args: argparse.Namespace) -> dict:
             fp32_predictions.append(int(np.argmax(fp32_logits[0])))
             fp32_timings.append(fp32_elapsed_ms)
     report = classification_metrics(true_labels, predicted_labels, splits.class_names)
+    report["model"] = args.model_kind
+    report["experiment_contract"] = experiment_contract(manifest, splits.class_names, config.image_size)
     report["resources"] = {
         "model_file_bytes": model_path.stat().st_size,
         "num_threads": args.num_threads,
@@ -79,7 +92,8 @@ def benchmark(args: argparse.Namespace) -> dict:
         }
         report["accuracy_change_from_fp32_tflite"] = report["accuracy"] - fp32_report["accuracy"]
         report["mean_latency_change_from_fp32_tflite_ms"] = report["resources"]["latency"]["mean_ms"] - fp32_mean_latency
-    fp32_metrics_path = Path(args.fp32_metrics) if args.fp32_metrics else output_dir / "student_evaluation.json"
+    default_metrics = "baseline_evaluation.json" if args.model_kind == "baseline" else "student_evaluation.json"
+    fp32_metrics_path = Path(args.fp32_metrics) if args.fp32_metrics else output_dir / default_metrics
     if fp32_metrics_path.is_file():
         fp32 = json.loads(fp32_metrics_path.read_text(encoding="utf-8"))
         report["keras_fp32_reference"] = {
@@ -87,9 +101,11 @@ def benchmark(args: argparse.Namespace) -> dict:
             "mean_latency_ms": fp32.get("resources", {}).get("keras_latency", {}).get("mean_ms"),
         }
     elif fp32_runner is None:
-        report["comparison_note"] = f"FP32 metrics not found at {fp32_metrics_path}; run evaluate_student first"
-    save_json(report, output_dir / "int8_evaluation.json")
-    save_confusion_matrix(report["confusion_matrix"], splits.class_names, output_dir / "int8_confusion_matrix.png")
+        report["comparison_note"] = f"FP32 metrics not found at {fp32_metrics_path}; run the matching Keras evaluation first"
+    report_name = "baseline_int8_evaluation.json" if args.model_kind == "baseline" else "int8_evaluation.json"
+    matrix_name = "baseline_int8_confusion_matrix.png" if args.model_kind == "baseline" else "int8_confusion_matrix.png"
+    save_json(report, output_dir / report_name)
+    save_confusion_matrix(report["confusion_matrix"], splits.class_names, output_dir / matrix_name)
     print(f"INT8 accuracy: {report['accuracy']:.5f}; mean latency: {report['resources']['latency']['mean_ms']:.3f} ms")
     if "accuracy_change_from_fp32_tflite" in report:
         print(f"Accuracy change from FP32 TFLite: {report['accuracy_change_from_fp32_tflite']:+.5f}")
