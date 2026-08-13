@@ -17,8 +17,8 @@ import { deletePersistedDiagnosisImage, persistDiagnosisImage } from './src/serv
 import { Diagnosis, Disease, Session } from './src/types';
 
 type Screen = 'home' | 'scan' | 'history' | 'guide' | 'profile';
-const SAMPLE_IMAGE = require('./assets/black-sigatoka-sample.png');
-const AUTH_BACKGROUND = require('./assets/banana-leaf-auth-background.png');
+const SAMPLE_IMAGE = require('./assets/black-sigatoka-sample.jpg');
+const AUTH_BACKGROUND = require('./assets/banana-leaf-auth-background.jpg');
 const BRAND_LOGO = require('./assets/dahonmd-logo-green.png');
 const GOOGLE_LOGO = require('./assets/google-g.png');
 const configuredConfidenceThreshold = Number(process.env.EXPO_PUBLIC_CONFIDENCE_THRESHOLD ?? 70);
