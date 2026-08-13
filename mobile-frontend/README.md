@@ -23,6 +23,8 @@ Work that does not depend on the trained dataset is prepared now:
 
 The preview build still needs a reachable HTTPS deployment of the single `../backend` API. Local development can continue through Expo Go with the emulator or LAN API URL.
 
+Pending scans synchronize automatically when connectivity is available. Transient failures retry after 2, 4, 8, 16, and then at most 30 seconds; validation and authentication failures wait for manual intervention instead of retrying forever. The header and Home status card expose progress and allow an immediate manual retry.
+
 See [PLAY_STORE_RELEASE.md](./PLAY_STORE_RELEASE.md) for initial EAS setup, Google Play preparation, test tracks, listing copy, and the dataset-dependent release gates.
 
 ## Camera Images and Model Input
