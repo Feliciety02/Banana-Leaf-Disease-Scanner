@@ -1,6 +1,7 @@
 import { Diagnosis } from '../types';
 import { API_URL } from './apiConfig';
 import { fetchWithTimeout } from './http';
+import { isRetryableHttpStatus } from './syncPolicy';
 
 export class SyncRequestError extends Error {
   constructor(message: string, public readonly retryable: boolean) {
@@ -25,7 +26,7 @@ export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Prom
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+    const retryable = isRetryableHttpStatus(response.status);
     throw new SyncRequestError(payload?.message ?? 'The saved scans could not be synchronized.', retryable);
   }
   if (!Array.isArray(payload?.data?.results)) {

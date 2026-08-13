@@ -1,4 +1,5 @@
 export type DiseaseId = string;
+export type SyncStatus = 'idle' | 'syncing' | 'error';
 
 export type Diagnosis = {
   id: string;

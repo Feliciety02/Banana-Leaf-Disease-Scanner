@@ -1,14 +1,9 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { getHistoryResize, ImageDimensions } from './imagePolicy';
 
 const diagnosisImageDirectory = new Directory(Paths.document, 'diagnosis-images');
-const MAX_SAVED_IMAGE_EDGE = 1_600;
 const SAVED_IMAGE_QUALITY = 0.82;
-
-type ImageDimensions = {
-  width: number;
-  height: number;
-};
 
 function safeExtension(uri: string): string {
   const extension = new File(uri).extension.toLowerCase();
@@ -31,12 +26,9 @@ export async function persistDiagnosisImage(
     let renderedImage: Awaited<ReturnType<typeof context.renderAsync>> | null = null;
 
     try {
-      if (dimensions && Math.max(dimensions.width, dimensions.height) > MAX_SAVED_IMAGE_EDGE) {
-        context.resize(
-          dimensions.width >= dimensions.height
-            ? { width: MAX_SAVED_IMAGE_EDGE }
-            : { height: MAX_SAVED_IMAGE_EDGE },
-        );
+      const resize = getHistoryResize(dimensions);
+      if (resize) {
+        context.resize(resize);
       }
 
       renderedImage = await context.renderAsync();
@@ -88,4 +80,23 @@ export function deletePersistedDiagnosisImage(uri: string | null): void {
   } catch {
     // A missing image must not prevent its database record from being removed.
   }
+}
+
+export function cleanupOrphanedDiagnosisImages(referencedUris: string[]): number {
+  if (!diagnosisImageDirectory.exists) return 0;
+  const referenced = new Set(referencedUris);
+  let removed = 0;
+
+  for (const entry of diagnosisImageDirectory.list()) {
+    if (entry instanceof File && !referenced.has(entry.uri)) {
+      try {
+        entry.delete();
+        removed += 1;
+      } catch {
+        // Cleanup is best effort and must never block app startup.
+      }
+    }
+  }
+
+  return removed;
 }

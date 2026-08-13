@@ -57,16 +57,46 @@ export async function listCachedDiseases(): Promise<Disease[]> {
   return rows.map((row) => JSON.parse(row.payload) as Disease).filter((disease) => disease.isVerified === true);
 }
 
-export async function listDiagnoses(ownerId: number): Promise<Diagnosis[]> {
+function mapDiagnosisRow(row: {
+  id: string; owner_id: number; disease_id: Diagnosis['diseaseId']; confidence: number; latency: number;
+  image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; is_simulated: number;
+}): Diagnosis {
+  return {
+    id: row.id, ownerId: row.owner_id, diseaseId: row.disease_id, confidence: row.confidence, latency: row.latency,
+    imageUri: row.image_uri, modelVersion: row.model_version, diagnosedAt: row.diagnosed_at, synced: row.synced === 1, isSimulated: row.is_simulated === 1,
+  };
+}
+
+export async function listDiagnoses(ownerId: number, limit = 100): Promise<Diagnosis[]> {
   const db = await dbPromise;
   const rows = await db.getAllAsync<{
     id: string; owner_id: number; disease_id: Diagnosis['diseaseId']; confidence: number; latency: number;
     image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; is_simulated: number;
-  }>('SELECT * FROM diagnoses WHERE owner_id = ? ORDER BY diagnosed_at DESC LIMIT 100', ownerId);
-  return rows.map((row) => ({
-    id: row.id, ownerId: row.owner_id, diseaseId: row.disease_id, confidence: row.confidence, latency: row.latency,
-    imageUri: row.image_uri, modelVersion: row.model_version, diagnosedAt: row.diagnosed_at, synced: row.synced === 1, isSimulated: row.is_simulated === 1,
-  }));
+  }>('SELECT * FROM diagnoses WHERE owner_id = ? ORDER BY diagnosed_at DESC LIMIT ?', ownerId, limit);
+  return rows.map(mapDiagnosisRow);
+}
+
+export async function listPendingDiagnoses(ownerId: number, limit = 100): Promise<Diagnosis[]> {
+  const db = await dbPromise;
+  const rows = await db.getAllAsync<{
+    id: string; owner_id: number; disease_id: Diagnosis['diseaseId']; confidence: number; latency: number;
+    image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; is_simulated: number;
+  }>('SELECT * FROM diagnoses WHERE owner_id = ? AND synced = 0 ORDER BY diagnosed_at ASC LIMIT ?', ownerId, limit);
+  return rows.map(mapDiagnosisRow);
+}
+
+export async function countDiagnoses(ownerId: number, synced?: boolean): Promise<number> {
+  const db = await dbPromise;
+  const row = synced === undefined
+    ? await db.getFirstAsync<{ total: number }>('SELECT COUNT(*) AS total FROM diagnoses WHERE owner_id = ?', ownerId)
+    : await db.getFirstAsync<{ total: number }>('SELECT COUNT(*) AS total FROM diagnoses WHERE owner_id = ? AND synced = ?', ownerId, synced ? 1 : 0);
+  return row?.total ?? 0;
+}
+
+export async function listDiagnosisImageUris(): Promise<string[]> {
+  const db = await dbPromise;
+  const rows = await db.getAllAsync<{ image_uri: string }>('SELECT image_uri FROM diagnoses WHERE image_uri IS NOT NULL');
+  return rows.map((row) => row.image_uri);
 }
 
 export async function saveDiagnosis(diagnosis: Diagnosis) {

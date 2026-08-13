@@ -79,6 +79,11 @@ The authoritative API and web client can run together with Docker Desktop. From 
 docker compose up --build
 ```
 
+> [!IMPORTANT]
+> Type `up` without a hyphen. The correct command is `docker compose up --build`; `docker compose -u --build` and `docker compose -up --build` are invalid.
+>
+> DahonMD has only one backend: the Laravel application in `backend/`. Docker starts this backend as the `api` service for both the web and mobile clients. Do not start a separate or second backend alongside it.
+
 Then open `http://localhost:4173`. The API is also available directly at `http://localhost:8001/api`, including for the Expo mobile client. The first startup installs the image dependencies, creates a persistent SQLite database, runs migrations, and seeds the development accounts.
 
 Stop the stack with:
