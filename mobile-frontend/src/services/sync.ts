@@ -2,6 +2,13 @@ import { Diagnosis } from '../types';
 import { API_URL } from './apiConfig';
 import { fetchWithTimeout } from './http';
 
+export class SyncRequestError extends Error {
+  constructor(message: string, public readonly retryable: boolean) {
+    super(message);
+    this.name = 'SyncRequestError';
+  }
+}
+
 export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Promise<string[]> {
   if (!diagnoses.length) return [];
   const response = await fetchWithTimeout(`${API_URL}/mobile/sync`, {
@@ -16,7 +23,13 @@ export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Prom
       diagnosed_at: diagnosis.diagnosedAt,
     })) }),
   });
-  if (!response.ok) throw new Error('Sync request failed');
-  const payload = await response.json();
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const retryable = response.status === 408 || response.status === 429 || response.status >= 500;
+    throw new SyncRequestError(payload?.message ?? 'The saved scans could not be synchronized.', retryable);
+  }
+  if (!Array.isArray(payload?.data?.results)) {
+    throw new SyncRequestError('The synchronization service returned an unexpected response.', false);
+  }
   return payload.data.results.filter((item: { status: string }) => ['created', 'already_synchronized'].includes(item.status)).map((item: { sync_uuid: string }) => item.sync_uuid);
 }
