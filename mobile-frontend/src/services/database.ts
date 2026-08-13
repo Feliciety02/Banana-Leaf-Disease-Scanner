@@ -28,6 +28,12 @@ export async function initializeDatabase() {
   const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(diagnoses)');
   if (!columns.some((column) => column.name === 'owner_id')) await db.execAsync('ALTER TABLE diagnoses ADD COLUMN owner_id INTEGER;');
   if (!columns.some((column) => column.name === 'is_simulated')) await db.execAsync('ALTER TABLE diagnoses ADD COLUMN is_simulated INTEGER NOT NULL DEFAULT 1;');
+  await db.execAsync(`
+    CREATE INDEX IF NOT EXISTS diagnoses_owner_date_idx
+      ON diagnoses (owner_id, diagnosed_at DESC);
+    CREATE INDEX IF NOT EXISTS diagnoses_owner_sync_idx
+      ON diagnoses (owner_id, synced);
+  `);
 }
 
 export async function cacheDiseaseCatalog(diseases: Disease[]) {
@@ -77,10 +83,22 @@ export async function saveDiagnosis(diagnosis: Diagnosis) {
 export async function markSynced(ids: string[]) {
   if (!ids.length) return;
   const db = await dbPromise;
-  for (const id of ids) await db.runAsync('UPDATE diagnoses SET synced = 1 WHERE id = ?', id);
+  await db.withTransactionAsync(async () => {
+    for (const id of ids) await db.runAsync('UPDATE diagnoses SET synced = 1 WHERE id = ?', id);
+  });
 }
 
 export async function deleteDiagnosis(id: string) {
   const db = await dbPromise;
   await db.runAsync('DELETE FROM diagnoses WHERE id = ?', id);
+}
+
+export async function deleteDiagnosesForOwner(ownerId: number): Promise<(string | null)[]> {
+  const db = await dbPromise;
+  const rows = await db.getAllAsync<{ image_uri: string | null }>(
+    'SELECT image_uri FROM diagnoses WHERE owner_id = ?',
+    ownerId,
+  );
+  await db.runAsync('DELETE FROM diagnoses WHERE owner_id = ?', ownerId);
+  return rows.map((row) => row.image_uri);
 }

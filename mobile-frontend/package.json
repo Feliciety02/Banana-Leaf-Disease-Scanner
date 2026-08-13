@@ -6,12 +6,18 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "release:status": "node scripts/check-release-readiness.mjs --report",
+    "release:check": "node scripts/check-release-readiness.mjs",
+    "build:android:preview": "eas build --platform android --profile preview",
+    "build:android:production": "npm run release:check && eas build --platform android --profile production"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/netinfo": "11.4.1",
     "expo": "~54.0.35",
+    "expo-file-system": "~19.0.23",
     "expo-image-picker": "~17.0.11",
     "expo-secure-store": "~15.0.8",
     "expo-sqlite": "~16.0.10",

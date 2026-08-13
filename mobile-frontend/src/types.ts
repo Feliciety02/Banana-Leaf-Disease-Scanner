@@ -14,7 +14,7 @@ export type Diagnosis = {
 };
 
 export type User = { id: number; name: string; email: string; role: 'farmer' | 'admin' };
-export type Session = { user: User; token: string; apiUrl: string };
+export type Session = { user: User; token: string; apiUrl: string; isPersistent: boolean };
 
 export type Disease = {
   id: DiseaseId;

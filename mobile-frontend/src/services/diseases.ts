@@ -1,6 +1,7 @@
 import { Disease } from '../types';
 import { API_URL } from './apiConfig';
 import { cacheDiseaseCatalog, listCachedDiseases } from './database';
+import { fetchWithTimeout } from './http';
 
 type ApiDisease = {
   slug: string;
@@ -31,7 +32,7 @@ const mapDisease = (disease: ApiDisease): Disease => ({
 
 export async function loadDiseaseCatalog(): Promise<Disease[]> {
   try {
-    const response = await fetch(`${API_URL}/diseases`, { headers: { Accept: 'application/json' } });
+    const response = await fetchWithTimeout(`${API_URL}/diseases`, { headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error('Disease catalog request failed.');
     const payload = await response.json();
     const catalog = (payload.data as ApiDisease[]).filter((disease) => disease.is_verified).map(mapDisease);

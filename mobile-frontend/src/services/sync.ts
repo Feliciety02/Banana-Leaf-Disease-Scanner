@@ -1,14 +1,12 @@
 import { Diagnosis } from '../types';
 import { API_URL } from './apiConfig';
-import { restoreSession } from './auth';
+import { fetchWithTimeout } from './http';
 
-export async function syncDiagnoses(diagnoses: Diagnosis[]): Promise<string[]> {
+export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Promise<string[]> {
   if (!diagnoses.length) return [];
-  const session = await restoreSession();
-  if (!session) return [];
-  const response = await fetch(`${API_URL}/mobile/sync`, {
+  const response = await fetchWithTimeout(`${API_URL}/mobile/sync`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${session.token}` },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ diagnoses: diagnoses.map((diagnosis) => ({
       sync_uuid: diagnosis.id,
       predicted_class: diagnosis.diseaseId,
