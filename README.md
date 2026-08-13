@@ -23,7 +23,7 @@ DahonMD is a monorepo for identifying banana leaf diseases, recording diagnoses,
 The mobile application also maintains a private on-device SQLite database. This allows an authenticated farmer to view local history and save pending diagnoses when a network connection is unavailable. Pending records are synchronized to the central API when connectivity returns.
 
 > [!IMPORTANT]
-> `web-backend/` is the only runtime backend. The legacy `mobile-backend/` folder is retained as a pre-consolidation reference and must not be started during normal development.
+> `backend/` is the only runtime backend for both the web and mobile applications.
 
 ## Highlights
 
@@ -56,16 +56,15 @@ flowchart LR
     class Local,Central data;
 ```
 
-The API is the source of truth for accounts, diseases, synchronized diagnoses, and administrator analytics. By default, its development database is `web-backend/database/database.sqlite`. Mobile SQLite is a device-local cache and synchronization queue, not a second server database.
+The API is the source of truth for accounts, diseases, synchronized diagnoses, and administrator analytics. By default, its development database is `backend/database/database.sqlite`. Mobile SQLite is a device-local cache and synchronization queue, not a second server database.
 
 ## Repository Layout
 
 | Folder | Responsibility | Runtime status |
 | --- | --- | --- |
-| `web-backend/` | Laravel 12 API, Sanctum authentication, central database, sync, and analytics | Authoritative |
+| `backend/` | Laravel 12 API, Sanctum authentication, central database, sync, and analytics | Authoritative |
 | `web-frontend/` | React and Vite browser application | Active client |
 | `mobile-frontend/` | Expo React Native application with offline SQLite | Active client |
-| `mobile-backend/` | Original standalone mobile API | Deprecated |
 | `ai/` | ResNet-101 teacher and Coordinate Attention MobileNetV3-Small student pipeline | Training and deployment tooling |
 | `datasets/` | Local dataset location and preparation notes | Development data |
 | `docs/` | Architecture and backend-consolidation documentation | Reference |
@@ -97,7 +96,7 @@ $env:DEV_USER_PASSWORD = "choose-a-local-password"
 docker compose up --build
 ```
 
-The Expo app remains a host/device development process; start it from `mobile-frontend/` as described below and point `EXPO_PUBLIC_API_URL` at port `8001` on the Docker host. The deprecated `mobile-backend/` is not included in the Compose stack.
+The Expo app remains a host/device development process; start it from `mobile-frontend/` as described below and point `EXPO_PUBLIC_API_URL` at port `8001` on the Docker host.
 
 ### Native development
 
@@ -120,7 +119,7 @@ npm --version
 Each command should print a version number. If PowerShell says that a command is not recognized, install that tool before continuing.
 
 > [!IMPORTANT]
-> Open every terminal in the main `Banana Leaf Disease Scanner` folder. A command such as `cd web-backend` will not work correctly if the terminal starts in a different folder.
+> Open every terminal in the main `Banana Leaf Disease Scanner` folder. A command such as `cd backend` will not work correctly if the terminal starts in a different folder.
 
 ## Choose What You Want to Run
 
@@ -132,7 +131,7 @@ You do not need to start every project folder.
 | Mobile app only | 2 | Laravel backend + mobile frontend |
 | Web and mobile together | 3 | Laravel backend + web frontend + mobile frontend |
 
-The `mobile-backend` folder is old reference code. **Do not run it.** Both apps use `web-backend`.
+Both applications use the single Laravel application in `backend/`.
 
 ## Run the Web App
 
@@ -143,7 +142,7 @@ The web app needs two terminals. Keep both terminals open while using the app.
 For the **first run**, enter these commands one line at a time:
 
 ```powershell
-cd web-backend
+cd backend
 composer install
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 php artisan key:generate
@@ -157,7 +156,7 @@ When you see that the server is running, leave Terminal 1 open. The API is now a
 For **later runs**, only these commands are needed:
 
 ```powershell
-cd web-backend
+cd backend
 php artisan serve --host=0.0.0.0 --port=8001
 ```
 
@@ -190,7 +189,7 @@ The mobile app also needs two terminals. It uses the same Laravel backend as the
 If the backend from the web instructions is already running, keep it open and skip this terminal. Otherwise, follow the first-run backend setup below:
 
 ```powershell
-cd web-backend
+cd backend
 composer install
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 php artisan key:generate
@@ -202,7 +201,7 @@ php artisan serve --host=0.0.0.0 --port=8001
 For **later runs**, enter:
 
 ```powershell
-cd web-backend
+cd backend
 php artisan serve --host=0.0.0.0 --port=8001
 ```
 
@@ -260,7 +259,7 @@ The first-run command `php artisan migrate --seed` creates exactly three demonst
 | `reviewer@dahonmd.test` | Agricultural Reviewer |
 | `maria.santos@dahonmd.test` | Farmer |
 
-These accounts are for local development only. Change `DEV_USER_PASSWORD` in `web-backend/.env` before reseeding if your group wants a different test password. They are never seeded when `APP_ENV=production`.
+These accounts are for local development only. Change `DEV_USER_PASSWORD` in `backend/.env` before reseeding if your group wants a different test password. They are never seeded when `APP_ENV=production`.
 
 ## Stop the Apps
 
@@ -271,7 +270,7 @@ Click each running terminal and press `Ctrl+C`. Closing a frontend terminal does
 | Problem | What to do |
 | --- | --- |
 | `php`, `composer`, `node`, or `npm` is not recognized | Install the missing tool, close PowerShell, and open a new terminal. |
-| `cd web-backend` says the path does not exist | Reopen the terminal in the main `Banana Leaf Disease Scanner` folder. |
+| `cd backend` says the path does not exist | Reopen the terminal in the main `Banana Leaf Disease Scanner` folder. |
 | The terminal looks stuck after starting a server | This is normal. The server is waiting for requests. Leave it open and use a new terminal for the next program. |
 | Port `8001` or `4173` is already in use | Another copy may already be running. Find its terminal and press `Ctrl+C`, then start it again. |
 | The web page opens but cannot load data | Confirm that both the Laravel backend and React frontend terminals are still running. |
@@ -323,7 +322,7 @@ Run the checks for the part your group changed. Start each block in a new termin
 ### Backend checks
 
 ```powershell
-cd web-backend
+cd backend
 php artisan test
 vendor\bin\pint --test
 ```
@@ -378,7 +377,7 @@ See [the dataset guide](datasets/README.md) for layout and quality requirements,
 - [System architecture](docs/architecture.md)
 - [Backend consolidation record](docs/backend-consolidation.md)
 - [AI pipeline guide](ai/README.md)
-- [Web backend guide](web-backend/README.md)
+- [Backend guide](backend/README.md)
 - [Mobile frontend guide](mobile-frontend/README.md)
 
 ## Scientific Content Governance

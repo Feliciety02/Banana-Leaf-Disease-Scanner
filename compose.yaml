@@ -3,7 +3,7 @@ name: dahonmd
 services:
   api:
     build:
-      context: ./web-backend
+      context: ./backend
     environment:
       APP_NAME: DahonMD
       APP_ENV: local
