@@ -12,6 +12,19 @@ The Android emulator default is `EXPO_PUBLIC_API_URL=http://10.0.2.2:8001/api`. 
 
 Use `npm run android` for Android or `npm run ios` from macOS. Replace `src/services/inference.ts` with the final TFLite bridge before thesis evaluation.
 
+## Android Preview and Play Store Preparation
+
+Work that does not depend on the trained dataset is prepared now:
+
+- `npm run typecheck` validates the TypeScript application.
+- `npm run release:status` reports the remaining production blockers without failing.
+- `npm run build:android:preview` creates an installable internal-testing APK through EAS.
+- `npm run build:android:production` checks release safety, then creates the Play Store AAB. It will remain blocked while simulated inference or local-only services are configured.
+
+The preview build still needs a reachable HTTPS deployment of the single `../backend` API. Local development can continue through Expo Go with the emulator or LAN API URL.
+
+See [PLAY_STORE_RELEASE.md](./PLAY_STORE_RELEASE.md) for initial EAS setup, Google Play preparation, test tracks, listing copy, and the dataset-dependent release gates.
+
 ## Camera Images and Model Input
 
 PNG, JPG/JPEG, and WEBP field images are suitable client formats. The model does not classify the file extension; it classifies the decoded pixels. A PNG captured by a farmer can therefore be evaluated by a model whose training files were WEBP, but real-world accuracy must be measured because phone processing, compression, orientation, lighting, blur, background, distance, and disease stage may differ from the training distribution.
