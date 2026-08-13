@@ -4,12 +4,18 @@ Authoritative Laravel 12 + Sanctum API for both the React web and Expo mobile cl
 
 The `2026_08_12_000005_rename_user_role_to_farmer` migration converts existing legacy `user` role values to `farmer` without deleting accounts, tokens, or diagnoses. Its rollback restores the former value.
 
+The API includes scoped rate limits, request IDs in `X-Request-ID`, structured logging for failed requests, a database-aware `/api/health` response, password recovery, signed email verification, and public privacy/account-deletion pages. Set a real `APP_URL`, mail transport, sender address, and `PRIVACY_CONTACT_EMAIL` in production.
+
 ```powershell
 php artisan migrate:fresh --seed
 php artisan serve --host=0.0.0.0 --port=8001
 ```
 
+In non-production environments, seeding creates the three development accounts and an evidence-backed five-class disease guide. The scientific seeder is idempotent and fills the disease, symptom, management, source, claim-evidence, regulatory-check, and verification-history tables. It does not run in production. Farmer API responses include a public-safe source list so the web Disease Guide can link each claim dossier to its original publication or authority.
+
 Set `DEV_ADMIN_EMAIL`, `DEV_ADMIN_PASSWORD`, and optionally `DEV_ADMIN_NAME` before seeding to create the first development administrator. No administrator password is stored in source. Run tests with `php artisan test`. The authenticated `/api/inference` response remains a documented placeholder for the future Python model service.
+
+For SQLite deployments, `php artisan dahonmd:backup --keep=7` creates retained snapshots under `storage/app/private/backups`. Laravel schedules it daily at 02:00, so production must run `php artisan schedule:run` every minute (or `php artisan schedule:work`). Replicate these files to separate protected storage and periodically test restoration.
 
 ## Image and Inference Boundary
 

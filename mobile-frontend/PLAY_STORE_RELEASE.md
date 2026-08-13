@@ -11,6 +11,9 @@ The Android app can be prepared and distributed to internal testers before the t
 - Runtime protection against localhost, emulator, LAN, or non-HTTPS APIs in release builds
 - A production readiness check that detects the simulated classifier and missing release configuration
 - Camera and photo-library permission descriptions with microphone access disabled
+- Public `/privacy` and credential-confirmed `/account-deletion` pages served by the backend
+- In-app account deletion, password recovery, email verification, and removal of non-functional social sign-in controls
+- Mobile unit/component tests, an application error boundary, bounded image storage, orphan cleanup, searchable history, and batched sync
 
 Expo SDK 54 targets Android API 36, which satisfies Google Play's announced target API requirement for new apps from August 31, 2026.
 
@@ -34,6 +37,8 @@ eas env:create --environment production --name EXPO_PUBLIC_API_URL --value https
 eas env:create --environment preview --name EXPO_PUBLIC_CONFIDENCE_THRESHOLD --value 70 --visibility plaintext
 eas env:create --environment production --name EXPO_PUBLIC_CONFIDENCE_THRESHOLD --value 70 --visibility plaintext
 ```
+
+Configure the production backend mail transport, `APP_URL`, and `PRIVACY_CONTACT_EMAIL`. Password reset and email-verification links use the public backend host. Use the deployed `/privacy` and `/account-deletion` URLs for the corresponding Play Console fields.
 
 For the local production check, copy `.env.production.example` to the ignored `.env.production` file and replace every example URL. The checker loads this local file automatically. `npm run release:status` can be used at any time and does not fail.
 
@@ -87,6 +92,7 @@ Before `npm run build:android:production` is allowed to pass:
 - Verify that uncertain/low-confidence images never appear as confident disease results.
 - Retest offline storage and later synchronization with the final model version recorded.
 - Replace the example policy URLs and configure the public production API.
+- Confirm the scheduled `dahonmd:backup --keep=7` job runs and copy backups to separately protected storage; a backup on the same server is not disaster recovery.
 
 Run the readable report at any point:
 

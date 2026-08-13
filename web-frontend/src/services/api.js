@@ -1,5 +1,6 @@
 const API_URL = import.meta.env.VITE_WEB_API_URL ?? 'http://127.0.0.1:8001/api';
 const TOKEN_KEY = 'dahonmd-web-token';
+const API_TIMEOUT_MS = 15000;
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 export const setToken = (token, remember = true) => {
@@ -13,7 +14,17 @@ export async function api(path, options = {}) {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (options.body && !(options.body instanceof FormData)) headers['Content-Type'] = 'application/json';
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, { ...options, headers, signal: options.signal ?? controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('The server took too long to respond. Please try again.');
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
   const payload = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
     const error = new Error(payload?.message || 'The request could not be completed.');
@@ -27,6 +38,14 @@ export async function authenticate(mode, fields, remember = true) {
   const payload = await api(`/auth/${mode}`, { method: 'POST', body: JSON.stringify({ ...fields, device_name: 'web' }) });
   setToken(payload.data.token, remember);
   return payload.data.user;
+}
+
+export async function requestPasswordReset(email) {
+  const payload = await api('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
+  return payload.message;
 }
 
 export async function logout() {

@@ -26,6 +26,21 @@ class DiseaseResource extends JsonResource
         }
         $farmerManagement = $managementItems->pluck('farmer_friendly_text')->filter()->implode("\n");
         $farmerPrevention = $managementItems->whereIn('category', ['prevention', 'sanitation', 'containment'])->pluck('farmer_friendly_text')->filter()->implode("\n");
+        $sources = collect();
+        if ($this->relationLoaded('evidence')) {
+            $sources = $this->evidence->pluck('source')->filter()->unique('id')->sortByDesc('year')->values()->map(fn ($source) => [
+                'id' => $source->id,
+                'title' => $source->title,
+                'authors' => $source->authors,
+                'year' => $source->year,
+                'journal_or_institution' => $source->journal_or_institution,
+                'source_type' => $source->source_type,
+                'doi' => $source->doi,
+                'reference_url' => $source->reference_url,
+                'peer_reviewed' => $source->peer_reviewed,
+                'philippines_specific' => $source->philippines_specific,
+            ]);
+        }
 
         return [
             'id' => $this->id, 'slug' => $this->slug, 'name' => $this->name,
@@ -41,7 +56,8 @@ class DiseaseResource extends JsonResource
             'symptom_records' => $this->whenLoaded('symptomRecords'),
             'management_items' => $this->whenLoaded('managementRecords', fn () => $managementItems),
             'management' => $farmerManagement ?: $this->management, 'prevention' => $farmerPrevention ?: $this->prevention,
-            'sources_count' => $this->whenCounted('evidence'),
+            'sources_count' => $this->relationLoaded('evidence') ? $sources->count() : $this->whenCounted('evidence'),
+            'sources' => $this->whenLoaded('evidence', fn () => $sources),
             'verifications' => $this->whenLoaded('verifications'),
             'image_url' => $this->image_path ? Storage::disk('public')->url($this->image_path) : null,
         ];

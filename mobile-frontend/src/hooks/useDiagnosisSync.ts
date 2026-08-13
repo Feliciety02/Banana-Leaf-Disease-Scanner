@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { markSynced } from '../services/database';
+import { markSynced, recordSyncFailure } from '../services/database';
 import { syncDiagnoses, SyncRequestError } from '../services/sync';
 import { getRetryDelayMs } from '../services/syncPolicy';
 import { Diagnosis, Session, SyncStatus } from '../types';
@@ -39,9 +39,14 @@ export function useDiagnosisSync({ online, pendingCount, records, refresh, sessi
     setError(null);
 
     try {
-      const ids = await syncDiagnoses(pendingRecords, session.token);
-      if (!ids.length) throw new SyncRequestError('The server did not accept the pending scans.', false);
-      await markSynced(ids);
+      const result = await syncDiagnoses(pendingRecords, session.token);
+      await markSynced(result.acceptedIds);
+      if (result.rejectedIds.length) {
+        const message = `${result.rejectedIds.length} saved ${result.rejectedIds.length === 1 ? 'scan was' : 'scans were'} rejected by the server.`;
+        await recordSyncFailure(result.rejectedIds, message);
+        throw new SyncRequestError(message, false);
+      }
+      if (!result.acceptedIds.length) throw new SyncRequestError('The server did not accept the pending scans.', false);
       retryAttempt.current = 0;
       setStatus('idle');
       await refresh();
@@ -49,6 +54,9 @@ export function useDiagnosisSync({ online, pendingCount, records, refresh, sessi
       setStatus('error');
       setError(syncError instanceof Error ? syncError.message : 'Synchronization failed.');
       const retryable = !(syncError instanceof SyncRequestError) || syncError.retryable;
+      if (retryable) {
+        await recordSyncFailure(pendingRecords.map((record) => record.id), syncError instanceof Error ? syncError.message : 'Synchronization failed.');
+      }
       if (retryable) {
         retryAttempt.current += 1;
         const delay = getRetryDelayMs(retryAttempt.current);
