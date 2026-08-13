@@ -17,6 +17,8 @@ export async function initializeDatabase() {
       model_version TEXT NOT NULL,
       diagnosed_at TEXT NOT NULL,
       synced INTEGER NOT NULL DEFAULT 0,
+      sync_attempts INTEGER NOT NULL DEFAULT 0,
+      sync_error TEXT,
       is_simulated INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS disease_catalog (
@@ -28,6 +30,8 @@ export async function initializeDatabase() {
   const columns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(diagnoses)');
   if (!columns.some((column) => column.name === 'owner_id')) await db.execAsync('ALTER TABLE diagnoses ADD COLUMN owner_id INTEGER;');
   if (!columns.some((column) => column.name === 'is_simulated')) await db.execAsync('ALTER TABLE diagnoses ADD COLUMN is_simulated INTEGER NOT NULL DEFAULT 1;');
+  if (!columns.some((column) => column.name === 'sync_attempts')) await db.execAsync('ALTER TABLE diagnoses ADD COLUMN sync_attempts INTEGER NOT NULL DEFAULT 0;');
+  if (!columns.some((column) => column.name === 'sync_error')) await db.execAsync('ALTER TABLE diagnoses ADD COLUMN sync_error TEXT;');
   await db.execAsync(`
     CREATE INDEX IF NOT EXISTS diagnoses_owner_date_idx
       ON diagnoses (owner_id, diagnosed_at DESC);
@@ -54,16 +58,19 @@ export async function cacheDiseaseCatalog(diseases: Disease[]) {
 export async function listCachedDiseases(): Promise<Disease[]> {
   const db = await dbPromise;
   const rows = await db.getAllAsync<{ payload: string }>('SELECT payload FROM disease_catalog ORDER BY id');
-  return rows.map((row) => JSON.parse(row.payload) as Disease).filter((disease) => disease.isVerified === true);
+  return rows
+    .map((row) => JSON.parse(row.payload) as Disease)
+    .map((disease) => ({ ...disease, sources: disease.sources ?? [] }))
+    .filter((disease) => disease.isVerified === true);
 }
 
 function mapDiagnosisRow(row: {
   id: string; owner_id: number; disease_id: Diagnosis['diseaseId']; confidence: number; latency: number;
-  image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; is_simulated: number;
+  image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; sync_attempts: number; sync_error: string | null; is_simulated: number;
 }): Diagnosis {
   return {
     id: row.id, ownerId: row.owner_id, diseaseId: row.disease_id, confidence: row.confidence, latency: row.latency,
-    imageUri: row.image_uri, modelVersion: row.model_version, diagnosedAt: row.diagnosed_at, synced: row.synced === 1, isSimulated: row.is_simulated === 1,
+    imageUri: row.image_uri, modelVersion: row.model_version, diagnosedAt: row.diagnosed_at, synced: row.synced === 1, syncAttempts: row.sync_attempts, syncError: row.sync_error, isSimulated: row.is_simulated === 1,
   };
 }
 
@@ -71,7 +78,7 @@ export async function listDiagnoses(ownerId: number, limit = 100): Promise<Diagn
   const db = await dbPromise;
   const rows = await db.getAllAsync<{
     id: string; owner_id: number; disease_id: Diagnosis['diseaseId']; confidence: number; latency: number;
-    image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; is_simulated: number;
+    image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; sync_attempts: number; sync_error: string | null; is_simulated: number;
   }>('SELECT * FROM diagnoses WHERE owner_id = ? ORDER BY diagnosed_at DESC LIMIT ?', ownerId, limit);
   return rows.map(mapDiagnosisRow);
 }
@@ -80,7 +87,7 @@ export async function listPendingDiagnoses(ownerId: number, limit = 100): Promis
   const db = await dbPromise;
   const rows = await db.getAllAsync<{
     id: string; owner_id: number; disease_id: Diagnosis['diseaseId']; confidence: number; latency: number;
-    image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; is_simulated: number;
+    image_uri: string | null; model_version: string; diagnosed_at: string; synced: number; sync_attempts: number; sync_error: string | null; is_simulated: number;
   }>('SELECT * FROM diagnoses WHERE owner_id = ? AND synced = 0 ORDER BY diagnosed_at ASC LIMIT ?', ownerId, limit);
   return rows.map(mapDiagnosisRow);
 }
@@ -103,10 +110,10 @@ export async function saveDiagnosis(diagnosis: Diagnosis) {
   const db = await dbPromise;
   await db.runAsync(
     `INSERT OR REPLACE INTO diagnoses
-      (id, owner_id, disease_id, confidence, latency, image_uri, model_version, diagnosed_at, synced, is_simulated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, owner_id, disease_id, confidence, latency, image_uri, model_version, diagnosed_at, synced, sync_attempts, sync_error, is_simulated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     diagnosis.id, diagnosis.ownerId, diagnosis.diseaseId, diagnosis.confidence, diagnosis.latency, diagnosis.imageUri,
-    diagnosis.modelVersion, diagnosis.diagnosedAt, diagnosis.synced ? 1 : 0, diagnosis.isSimulated ? 1 : 0,
+    diagnosis.modelVersion, diagnosis.diagnosedAt, diagnosis.synced ? 1 : 0, diagnosis.syncAttempts ?? 0, diagnosis.syncError ?? null, diagnosis.isSimulated ? 1 : 0,
   );
 }
 
@@ -114,7 +121,17 @@ export async function markSynced(ids: string[]) {
   if (!ids.length) return;
   const db = await dbPromise;
   await db.withTransactionAsync(async () => {
-    for (const id of ids) await db.runAsync('UPDATE diagnoses SET synced = 1 WHERE id = ?', id);
+    for (const id of ids) await db.runAsync('UPDATE diagnoses SET synced = 1, sync_error = NULL WHERE id = ?', id);
+  });
+}
+
+export async function recordSyncFailure(ids: string[], message: string) {
+  if (!ids.length) return;
+  const db = await dbPromise;
+  await db.withTransactionAsync(async () => {
+    for (const id of ids) {
+      await db.runAsync('UPDATE diagnoses SET sync_attempts = sync_attempts + 1, sync_error = ? WHERE id = ?', message.slice(0, 500), id);
+    }
   });
 }
 

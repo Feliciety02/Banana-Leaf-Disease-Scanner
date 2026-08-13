@@ -10,8 +10,10 @@ export class SyncRequestError extends Error {
   }
 }
 
-export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Promise<string[]> {
-  if (!diagnoses.length) return [];
+export type SyncResult = { acceptedIds: string[]; rejectedIds: string[] };
+
+export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Promise<SyncResult> {
+  if (!diagnoses.length) return { acceptedIds: [], rejectedIds: [] };
   const response = await fetchWithTimeout(`${API_URL}/mobile/sync`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${token}` },
@@ -32,5 +34,11 @@ export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Prom
   if (!Array.isArray(payload?.data?.results)) {
     throw new SyncRequestError('The synchronization service returned an unexpected response.', false);
   }
-  return payload.data.results.filter((item: { status: string }) => ['created', 'already_synchronized'].includes(item.status)).map((item: { sync_uuid: string }) => item.sync_uuid);
+  const acceptedIds = payload.data.results
+    .filter((item: { status: string }) => ['created', 'already_synchronized'].includes(item.status))
+    .map((item: { sync_uuid: string }) => item.sync_uuid);
+  const rejectedIds = payload.data.results
+    .filter((item: { status: string; sync_uuid?: string }) => item.status === 'rejected' && typeof item.sync_uuid === 'string')
+    .map((item: { sync_uuid: string }) => item.sync_uuid);
+  return { acceptedIds, rejectedIds };
 }

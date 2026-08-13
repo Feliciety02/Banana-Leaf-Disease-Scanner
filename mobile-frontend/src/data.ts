@@ -13,6 +13,7 @@ export const unconfiguredDisease: Disease = {
   prevention: '',
   imageOnlyLimitations: 'A leaf image cannot provide laboratory confirmation.',
   professionalReferral: 'Ask a qualified agriculture or plant-health professional when symptoms are severe, unusual, spreading rapidly, or uncertain.',
+  sources: [],
   isVerified: false,
 };
 

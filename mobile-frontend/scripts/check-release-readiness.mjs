@@ -9,6 +9,11 @@ const inferenceSource = readFileSync(
   resolve(projectRoot, 'src/services/inference.ts'),
   'utf8',
 );
+const requiredAssets = [
+  appConfig.expo?.icon,
+  appConfig.expo?.splash?.image,
+  appConfig.expo?.android?.adaptiveIcon?.foregroundImage,
+].filter(Boolean);
 const reportOnly = process.argv.includes('--report');
 const issues = [];
 
@@ -87,6 +92,17 @@ if (!appConfig.expo?.android?.package) {
 
 if (!Number.isInteger(appConfig.expo?.android?.versionCode)) {
   addIssue('Set expo.android.versionCode to an integer in app.json.');
+}
+
+for (const assetPath of requiredAssets) {
+  if (!existsSync(resolve(projectRoot, assetPath))) {
+    addIssue(`Required release asset is missing: ${assetPath}`);
+  }
+}
+
+const permissionPlugins = JSON.stringify(appConfig.expo?.plugins ?? []);
+if (!permissionPlugins.includes('cameraPermission') || !permissionPlugins.includes('microphonePermission')) {
+  addIssue('Keep explicit camera/photo permission copy and microphonePermission disabled.');
 }
 
 if (!appConfig.expo?.extra?.eas?.projectId) {

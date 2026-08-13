@@ -15,19 +15,25 @@ use App\Http\Controllers\Expert\DatasetCandidateController;
 use App\Http\Controllers\Expert\DiagnosisReviewController;
 use App\Http\Controllers\Expert\DiseaseVerificationController;
 use App\Http\Controllers\Expert\ResearchSourceController as ExpertResearchSourceController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\InferenceController;
 use App\Http\Controllers\MobileSyncController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/health', fn () => response()->json(['service' => 'dahonmd-web-api', 'status' => 'ok']));
-Route::post('/auth/register', [AuthController::class, 'register']);
-Route::post('/auth/login', [AuthController::class, 'login']);
-Route::apiResource('diseases', DiseaseController::class)->only(['index', 'show']);
+Route::get('/health', HealthController::class)->middleware('throttle:public-api');
+Route::middleware('throttle:auth')->group(function () {
+    Route::post('/auth/register', [AuthController::class, 'register']);
+    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
+});
+Route::apiResource('diseases', DiseaseController::class)->only(['index', 'show'])->middleware('throttle:public-api');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::post('/auth/verification-notification', [AuthController::class, 'resendVerification'])->middleware('throttle:6,1');
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::put('/profile', [ProfileController::class, 'update']);
     Route::put('/profile/password', [ProfileController::class, 'password']);
@@ -35,7 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
     Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview']);
     Route::post('/inference', InferenceController::class);
-    Route::post('/mobile/sync', MobileSyncController::class);
+    Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
 
     Route::prefix('admin')->middleware('admin')->group(function () {
         Route::get('/', DashboardController::class);

@@ -39,6 +39,20 @@ export async function authenticate(mode: 'login' | 'register', fields: Record<st
   const session = { ...(payload.data as Omit<Session, 'apiUrl' | 'isPersistent'>), apiUrl: API_URL, isPersistent: remember }; if (remember) await persist(session); return session;
 }
 
+export async function requestPasswordReset(email: string): Promise<string> {
+  const payload = await request('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
+
+  return payload.message as string;
+}
+
+export async function resendEmailVerification(session: Session): Promise<string> {
+  const payload = await request('/auth/verification-notification', { method: 'POST' }, session.token);
+  return payload.message as string;
+}
+
 export async function updateProfile(session: Session, fields: Pick<User, 'name' | 'email'>): Promise<Session> {
   const payload = await request('/profile', { method: 'PUT', body: JSON.stringify(fields) }, session.token);
   const updated = { ...session, user: payload.data.user as User }; if (updated.isPersistent) await persist(updated); return updated;

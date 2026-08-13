@@ -30,7 +30,10 @@ The mobile application also maintains a private on-device SQLite database. This 
 - One Sanctum identity works across the web and mobile clients.
 - Web and synchronized mobile diagnoses share the same central history.
 - Mobile diagnoses remain available offline through on-device SQLite.
+- Mobile history is searchable and filterable, loads in bounded pages, and cleans orphaned image files.
 - UUID-based synchronization safely handles retries without duplicate records.
+- Authentication includes password recovery, email verification, in-app deletion, and a public credential-confirmed deletion page.
+- API health checks include database readiness, while request IDs, rate limits, failure logs, and scheduled SQLite backups improve operations.
 - Three scoped roles separate field use, agricultural review, and system administration.
 - Agricultural reviewers assess uncertain diagnoses and verify researched disease content without changing original AI outputs.
 - Review queues prioritize farmer requests, low-confidence results, and repeated uncertain scans.
@@ -124,7 +127,7 @@ npm --version
 Each command should print a version number. If PowerShell says that a command is not recognized, install that tool before continuing.
 
 > [!IMPORTANT]
-> Open every terminal in the main `Banana Leaf Disease Scanner` folder. A command such as `cd backend` will not work correctly if the terminal starts in a different folder.
+> Open every terminal in the main `DahonMD` folder. A command such as `cd backend` will not work correctly if the terminal starts in a different folder.
 
 ## Choose What You Want to Run
 
@@ -275,7 +278,7 @@ Click each running terminal and press `Ctrl+C`. Closing a frontend terminal does
 | Problem | What to do |
 | --- | --- |
 | `php`, `composer`, `node`, or `npm` is not recognized | Install the missing tool, close PowerShell, and open a new terminal. |
-| `cd backend` says the path does not exist | Reopen the terminal in the main `Banana Leaf Disease Scanner` folder. |
+| `cd backend` says the path does not exist | Reopen the terminal in the main `DahonMD` folder. |
 | The terminal looks stuck after starting a server | This is normal. The server is waiting for requests. Leave it open and use a new terminal for the next program. |
 | Port `8001` or `4173` is already in use | Another copy may already be running. Find its terminal and press `Ctrl+C`, then start it again. |
 | The web page opens but cannot load data | Confirm that both the Laravel backend and React frontend terminals are still running. |
@@ -343,7 +346,9 @@ npm run build
 
 ```powershell
 cd mobile-frontend
-npx tsc --noEmit
+npm test
+npm run typecheck
+npm run release:status
 ```
 
 ## AI Pipeline
@@ -387,13 +392,17 @@ See [the dataset guide](datasets/README.md) for layout and quality requirements,
 
 ## Scientific Content Governance
 
-Disease content is not hard-coded from AI-generated text. The target contract is fixed to Healthy, Moko disease, Black Sigatoka, Yellow Sigatoka, and Cordana leaf spot, using the stable model keys documented in `datasets/README.md`. The authoritative API reads the trained model's five-entry `label_map.json` through `AI_LABEL_MAP_PATH`; until that artifact exists and passes structural validation, the system reports **DISEASE CONTENT PENDING — a validated trained-model label map is not yet available** and does not seed disease records.
+Disease content is not generated at runtime or copied from unsourced blogs. Non-production seeding imports a source-audited development baseline for Healthy, Moko disease, Black Sigatoka, Yellow Sigatoka, and Cordana leaf spot using the stable model keys documented in `datasets/README.md`. It populates the disease, symptom, management, research-source, claim-evidence, regulatory-check, and verification-history tables. The web and mobile farmer Disease Guides display those records and link their research sources. The seeded verification note explicitly requires independent confirmation by a qualified agricultural reviewer before production publication.
+
+The authoritative API separately reads a trained model's five-entry `label_map.json` through `AI_LABEL_MAP_PATH`. That artifact is still required for model-runtime readiness and must be produced and deployed with the matching trained model; the research seeder does not fabricate a trained-model artifact.
 
 Content follows a controlled lifecycle: `DRAFT` → `RESEARCHED` → `VERIFIED` → `ARCHIVED`. Only `VERIFIED` records are returned by the farmer disease API. Editing verified disease content or a supporting source automatically returns affected content to `RESEARCHED` for another review. Normal farmers cannot access knowledge or source mutation routes.
 
 Scientific facts and farmer recommendations must be supported by claim-level evidence. Peer-reviewed and authoritative agricultural sources are prioritized, with Philippine evidence preferred whenever available. A disease cannot be verified without at least two peer-reviewed sources, one authoritative institutional source, causal-agent and curative-status mappings, and mappings for any symptom or management content. Missing evidence is represented as “Insufficient verified evidence available,” never guessed.
 
 Chemical guidance is not inferred from academic efficacy studies. It is marked separately as requiring regulatory review and is withheld from farmer responses unless its Philippine regulatory check is current. Administrators and agricultural reviewers see `REGULATORY RE-CHECK REQUIRED` when a time-sensitive check is missing or stale. Exact product directions must come from the current FPA-approved label or a licensed agricultural professional; the system does not invent doses, intervals, application methods, re-entry intervals, or pre-harvest intervals.
+
+The development baseline contains one time-sensitive product record supported directly by the Philippine FPA list dated June 30, 2026: Daconil 720 SC for banana/Black Sigatoka, listed through December 21, 2027. The database deliberately stores no dose or application directions and requires re-checking the registry and approved label before use. No product-specific chemical record is seeded for Moko, Yellow Sigatoka, Cordana Leaf Spot, or the healthy class.
 
 The classifier is a screening aid, not laboratory confirmation. Model confidence measures the strength of a match to learned class patterns and is not the biological probability that a plant has a disease. The healthy class must not be presented as proof that a plant is disease-free. Image results cannot perform PCR, culture, isolation, or molecular diagnosis. Simulated records are explicitly flagged and remain distinct from later research-deployment records.
 

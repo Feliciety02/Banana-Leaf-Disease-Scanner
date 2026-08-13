@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AssignRequestContext;
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureAgriculturalExpert;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->api(prepend: [AssignRequestContext::class]);
         $middleware->alias(['admin' => EnsureAdmin::class, 'agricultural_expert' => EnsureAgriculturalExpert::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -18,9 +18,16 @@ class ProfileController extends Controller
 
     public function update(UpdateProfileRequest $request): JsonResponse
     {
-        $request->user()->update($request->validated());
+        $user = $request->user();
+        $validated = $request->validated();
+        $emailChanged = isset($validated['email']) && $validated['email'] !== $user->email;
+        $user->update($validated);
+        if ($emailChanged) {
+            $user->forceFill(['email_verified_at' => null])->save();
+            $user->sendEmailVerificationNotification();
+        }
 
-        return response()->json(['success' => true, 'message' => 'Profile updated.', 'data' => ['user' => new UserResource($request->user()->fresh())]]);
+        return response()->json(['success' => true, 'message' => 'Profile updated.', 'data' => ['user' => new UserResource($user->fresh())]]);
     }
 
     public function password(UpdatePasswordRequest $request): JsonResponse

@@ -11,10 +11,12 @@ export type Diagnosis = {
   modelVersion: string;
   diagnosedAt: string;
   synced: boolean;
+  syncAttempts?: number;
+  syncError?: string | null;
   isSimulated: boolean;
 };
 
-export type User = { id: number; name: string; email: string; role: 'farmer' | 'admin' };
+export type User = { id: number; name: string; email: string; role: 'farmer' | 'agricultural_expert' | 'admin'; email_verified_at?: string | null };
 export type Session = { user: User; token: string; apiUrl: string; isPersistent: boolean };
 
 export type Disease = {
@@ -28,5 +30,13 @@ export type Disease = {
   prevention: string;
   imageOnlyLimitations: string;
   professionalReferral: string;
+  sources: Array<{
+    id: number;
+    title: string;
+    authors: string;
+    year: number | null;
+    journalOrInstitution: string;
+    referenceUrl: string | null;
+  }>;
   isVerified: boolean;
 };

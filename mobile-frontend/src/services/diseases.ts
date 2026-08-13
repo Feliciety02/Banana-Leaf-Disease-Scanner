@@ -13,6 +13,14 @@ type ApiDisease = {
   prevention: string | null;
   image_only_limitations: string | null;
   professional_referral: string | null;
+  sources: Array<{
+    id: number;
+    title: string;
+    authors: string;
+    year: number | null;
+    journal_or_institution: string;
+    reference_url: string | null;
+  }>;
   is_verified: boolean;
 };
 
@@ -27,6 +35,14 @@ const mapDisease = (disease: ApiDisease): Disease => ({
   prevention: disease.prevention ?? '',
   imageOnlyLimitations: disease.image_only_limitations ?? '',
   professionalReferral: disease.professional_referral ?? '',
+  sources: (disease.sources ?? []).map((source) => ({
+    id: source.id,
+    title: source.title,
+    authors: source.authors,
+    year: source.year,
+    journalOrInstitution: source.journal_or_institution,
+    referenceUrl: source.reference_url,
+  })),
   isVerified: disease.is_verified,
 });
 
