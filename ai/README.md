@@ -140,7 +140,7 @@ the three `DAHONMD_*` artifact paths in `ai/.env`, then start the service:
 ```
 
 Set `AI_COMPARISON_URL=http://127.0.0.1:8100/compare` in
-`web-backend/.env`. The Laravel endpoint is administrator-only, validates the
+`backend/.env`. The Laravel endpoint is administrator-only, validates the
 returned research contract, and never writes comparison runs to `diagnoses`.
 The service health endpoint remains `unconfigured` until all three real
 artifacts exist.

@@ -2,12 +2,12 @@
 
 ```text
 web-frontend/ ---------------------+
-                                   +--> web-backend/ --> central database
+                                   +--> backend/ --> central database
 mobile-frontend/ -> local SQLite --+
           (offline/pending)             via /api/mobile/sync
 ```
 
-`web-backend` is the single authoritative REST API. The same Sanctum-backed account works in React and Expo. Web diagnoses and acknowledged mobile diagnoses enter the same `diagnoses` table, so user history and administrator analytics share one source of truth. `mobile-backend` is deprecated and is not part of the runtime architecture.
+`backend` is the single authoritative REST API. The same Sanctum-backed account works in React and Expo. Web diagnoses and acknowledged mobile diagnoses enter the same `diagnoses` table, so user history and administrator analytics share one source of truth.
 
 ## Central API contract
 

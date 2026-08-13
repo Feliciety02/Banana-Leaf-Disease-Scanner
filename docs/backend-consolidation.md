@@ -2,7 +2,7 @@
 
 ## Decision
 
-`web-backend/` is the authoritative Laravel application. It was selected because it already contained every mobile requirement plus Form Requests, API Resources, diagnosis policies, admin middleware, user/disease/diagnosis administration, analytics, secure uploads, and the central `diagnoses.sync_uuid` constraint. The former `mobile-backend/` implemented a smaller duplicate API around a separate `mobile_diagnoses` table.
+`backend/` is the authoritative Laravel application. It contains every mobile and web requirement plus Form Requests, API Resources, diagnosis policies, role middleware, user/disease/diagnosis administration, analytics, secure uploads, and the central `diagnoses.sync_uuid` constraint. The former standalone mobile API was removed after consolidation because it duplicated authentication, profiles, diseases, diagnoses, and synchronization.
 
 ## Development data preflight
 
@@ -10,10 +10,10 @@ Before consolidation, both applications used SQLite and both pending authenticat
 
 | Database | Users | Diseases | Diagnoses |
 | --- | ---: | ---: | ---: |
-| `web-backend/database/database.sqlite` | 0 | 0 | 0 |
-| `mobile-backend/database/database.sqlite` | 0 | 0 | 0 |
+| `backend/database/database.sqlite` | 0 | 0 | 0 |
+| Former standalone mobile database | 0 | 0 | 0 |
 
-There was no meaningful development data to import. The two pending central migrations were therefore applied normally with `php artisan migrate --force`; no reset, deletion, or destructive merge was performed. The deprecated mobile database was left untouched.
+There was no meaningful development data to import. The two pending central migrations were therefore applied normally with `php artisan migrate --force`; no reset or destructive data merge was required. The duplicate backend was later removed from the repository.
 
 ## Conflict-safe import procedure for an older populated copy
 
@@ -27,4 +27,4 @@ If a populated pre-consolidation mobile database is discovered later, do not att
 
 ## Runtime rule
 
-Only `web-backend` should be served. Expo uses `EXPO_PUBLIC_API_URL`; React uses `VITE_WEB_API_URL`. Both URLs must resolve to the same Laravel deployment and database.
+Only `backend` should be served. Expo uses `EXPO_PUBLIC_API_URL`; React uses `VITE_WEB_API_URL`. Both URLs must resolve to the same Laravel deployment and database.
