@@ -29,6 +29,8 @@ See [PLAY_STORE_RELEASE.md](./PLAY_STORE_RELEASE.md) for initial EAS setup, Goog
 
 PNG, JPG/JPEG, and WEBP field images are suitable client formats. The model does not classify the file extension; it classifies the decoded pixels. A PNG captured by a farmer can therefore be evaluated by a model whose training files were WEBP, but real-world accuracy must be measured because phone processing, compression, orientation, lighting, blur, background, distance, and disease stage may differ from the training distribution.
 
+Saved history photos are stored separately from the picker cache. The permanent history copy is capped at a 1600-pixel longest edge and encoded as JPEG at 82% quality to limit device storage. Analysis continues to use the original selected image, so history compression does not change model input.
+
 The final native TFLite bridge must reproduce the training contract exactly:
 
 1. Apply the image's physical/EXIF orientation consistently.
