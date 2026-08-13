@@ -693,6 +693,90 @@ body { background: var(--page); }
 .friendly-drop p, .scan-check-panel > p, .scan-tip-card li { font-size: 12px; line-height: 1.5; }
 .scan-tip-card small, .development-note p, .screening-warning p { font-size: 11px; }
 
+.camera-scanner {
+  min-height: 520px;
+  position: relative;
+  overflow: hidden;
+  color: white;
+  background: #07130f;
+  border-radius: 13px;
+  isolation: isolate;
+}
+.camera-scanner video {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+  background: #07130f;
+}
+.camera-scanner:not(.active) video { opacity: .15; }
+.camera-scanner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(3, 12, 9, .20), transparent 35%, transparent 62%, rgba(3, 12, 9, .82));
+}
+.camera-frame {
+  position: absolute;
+  inset: 34px 28px 145px;
+  z-index: 2;
+  pointer-events: none;
+}
+.camera-frame i { width: 38px; height: 38px; position: absolute; border-color: rgba(255, 255, 255, .88); border-style: solid; }
+.camera-frame i:nth-child(1) { inset: 0 auto auto 0; border-width: 3px 0 0 3px; border-radius: 12px 0 0; }
+.camera-frame i:nth-child(2) { inset: 0 0 auto auto; border-width: 3px 3px 0 0; border-radius: 0 12px 0 0; }
+.camera-frame i:nth-child(3) { inset: auto auto 0 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 12px; }
+.camera-frame i:nth-child(4) { inset: auto 0 0 auto; border-width: 0 3px 3px 0; border-radius: 0 0 12px; }
+.camera-message {
+  position: absolute;
+  inset: 0 20px 70px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 11px;
+  text-align: center;
+}
+.camera-message > span { width: 72px; height: 72px; display: grid; place-items: center; color: #dff1e8; background: rgba(41, 119, 88, .42); border: 1px solid rgba(255, 255, 255, .15); border-radius: 50%; }
+.camera-message h2 { margin: 4px 0 0; color: white; font-size: 21px; }
+.camera-message p { max-width: 330px; margin: 0 0 4px; color: #c7d7d0; font-size: 12px; line-height: 1.5; }
+.camera-message .text-button { color: #dcebe4; }
+.camera-live-controls {
+  position: absolute;
+  inset: auto 0 67px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+.camera-live-controls small { padding: 5px 9px; color: white; background: rgba(3, 12, 9, .55); border-radius: 20px; font-size: 10px; }
+.camera-shutter {
+  width: 68px;
+  height: 68px;
+  padding: 5px;
+  pointer-events: auto;
+  background: transparent;
+  border: 3px solid white;
+  border-radius: 50%;
+}
+.camera-shutter span { width: 100%; height: 100%; display: block; background: white; border-radius: 50%; transition: transform .12s ease; }
+.camera-shutter:active span { transform: scale(.88); }
+.camera-source-actions {
+  position: absolute;
+  inset: auto 14px 13px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.camera-source-actions .secondary-button { min-height: 40px; color: white; background: rgba(8, 28, 21, .72); border-color: rgba(255, 255, 255, .34); backdrop-filter: blur(7px); }
+.camera-source-actions .sample-link { margin: 0; color: #e0eee8; }
+
 .auth-card h1 { margin: 26px 0 8px; font-size: 30px; }
 .auth-intro { font-size: 13px; }
 .auth-form label, .role-form label, .admin-editor label, .diagnosis-filters label,
@@ -745,6 +829,10 @@ body { background: var(--page); }
   .quick-help, .farmer-recent, .scan-photo-panel, .scan-check-panel,
   .admin-distribution, .admin-list-panel, .analytics-chart,
   .role-form, .admin-editor, .evidence-audit { padding: 20px; }
+  .camera-scanner { min-height: min(520px, 66dvh); }
+  .camera-frame { inset: 24px 18px 142px; }
+  .farmer-scan-layout .scan-photo-panel { order: 1; padding: 0; background: #07130f; }
+  .farmer-scan-layout .scan-check-panel { order: 2; }
 }
 
 @media (max-width: 500px) {
@@ -756,6 +844,10 @@ body { background: var(--page); }
   .friendly-drop { min-height: 330px; }
   .primary-button, .secondary-button, .danger-button { width: 100%; }
   .panel-heading .text-button { width: auto; }
+  .camera-scanner { min-height: min(500px, 64dvh); border-radius: 12px; }
+  .camera-message .primary-button { width: min(290px, 100%); }
+  .camera-source-actions { inset-inline: 12px; }
+  .camera-source-actions .secondary-button { width: auto; }
 }
 
 /* Phone layouts: turn wide desktop data into readable cards */
