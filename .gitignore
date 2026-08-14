@@ -15,6 +15,6 @@
 artifacts/
 
 # Keep image datasets local. Only the placement documentation is versioned.
-# datasets/*
+datasets/*
 !datasets/README.md
 !datasets/.gitkeep
