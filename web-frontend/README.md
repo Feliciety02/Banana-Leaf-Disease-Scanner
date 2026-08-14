@@ -56,10 +56,10 @@ npm run dev -- --host 127.0.0.1 --port 4173
 ## Configuration
 
 ```dotenv
-VITE_WEB_API_URL=http://127.0.0.1:8001/api
+VITE_WEB_API_URL=/api
 ```
 
-The browser communicates only with the shared Laravel backend. Restart Vite after changing `.env`.
+The browser uses the same-origin `/api` path. During development, Vite proxies it to Laravel at `http://127.0.0.1:8001`; Docker's Nginx proxy handles the same path in a container. Restart Vite after changing `.env`.
 
 ## Experiences by Role
 
