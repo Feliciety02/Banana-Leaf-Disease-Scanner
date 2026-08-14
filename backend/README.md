@@ -21,20 +21,73 @@ The authoritative Laravel 12 and Sanctum backend shared by the web and mobile ap
 > [!IMPORTANT]
 > This is the only runtime backend. The mobile SQLite database is an offline client store, not another API.
 
+## Start Here
+
+Use this folder when your task involves Laravel, API routes, authentication, the central database, reviews, or administrator data.
+
+| Goal | Section |
+| --- | --- |
+| Run the API for the first time | [Quick start](#quick-start) |
+| Sign in with test data | [Development accounts](#development-accounts) |
+| Connect another component | [Environment settings](#environment-settings) |
+| Find an endpoint | [Main API routes](#main-api-routes) |
+| Run backend tests | [Checks](#checks) |
+| Fix a setup error | [Common problems](#common-problems) |
+
+### Terms you will see
+
+| Term | Meaning |
+| --- | --- |
+| API | The server interface used by the web and mobile apps |
+| Route | A URL and HTTP method handled by the API |
+| Migration | A versioned change to the database structure |
+| Seeder | Code that creates safe development records |
+| Sanctum token | The login credential sent by an authenticated client |
+| SQLite | The file-based database used for local development |
+
 ## Quick Start
 
-From `backend/`:
+### 1. Open the correct folder
+
+From the main repository:
+
+```powershell
+cd backend
+```
+
+### 2. Install PHP packages
 
 ```powershell
 composer install
+```
+
+### 3. Prepare the environment and database
+
+```powershell
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 php artisan key:generate
 if (-not (Test-Path database/database.sqlite)) { New-Item database/database.sqlite -ItemType File }
 php artisan migrate --seed
+```
+
+### 4. Start the API
+
+```powershell
 php artisan serve --host=0.0.0.0 --port=8001
 ```
 
-The API will be available at <http://127.0.0.1:8001/api>.
+Leave the terminal open. The API will be available at <http://127.0.0.1:8001/api>.
+
+Check it in a browser at <http://127.0.0.1:8001/api/health>. A successful response means Laravel can also reach the database.
+
+### Later runs
+
+After setup, use only:
+
+```powershell
+cd backend
+php artisan serve --host=0.0.0.0 --port=8001
+```
 
 Use `php artisan migrate` during normal development. `php artisan migrate:fresh --seed` deletes and rebuilds the local database, so reserve it for deliberate development resets.
 
@@ -141,5 +194,38 @@ The `2026_08_12_000005_rename_user_role_to_farmer` migration converts the legacy
 php artisan test
 vendor\bin\pint --test
 ```
+
+| Command | What success looks like |
+| --- | --- |
+| `php artisan test` | All automated tests pass |
+| `vendor\bin\pint --test` | No PHP formatting changes are required |
+
+## Common Problems
+
+| Problem | Student-friendly fix |
+| --- | --- |
+| `php` is not recognized | Install PHP 8.2+, reopen PowerShell, and run `php --version`. |
+| `composer` is not recognized | Install Composer and reopen PowerShell. |
+| `No application encryption key` | Run `php artisan key:generate`. |
+| SQLite file is missing | Run the `New-Item database/database.sqlite` setup command. |
+| A table does not exist | Run `php artisan migrate`. |
+| Port 8001 is already in use | Stop the other Laravel terminal with `Ctrl+C`. |
+| Web or mobile receives a network error | Keep this API terminal running and verify its URL in the client `.env`. |
+| A phone cannot connect | Use host `0.0.0.0` and the computer's LAN IP in the mobile app. |
+
+## Folder Map
+
+| Path | What students usually change there |
+| --- | --- |
+| `app/Http/Controllers/` | Request handling and API responses |
+| `app/Models/` | Database entities and relationships |
+| `app/Services/` | Reusable business rules |
+| `database/migrations/` | Database structure changes |
+| `database/seeders/` | Development and scientific seed data |
+| `routes/api.php` | API route definitions |
+| `tests/Feature/` | End-to-end API behavior tests |
+
+> [!TIP]
+> When adding a feature, update the route, controller/service, validation, authorization, and tests together.
 
 Return to the [main project guide](../README.md), or read the [scientific content governance](../docs/scientific-content-governance.md).

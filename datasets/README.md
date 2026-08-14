@@ -9,6 +9,22 @@ Layout, provenance, label-review, leakage-prevention, and validation rules for t
 > [!IMPORTANT]
 > Folder placement is treated as ground truth by the loader. Only include images whose provenance and reviewed label support the selected class.
 
+## Start Here
+
+Use this folder when your task involves collecting images, checking labels, removing duplicates, assigning biological groups, or preparing data for training.
+
+If you are new to the dataset, follow this order:
+
+1. Read [Meaning of each label](#meaning-of-each-label).
+2. Check whether the image belongs in training or [label review](label-review/README.md).
+3. Record provenance and biological grouping.
+4. Put only approved images in the exact class folder.
+5. Run the validator.
+6. Do not train until validation passes.
+
+> [!CAUTION]
+> Do not move an uncertain image into the class that merely looks closest. Ask a qualified reviewer or keep it excluded.
+
 ## Dataset Snapshot
 
 The cleaned source-labeled dataset contains **459 unique, validator-readable images**.
@@ -101,6 +117,17 @@ An admission decision must record:
 
 Never assign Black versus Yellow Sigatoka from lesion color alone. Mark mixed or unresolved cases as `exclude`.
 
+### Student decision guide
+
+| Situation | Action |
+| --- | --- |
+| Label and provenance are verified | Keep the image in its approved class folder |
+| Source label exists but visual overlap is unresolved | Record it as pending review |
+| Only a generic `sigatoka` label exists | Keep it in `sigatoka-unverified/` |
+| The image appears mixed or cannot be assigned confidently | Mark `exclude` |
+| It is an exact or near duplicate | Keep one biological sample and quarantine the copy |
+| The file cannot be decoded reliably | Move it to `malformed/` |
+
 ## Supported Formats and Preprocessing
 
 | Format | Training loader | Diagnosis upload | Notes |
@@ -169,5 +196,35 @@ From the repository root:
 The validator checks class keys and order, empty classes, unreadable files, duplicate-label conflicts, group leakage, and split consistency before writing a persistent manifest.
 
 Class imbalance must be reported rather than hidden. Record any weighting, sampling, or augmentation strategy in the experiment configuration and thesis report.
+
+### What success looks like
+
+The validator should confirm the five exact classes, readable images, and a leakage-free split. It then writes a split manifest that training can reuse.
+
+Do not ignore a warning simply because training still starts. Fix or formally document the data issue first.
+
+## Common Problems
+
+| Problem | What to do |
+| --- | --- |
+| A class folder is rejected | Match the exact lowercase model key from the label table. |
+| An image is unreadable | Move it to `label-review/malformed/` and retain the audit note. |
+| A duplicate appears in two classes | Remove it from training and resolve the label conflict. |
+| Related photos appear in different splits | Add their paths to one group in `group_manifest.json`. |
+| Yellow and Cordana look similar | Do not guess; keep the record pending qualified review. |
+| The dataset count changed | Revalidate, record the reason, and create a new experiment version. |
+| Accuracy dropped after adding images | Check labels, balance, provenance, and field difficulty; a larger test can be more honest. |
+
+## Student Handoff Checklist
+
+Before giving the dataset to the model trainer, provide:
+
+- the validated dataset path;
+- the class counts;
+- `group_manifest.json`;
+- provenance and license records;
+- the list of pending or excluded images;
+- validator output and split-manifest fingerprint; and
+- a note describing every dataset change since the previous run.
 
 Continue with the [AI pipeline guide](../ai/README.md) or the [dataset/model trainer checklist](../docs/dataset-model-trainer-todo.md).
