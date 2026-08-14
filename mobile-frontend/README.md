@@ -1,49 +1,112 @@
+<div align="center">
+
 # DahonMD Field App
 
-Expo React Native farmer field application for iOS and Android. Login, farmer registration, profile/password management, secure session restoration with Expo SecureStore, camera/gallery preview, plain-language result states, per-farmer SQLite history, connection status, and acknowledged queued synchronization are implemented. A previously authenticated farmer can continue local screening and history offline. Authentication, disease data, and `/api/mobile/sync` all use the authoritative `../backend` API.
+An Expo React Native application for farmer screening, offline history, and reliable synchronization on iOS and Android.
+
+</div>
+
+## What Works
+
+- Farmer registration, login, profile, password management, and secure session restoration
+- Camera and gallery selection with a clear image preview
+- Plain-language result states and per-farmer SQLite history
+- Offline screening flow and queued synchronization
+- Connection and synchronization status with manual retry
+- Exponential retry delays for temporary failures
+- Optional online baseline-versus-enhanced research comparison
+
+Authentication, disease data, and synchronization all use the authoritative Laravel API in `../backend`.
+
+## Quick Start
+
+Start the Laravel API with host `0.0.0.0`, then run these commands from `mobile-frontend/`:
 
 ```powershell
-Copy-Item .env.example .env
 npm install
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 npm start
 ```
 
-The Android emulator default is `EXPO_PUBLIC_API_URL=http://10.0.2.2:8001/api`. For a physical device, use the development computer's LAN address on port `8001`.
+Press `a` for Android, `i` for the iOS simulator on macOS, or scan the QR code with Expo Go.
 
-Use `npm run android` for Android or `npm run ios` from macOS. Replace `src/services/inference.ts` with the final TFLite bridge before thesis evaluation.
+## Connect to the API
 
-## Android Preview and Play Store Preparation
+| Device | `EXPO_PUBLIC_API_URL` |
+| --- | --- |
+| Android emulator | `http://10.0.2.2:8001/api` |
+| Physical phone | `http://<computer-lan-ip>:8001/api` |
 
-Work that does not depend on the trained dataset is prepared now:
+For a physical phone:
 
-- `npm run typecheck` validates the TypeScript application.
-- `npm run release:status` reports the remaining production blockers without failing.
-- `npm run build:android:preview` creates an installable internal-testing APK through EAS.
-- `npm run build:android:production` checks release safety, then creates the Play Store AAB. It will remain blocked while simulated inference or local-only services are configured.
+1. Connect the phone and computer to the same Wi-Fi network.
+2. Run `ipconfig` and find the computer's IPv4 address.
+3. Put that address in `mobile-frontend/.env`.
+4. Restart Expo and reopen the app.
 
-The preview build still needs a reachable HTTPS deployment of the single `../backend` API. Local development can continue through Expo Go with the emulator or LAN API URL.
+## Offline and Sync Behavior
 
-Pending scans synchronize automatically when connectivity is available. Transient failures retry after 2, 4, 8, 16, and then at most 30 seconds; validation and authentication failures wait for manual intervention instead of retrying forever. The header and Home status card expose progress and allow an immediate manual retry.
+```mermaid
+flowchart LR
+    Scan[Farmer scan] --> Local[(Device SQLite)]
+    Local -->|online| API[Laravel API]
+    Local -->|offline| Queue[Pending queue]
+    Queue -->|connection returns| API
+```
 
-See [PLAY_STORE_RELEASE.md](./PLAY_STORE_RELEASE.md) for initial EAS setup, Google Play preparation, test tracks, listing copy, and the dataset-dependent release gates.
+Pending records retry after 2, 4, 8, 16, and at most 30 seconds. Validation and authentication failures wait for manual action instead of retrying forever. The UUID supplied by the client prevents duplicate server diagnoses when a request is repeated.
 
-## Camera Images and Model Input
+History photos are stored separately from the temporary picker cache. The history copy is limited to a 1600-pixel longest edge and encoded as JPEG at 82% quality. Analysis uses the original selected image, so history compression does not alter model input.
 
-PNG, JPG/JPEG, and WEBP field images are suitable client formats. The model does not classify the file extension; it classifies the decoded pixels. A PNG captured by a farmer can therefore be evaluated by a model whose training files were WEBP, but real-world accuracy must be measured because phone processing, compression, orientation, lighting, blur, background, distance, and disease stage may differ from the training distribution.
+## Model Input Contract
 
-Saved history photos are stored separately from the picker cache. The permanent history copy is capped at a 1600-pixel longest edge and encoded as JPEG at 82% quality to limit device storage. Analysis continues to use the original selected image, so history compression does not change model input.
+Field images may be PNG, JPG/JPEG, or WEBP. The model classifies decoded pixels, not the extension.
 
-The final native TFLite bridge must reproduce the training contract exactly:
+The final native TFLite bridge must:
 
-1. Apply the image's physical/EXIF orientation consistently.
+1. Apply physical or EXIF orientation consistently.
 2. Decode to three-channel RGB.
-3. Resize to `224 x 224` using the documented interpolation policy.
-4. Represent the pre-quantized input in `[0, 1]`.
-5. Quantize using the deployed TFLite input tensor's actual scale and zero point.
-6. Dequantize output logits when required, apply softmax once, and map indices using the model's paired `label_map.json`.
+3. Resize to `224 × 224` using the evaluated interpolation policy.
+4. Represent pre-quantized input in `[0, 1]`.
+5. Quantize with the TFLite tensor's real scale and zero point.
+6. Dequantize outputs when needed, apply softmax once, and use the paired `label_map.json`.
 
-Do not hard-code a different class order in TypeScript. Bundle the validated INT8 student and matching label map together, record their version/checksums, and reject startup if either artifact is missing or inconsistent.
+Never hard-code another class order in TypeScript. Bundle the validated model and label map together, record their versions and checksums, and reject an inconsistent pair.
 
-Before thesis evaluation, test genuine captures from supported target phones. Report cold-start and warmed inference latency, model size, memory use, and accuracy by class; where sample counts allow, also examine device, format, lighting, and image-quality subgroups. Offline results must retain the same model version and simulation flag when later synchronized.
+> [!CAUTION]
+> `src/services/inference.ts` is still a safe simulated placeholder. Camera access and image preview do not mean production model inference is active.
 
-The current `src/services/inference.ts` is still a safe simulated placeholder. Camera/gallery preview does not mean real model inference is active.
+## Research Comparison
+
+When the device is online and the optional service is configured, the original selected photo may also be sent to `/api/research/model-comparison`.
+
+The result screen labels this as thesis research. It is unavailable offline, does not replace the normal screening result, and is never stored in SQLite or synchronized into diagnosis history.
+
+## Development Checks
+
+```powershell
+npm test
+npm run typecheck
+npm run release:status
+```
+
+## Android Builds
+
+| Command | Purpose |
+| --- | --- |
+| `npm run build:android:preview` | Create an internal-testing APK with EAS |
+| `npm run build:android:production` | Run release checks and create a Play Store AAB |
+
+Production remains blocked while simulated inference or local-only services are configured. A preview build also needs a reachable HTTPS deployment of the Laravel API.
+
+See [PLAY_STORE_RELEASE.md](./PLAY_STORE_RELEASE.md) for EAS setup, store preparation, testing tracks, listing copy, and dataset-dependent release gates.
+
+## Before Thesis Evaluation
+
+- Test genuine captures from every supported target phone.
+- Report cold-start and warmed inference latency, model size, and memory use.
+- Report overall and per-class accuracy with support counts.
+- Where sample size permits, analyze device, format, lighting, and image-quality subgroups.
+- Preserve model version and simulation state when offline records synchronize.
+
+Return to the [main project guide](../README.md) or read the [AI pipeline guide](../ai/README.md).

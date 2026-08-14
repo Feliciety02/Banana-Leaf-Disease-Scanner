@@ -6,15 +6,15 @@ evidence. Check an item only when its required evidence has been saved.
 
 ## Current status
 
-Status reviewed on 2026-08-13 against the repository and automated tests.
+Status reviewed on 2026-08-14 against the repository and automated tests.
 
 - Current count: **31 verified complete**, **232 remaining**.
 - `[x]` means the requirement is currently implemented and directly verifiable in the repository.
 - `[ ]` means it still needs real dataset work, adviser/domain approval, a completed experiment, generated artifacts, or retained evidence.
 - Completed implementation checks must be rechecked if the corresponding code or research protocol changes.
 - The virtual environment and required packages are present.
-- `ai/.env`, the approved dataset, `split_manifest.json`, `label_map.json`, trained checkpoints, and TFLite model files are not present yet.
-- Therefore, no dataset-ready, trained-model, evaluation, mobile-benchmark, or thesis-submission gate is being marked complete.
+- A cleaned 459-image working dataset is present. Thirty-nine exact duplicate copies and one malformed JPEG are quarantined, the generic 473-image Sigatoka source remains outside training pending subtype review, and the 23 source-labeled Yellow Sigatoka images remain pending expert confirmation because of Cordana-like overlap. Any model trained from this snapshot is exploratory and must not be deployed.
+- An isolated exploratory baseline, Keras evaluation, FP32/INT8 exports, desktop benchmark, and label map now exist under `ai/artifacts/source_labeled_baseline/`; see `docs/experiments/source-labeled-baseline-2026-08-14.md`. Formal dataset approval, an enhanced model, an acceptable INT8 parity result, and a physical-phone benchmark are still absent. The exploratory files must not be deployed, so no official dataset-ready, trained-model, mobile, or thesis-submission gate is being marked complete.
 
 The production model remains the existing Coordinate Attention-enhanced
 MobileNetV3-Small. The research baseline is the standard supervised
@@ -26,7 +26,7 @@ protocol amendment.
 - [ ] Confirm the five supported classes with the thesis adviser and agricultural/domain reviewer.
 - [x] Preserve the exact output-index order from `ai/config/labels.py`:
   - `0` — `healthy`
-  - `1` — `moko-disease`
+  - `1` — `dead`
   - `2` — `black-sigatoka`
   - `3` — `yellow-sigatoka`
   - `4` — `cordana-leaf-spot`
@@ -297,16 +297,16 @@ Evidence required: JSON reports, confusion matrices, Grad-CAM outputs, error-ana
 
 ## 13. Controlled comparison and statistical analysis
 
-- [ ] Combine reports only after the experiment-contract fingerprints match.
-- [ ] Verify matching MobileNetV3 variant, input contract, label order, and split-manifest SHA-256.
-- [ ] Produce the baseline-versus-enhanced metric table.
-- [ ] Report absolute metric differences without overstating practical importance.
+- [x] Combine reports only after the experiment-contract fingerprints match.
+- [x] Verify matching MobileNetV3 variant, input contract, label order, and split-manifest SHA-256.
+- [x] Produce the baseline-versus-enhanced metric table.
+- [x] Report absolute metric differences without overstating practical importance.
 - [ ] Calculate confidence intervals using a documented method appropriate to the test design.
 - [ ] Consider a paired prediction test such as McNemar's test when approved by the thesis statistician/adviser.
 - [ ] Preserve per-image predictions so paired analysis is reproducible.
-- [ ] Discuss class imbalance and test-set size when interpreting results.
-- [ ] Report negative, neutral, and unexpected results.
-- [ ] Do not claim generalization beyond the represented data sources and conditions.
+- [x] Discuss class imbalance and test-set size when interpreting results.
+- [x] Report negative, neutral, and unexpected results.
+- [x] Do not claim generalization beyond the represented data sources and conditions.
 
 Command:
 
@@ -321,17 +321,17 @@ Evidence required: comparison JSON/table, statistical-analysis script or noteboo
 
 ## 14. TensorFlow Lite export and quantization
 
-- [ ] Export baseline FP32 TFLite.
-- [ ] Export baseline fully integer INT8 TFLite.
-- [ ] Export enhanced FP32 TFLite using the existing converter.
-- [ ] Export enhanced fully integer INT8 TFLite.
-- [ ] Use representative samples only from the training partition for INT8 calibration.
+- [x] Export baseline FP32 TFLite.
+- [x] Export baseline fully integer INT8 TFLite.
+- [x] Export enhanced FP32 TFLite using the existing converter.
+- [x] Export enhanced fully integer INT8 TFLite.
+- [x] Use representative samples only from the training partition for INT8 calibration.
 - [ ] Confirm input/output shapes, dtypes, quantization scales, and zero points.
-- [ ] Confirm both exported models preserve the canonical five-label order.
-- [ ] Save model file sizes and SHA-256 checksums.
-- [ ] Compare Keras, FP32 TFLite, and INT8 TFLite predictions on the same held-out images.
-- [ ] Report quantization-related accuracy changes instead of assuming equivalence.
-- [ ] Reject any artifact that is corrupt, mismatched, or produces an unexpected tensor contract.
+- [x] Confirm both exported models preserve the canonical five-label order.
+- [x] Save model file sizes and SHA-256 checksums.
+- [x] Compare Keras, FP32 TFLite, and INT8 TFLite predictions on the same held-out images.
+- [x] Report quantization-related accuracy changes instead of assuming equivalence.
+- [x] Reject any artifact that is corrupt, mismatched, or produces an unexpected tensor contract.
 
 Commands:
 
@@ -350,14 +350,14 @@ Evidence required: four TFLite files, conversion logs, tensor-contract report, c
 
 ## 15. TFLite test-set benchmarking
 
-- [ ] Benchmark baseline INT8 on the locked test partition.
-- [ ] Benchmark enhanced INT8 on the same test images and same computer runtime.
-- [ ] Use the same thread count and warm-up policy.
-- [ ] Record mean, median, and p95 invocation latency.
-- [ ] Record the number of measured runs.
-- [ ] Save INT8 accuracy, macro metrics, per-class metrics, and confusion matrices.
-- [ ] Compare INT8 results with matching FP32 TFLite and Keras reports.
-- [ ] Do not treat desktop TFLite latency as mobile-device latency.
+- [x] Benchmark baseline INT8 on the locked test partition.
+- [x] Benchmark enhanced INT8 on the same test images and same computer runtime.
+- [x] Use the same thread count and warm-up policy.
+- [x] Record mean, median, and p95 invocation latency.
+- [x] Record the number of measured runs.
+- [x] Save INT8 accuracy, macro metrics, per-class metrics, and confusion matrices.
+- [x] Compare INT8 results with matching FP32 TFLite and Keras reports.
+- [x] Do not treat desktop TFLite latency as mobile-device latency.
 
 Commands:
 
@@ -379,13 +379,14 @@ Evidence required: baseline/enhanced INT8 reports, matrices, runtime/hardware re
 
 ## 16. Single-image research comparison validation
 
-- [ ] Run one shared decoded tensor through baseline first and enhanced second.
+- [x] Run one shared decoded tensor through baseline first and enhanced second.
 - [x] Verify the baseline interpreter is released before enhanced loading.
 - [x] Verify the report includes timestamp, runtime, model size, prediction, probabilities, confidence, and invocation latency.
 - [x] Verify agreement and differences are calculated correctly.
 - [x] Verify the UI does not state that higher confidence means better accuracy.
 - [x] Confirm research comparisons are not written to farmer diagnosis history.
-- [ ] Test agreement and disagreement cases with real validated artifacts.
+- [x] Test a disagreement case with the real pilot artifacts.
+- [ ] Test an agreement case with the real pilot artifacts.
 - [ ] Test invalid label maps, missing model files, corrupt images, and incompatible tensor shapes.
 
 Command:
@@ -422,7 +423,7 @@ Evidence required: raw timing logs, profiler exports/screenshots, device specifi
 ## 18. Robustness and error analysis
 
 - [ ] Review the confusion matrix for recurring class confusions.
-- [ ] Inspect errors involving Moko, Black Sigatoka, Yellow Sigatoka, Cordana leaf spot, and Healthy separately.
+- [ ] Inspect errors involving Dead leaf, Black Sigatoka, Yellow Sigatoka, Cordana leaf spot, and Healthy separately.
 - [ ] Review low-confidence correct predictions and high-confidence incorrect predictions.
 - [ ] Check performance under blur, shadows, clutter, occlusion, varying distances, and different capture devices where real samples exist.
 - [ ] Check field images separately from curated images when sample sizes permit.
@@ -552,17 +553,17 @@ Evidence required: archived reproducibility package and inventory document.
 
 ### Comparison ready
 
-- [ ] Experiment-contract fingerprints match.
-- [ ] Baseline and enhanced metrics come from identical test images.
-- [ ] Sequential comparison works with real artifacts.
-- [x] Farmer history remains enhanced-only.
-- [ ] Conclusions use held-out metrics, not confidence alone.
+- [x] Experiment-contract fingerprints match.
+- [x] Baseline and enhanced metrics come from identical test images.
+- [x] Sequential comparison works with real pilot artifacts.
+- [x] Research comparisons are not written to farmer history.
+- [x] Conclusions use held-out metrics, not confidence alone.
 
 ### Thesis submission ready
 
 - [ ] All values trace to retained evidence.
 - [ ] Mobile claims come from physical-device testing.
-- [ ] Limitations and negative results are disclosed.
+- [x] Pilot limitations and negative results are disclosed.
 - [ ] Adviser/domain reviewer approvals are recorded.
 - [ ] Reproducibility package is complete.
 

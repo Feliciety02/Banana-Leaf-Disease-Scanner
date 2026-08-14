@@ -1,0 +1,19 @@
+{
+  "data": {
+    "group_manifest": "datasets/group_manifest.json",
+    "batch_size": 4,
+    "cache_dataset": true
+  },
+  "teacher": {
+    "ssl_epochs": 5,
+    "finetune_epochs": 20
+  },
+  "student": {
+    "epochs": 50
+  },
+  "runtime": {
+    "output_dir": "ai/artifacts/source_labeled_enhanced_cpu_pilot",
+    "early_stopping_patience": 8,
+    "reduce_lr_patience": 4
+  }
+}

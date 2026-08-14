@@ -31,6 +31,9 @@ def compare(args: argparse.Namespace) -> dict:
     enhanced_contract = enhanced.get("experiment_contract")
     if not baseline_contract or baseline_contract != enhanced_contract:
         raise ValueError("Evaluation contracts differ; labels, preprocessing, variant, and split manifest must match exactly")
+    baseline_f1 = float(baseline["macro_f1"])
+    enhanced_f1 = float(enhanced["macro_f1"])
+    leader = "baseline" if baseline_f1 > enhanced_f1 else "enhanced" if enhanced_f1 > baseline_f1 else "tie"
     report = {
         "experiment_contract": baseline_contract,
         "metrics": {
@@ -42,6 +45,12 @@ def compare(args: argparse.Namespace) -> dict:
             for class_name in baseline_contract["class_names"]
         },
         "resources": {"baseline": baseline.get("resources", {}), "enhanced": enhanced.get("resources", {})},
+        "outcome": {
+            "current_leader": leader,
+            "accuracy_difference_enhanced_minus_baseline": float(enhanced["accuracy"] - baseline["accuracy"]),
+            "macro_f1_difference_enhanced_minus_baseline": enhanced_f1 - baseline_f1,
+            "decision_note": "The baseline leads this run on macro F1." if leader == "baseline" else "The enhanced model leads this run on macro F1." if leader == "enhanced" else "The models tie on macro F1 in this run.",
+        },
         "interpretation_note": "Conclusions require held-out metrics and uncertainty analysis; confidence on individual images is not accuracy.",
     }
     destination = Path(args.output)

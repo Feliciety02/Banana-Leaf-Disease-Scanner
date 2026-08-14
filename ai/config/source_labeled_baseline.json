@@ -1,0 +1,8 @@
+{
+  "data": {
+    "group_manifest": "datasets/group_manifest.json"
+  },
+  "runtime": {
+    "output_dir": "ai/artifacts/source_labeled_baseline"
+  }
+}

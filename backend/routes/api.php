@@ -41,6 +41,7 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
     Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
     Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview']);
     Route::post('/inference', InferenceController::class);
+    Route::post('/research/model-comparison', ModelComparisonController::class);
     Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
 
     Route::prefix('admin')->middleware('admin')->group(function () {

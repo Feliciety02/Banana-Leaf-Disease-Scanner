@@ -10,7 +10,8 @@ import tensorflow as tf
 from ai.data.dataset import make_supervised_dataset, prepare_splits, write_label_map
 from ai.losses.classification_loss import classification_loss
 from ai.losses.distillation_loss import feature_distillation_loss, logit_distillation_loss
-from ai.models.mobilenetv3_student import build_student
+from ai.models.coordinate_attention import CoordinateAttention
+from ai.models.mobilenetv3_student import HardSwish, build_student, initialize_shared_backbone_from_mobilenetv3, shared_backbone_layer_names
 from ai.models.teacher import ResNet101Preprocessing
 from ai.training.common import add_common_arguments, configured_experiment, make_optimizer, reduce_learning_rate, save_history, validate_model_input
 
@@ -19,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     add_common_arguments(parser)
     parser.add_argument("--teacher-model", required=True, help="Path to best_teacher.keras")
+    parser.add_argument("--initial-student-model", help="Optional validation-selected student checkpoint to fine-tune")
     return parser.parse_args()
 
 
@@ -48,37 +50,72 @@ def train(args: argparse.Namespace) -> Path:
         name="frozen_teacher_distillation_view",
     )
     teacher_distillation_view.trainable = False
-    student = build_student(config)
-    optimizer = make_optimizer(config.student.learning_rate, config.student.weight_decay)
+    if args.initial_student_model:
+        initial_path = Path(args.initial_student_model)
+        if not initial_path.is_file():
+            raise FileNotFoundError(f"Initial student model not found: {initial_path}")
+        student = tf.keras.models.load_model(
+            initial_path,
+            custom_objects={"CoordinateAttention": CoordinateAttention, "HardSwish": HardSwish},
+            compile=False,
+        )
+        if student.name != "coordinate_attention_enhanced_mobilenetv3":
+            raise ValueError(f"Expected an enhanced student checkpoint, received '{student.name}'")
+        validate_model_input(student, config, "Initial student model")
+    else:
+        student = build_student(config)
+    transferred_layers: tuple[str, ...] = ()
+    if args.initial_student_model and config.student.imagenet_weights:
+        transferred_layers = shared_backbone_layer_names()
+        print(f"Loaded validation-selected student checkpoint from {args.initial_student_model}")
+    elif config.student.imagenet_weights:
+        transferred_layers = initialize_shared_backbone_from_mobilenetv3(student, config)
+        print(f"Transferred ImageNet weights into {len(transferred_layers)} shared backbone layers")
+    warmup_epochs = min(config.student.pretrained_warmup_epochs, config.student.epochs) if transferred_layers and not args.initial_student_model else 0
+    if warmup_epochs:
+        for layer_name in transferred_layers:
+            student.get_layer(layer_name).trainable = False
+        print(f"Frozen transferred backbone for {warmup_epochs} warm-up epochs")
+    elif args.initial_student_model:
+        for layer_name in transferred_layers:
+            layer = student.get_layer(layer_name)
+            layer.trainable = not isinstance(layer, tf.keras.layers.BatchNormalization)
+        print("Enabled convolution fine-tuning while keeping transferred BatchNorm layers frozen")
     alpha = config.student.distillation_alpha
 
-    @tf.function
-    def train_step(images: tf.Tensor, labels: tf.Tensor) -> dict[str, tf.Tensor]:
-        # Teacher execution is outside the tape and always inference-only/frozen.
-        teacher_output = teacher_distillation_view(images, training=False)
-        with tf.GradientTape() as tape:
-            student_output = student(images, training=True)
-            hard = classification_loss(labels, student_output["logits"])
-            soft = logit_distillation_loss(
-                teacher_output["logits"], student_output["logits"], config.student.distillation_temperature
-            )
-            features = tf.constant(0.0, tf.float32)
-            if config.student.feature_distillation_enabled:
-                features = feature_distillation_loss(
-                    teacher_output["features"], student_output["distill_features"]
+    def make_train_step(optimizer: tf.keras.optimizers.Optimizer):
+        @tf.function
+        def train_step(images: tf.Tensor, labels: tf.Tensor) -> dict[str, tf.Tensor]:
+            # Teacher execution is outside the tape and always inference-only/frozen.
+            teacher_output = teacher_distillation_view(images, training=False)
+            with tf.GradientTape() as tape:
+                student_output = student(images, training=True)
+                hard = classification_loss(labels, student_output["logits"])
+                soft = logit_distillation_loss(
+                    teacher_output["logits"], student_output["logits"], config.student.distillation_temperature
                 )
-            total = alpha * hard + (1.0 - alpha) * soft
-            if config.student.feature_distillation_enabled:
-                total += config.student.feature_distillation_weight * features
-            if student.losses:
-                total += tf.add_n(student.losses)
-        gradients = tape.gradient(total, student.trainable_variables)
-        gradient_pairs = [(gradient, variable) for gradient, variable in zip(gradients, student.trainable_variables) if gradient is not None]
-        optimizer.apply_gradients(gradient_pairs)
-        accuracy = tf.reduce_mean(
-            tf.cast(tf.equal(tf.argmax(student_output["logits"], axis=1, output_type=tf.int32), tf.cast(labels, tf.int32)), tf.float32)
-        )
-        return {"loss": total, "hard_loss": hard, "soft_loss": soft, "feature_loss": features, "accuracy": accuracy}
+                features = tf.constant(0.0, tf.float32)
+                if config.student.feature_distillation_enabled:
+                    features = feature_distillation_loss(
+                        teacher_output["features"], student_output["distill_features"]
+                    )
+                total = alpha * hard + (1.0 - alpha) * soft
+                if config.student.feature_distillation_enabled:
+                    total += config.student.feature_distillation_weight * features
+                if student.losses:
+                    total += tf.add_n(student.losses)
+            gradients = tape.gradient(total, student.trainable_variables)
+            gradient_pairs = [(gradient, variable) for gradient, variable in zip(gradients, student.trainable_variables) if gradient is not None]
+            optimizer.apply_gradients(gradient_pairs)
+            accuracy = tf.reduce_mean(
+                tf.cast(tf.equal(tf.argmax(student_output["logits"], axis=1, output_type=tf.int32), tf.cast(labels, tf.int32)), tf.float32)
+            )
+            return {"loss": total, "hard_loss": hard, "soft_loss": soft, "feature_loss": features, "accuracy": accuracy}
+        return train_step
+
+    initial_learning_rate = config.student.pretrained_warmup_learning_rate if warmup_epochs else config.student.learning_rate
+    optimizer = make_optimizer(initial_learning_rate, config.student.weight_decay)
+    train_step = make_train_step(optimizer)
 
     @tf.function
     def validation_step(images: tf.Tensor, labels: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
@@ -87,10 +124,26 @@ def train(args: argparse.Namespace) -> Path:
 
     best_path = output_dir / "best_student.keras"
     best_accuracy = -1.0
+    if args.initial_student_model:
+        initial_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
+        for images, labels in validation_dataset:
+            initial_accuracy.update_state(labels, student(images, training=False)["logits"])
+        best_accuracy = float(initial_accuracy.result())
+        student.save(best_path)
+        print(f"Initial checkpoint validation accuracy={best_accuracy:.5f}")
     epochs_without_improvement = 0
     lr_wait = 0
     history: list[dict] = []
     for epoch in range(1, config.student.epochs + 1):
+        if warmup_epochs and epoch == warmup_epochs + 1:
+            for layer_name in transferred_layers:
+                layer = student.get_layer(layer_name)
+                layer.trainable = not isinstance(layer, tf.keras.layers.BatchNormalization)
+            optimizer = make_optimizer(config.student.learning_rate, config.student.weight_decay)
+            train_step = make_train_step(optimizer)
+            epochs_without_improvement = 0
+            lr_wait = 0
+            print(f"Unfroze shared backbone at epoch {epoch}; fine-tuning learning rate={config.student.learning_rate}")
         train_metrics = {name: tf.keras.metrics.Mean() for name in ("loss", "hard_loss", "soft_loss", "feature_loss", "accuracy")}
         for images, labels in train_dataset:
             results = train_step(images, labels)
@@ -125,7 +178,7 @@ def train(args: argparse.Namespace) -> Path:
             if lr_wait >= config.runtime.reduce_lr_patience:
                 reduce_learning_rate(optimizer, 0.5, config.runtime.min_learning_rate)
                 lr_wait = 0
-            if epochs_without_improvement >= config.runtime.early_stopping_patience:
+            if epoch > warmup_epochs and epochs_without_improvement >= config.runtime.early_stopping_patience:
                 print(f"Early stopping after epoch {epoch}")
                 break
         save_history(history, output_dir / "student_history.json")

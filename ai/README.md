@@ -1,188 +1,310 @@
+<div align="center">
+
 # DahonMD AI Pipeline
 
-This folder contains Python source code only. Actual images belong in the root `datasets/` directory and generated checkpoints belong in `ai/artifacts/`; neither is committed.
+Reproducible training, evaluation, comparison, and TensorFlow Lite tooling for five-class banana-leaf screening.
 
-The thesis member responsible for data and model experiments should work through
-the [dataset/model trainer checklist](../docs/dataset-model-trainer-todo.md) and
-retain the evidence specified at every gate.
+</div>
+
+> [!IMPORTANT]
+> Run every command from the repository root. Generated checkpoints belong in `ai/artifacts/`; dataset images belong in `datasets/`.
+
+## Contents
+
+- [Current results](#current-results)
+- [Model designs](#model-designs)
+- [Setup](#setup)
+- [Label and input contract](#label-and-input-contract)
+- [Train both models](#train-both-models)
+- [Read the results](#read-the-results)
+- [TensorFlow Lite export](#tensorflow-lite-export)
+- [Research comparison service](#research-comparison-service)
+- [Evaluation rules](#evaluation-rules)
+- [Project layout](#project-layout)
+
+## Current Results
+
+The controlled baseline and improved enhanced model use the same 459-image dataset, class order, preprocessing, and fixed 322/68/69 split.
+
+| Model | Test accuracy | Macro F1 | Correct / 69 |
+| --- | ---: | ---: | ---: |
+| MobileNetV3-Small baseline | 91.30% | 90.40% | 63 |
+| Enhanced MobileNetV3-Small | **95.65%** | **96.05%** | **66** |
+
+The enhanced model leads this run by **4.35 percentage points in accuracy** and **5.65 percentage points in macro F1**.
+
+> [!CAUTION]
+> This is exploratory thesis evidence. Yellow Sigatoka has only three test images from one source group, and those source labels still require expert confirmation. Do not present 95.65% as guaranteed field accuracy.
+
+### Experiment history
+
+| Run | Accuracy | Macro F1 | Status |
+| --- | ---: | ---: | --- |
+| Source-labeled baseline | 91.30% | 90.40% | Controlled reference |
+| Earlier enhanced CPU pilot | 76.81% | 70.66% | Superseded training approach |
+| ImageNet-transfer enhanced model | **95.65%** | **96.05%** | Current research leader |
+
+The current comparison report is written to:
+
+```text
+ai/artifacts/source_labeled_enhanced_transfer_finetune/model_comparison.json
+```
+
+## Model Designs
+
+| Baseline | Enhanced |
+| --- | --- |
+| Stock Keras MobileNetV3-Small | MobileNetV3-Small with Coordinate Attention |
+| ImageNet initialization | Compatible ImageNet backbone transfer |
+| Standard squeeze-and-excitation blocks | Coordinate-aware channel gating |
+| Supervised classification | Supervised classification plus light teacher distillation |
+| 942,005 parameters | 1,168,945 deployable parameters |
+
+The frozen ResNet-101 teacher is used only during offline enhanced-model training. It is not packaged into the web or mobile clients.
 
 ## Setup
 
-Run commands from the repository root:
+### Requirements
+
+- Python supported by the pinned TensorFlow version
+- A CUDA-capable GPU is recommended but not required
+- Windows PowerShell commands shown below
+
+Create the environment once:
 
 ```powershell
 python -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install -r ai\requirements.txt
-Copy-Item ai\.env.example ai\.env
-python -m ai.data.validate_dataset
+.venv\Scripts\python.exe -m pip install -r ai\requirements.txt
+if (-not (Test-Path ai\.env)) { Copy-Item ai\.env.example ai\.env }
 ```
 
-`DATASET_ROOT` in `ai/.env` may be relative to the repository working directory or absolute. A CLI `--dataset-dir` value overrides it for one run.
+Validate the dataset before training:
 
-## Input and Label Contract
+```powershell
+.venv\Scripts\python.exe -m ai.data.validate_dataset `
+  --dataset-dir datasets\banana_leaf_5class
+```
 
-The fixed output order is:
+## Label and Input Contract
+
+The output order is fixed in `ai/config/labels.py`.
 
 | Index | Model key | Display name |
-| --- | --- | --- |
+| ---: | --- | --- |
 | 0 | `healthy` | Healthy |
-| 1 | `moko-disease` | Moko disease |
+| 1 | `dead` | Dead leaf |
 | 2 | `black-sigatoka` | Black Sigatoka |
 | 3 | `yellow-sigatoka` | Yellow Sigatoka |
 | 4 | `cordana-leaf-spot` | Cordana leaf spot |
 
-Unsplit and pre-split datasets must use these exact directory keys. The order is defined by `config/labels.py`, not alphabetically by folder name. Stored split manifests are rejected if an index and class name no longer match this contract.
+Every image is decoded as three-channel RGB, resized to `224 × 224`, converted to `float32`, and scaled to `[0, 1]`.
 
-TensorFlow 2.20 has been runtime-tested in this project with JPG, JPEG, PNG, BMP, and WEBP. `decode_and_resize` reads the file contents, produces RGB with three channels, resizes to `224 x 224`, converts to `float32`, and scales pixels to `[0, 1]`. The model does not receive the extension or MIME type. Images of different original sizes are accepted, although the current direct resize can distort unusually wide or tall images.
+`dead` is a visual-condition class for a fully dried or necrotic leaf. It is not a Moko diagnosis or a claim about the cause of death.
 
-PNG inference after WEBP-only training is technically valid but may expose a distribution shift. The relevant differences are the decoded pixels and acquisition conditions—not the extension itself. WEBP/JPEG compression, phone processing, focus, illumination, background, disease stage, and camera model can affect accuracy. Test with genuine deployment captures rather than assuming cross-format performance.
+### Supported training formats
 
-Do not manufacture format diversity by converting the same images and distributing those copies across splits. PNG conversion cannot recover detail already lost in a WEBP source, and near-identical copies can inflate evaluation scores. When several non-identical photographs come from one leaf or plant, supply `data.group_manifest` so all of them stay in the same split.
+| Format | Supported |
+| --- | :---: |
+| JPG/JPEG | Yes |
+| PNG | Yes |
+| WEBP | Yes |
+| BMP | Yes |
 
-## Training and Deployment Sequence
+The model receives pixels, not file extensions. Different compression, phones, lighting, focus, framing, backgrounds, and disease stages can still create distribution shift.
 
-Run each command from the repository root after the real dataset has been approved:
+## Train Both Models
+
+The following workflow creates a timestamped run and preserves the current best artifacts. It also copies the canonical split manifest so both models use exactly the same test images.
+
+### 1. Create isolated output folders
 
 ```powershell
-.venv\Scripts\python.exe -m ai.data.validate_dataset --dataset-dir datasets\banana_leaf_5class
+$run = Get-Date -Format "yyyyMMdd-HHmmss"
+$baselineOut = "ai/artifacts/runs/$run/baseline"
+$warmupOut = "ai/artifacts/runs/$run/enhanced-warmup"
+$enhancedOut = "ai/artifacts/runs/$run/enhanced"
 
-.venv\Scripts\python.exe -m ai.training.train_teacher --dataset-dir datasets\banana_leaf_5class
-.venv\Scripts\python.exe -m ai.evaluation.evaluate_teacher --dataset-dir datasets\banana_leaf_5class --teacher-model ai\artifacts\best_teacher.keras
-
-.venv\Scripts\python.exe -m ai.training.train_student --dataset-dir datasets\banana_leaf_5class --teacher-model ai\artifacts\best_teacher.keras
-.venv\Scripts\python.exe -m ai.evaluation.evaluate_student --dataset-dir datasets\banana_leaf_5class --student-model ai\artifacts\best_student.keras
-
-.venv\Scripts\python.exe -m ai.deployment.convert_tflite --dataset-dir datasets\banana_leaf_5class --student-model ai\artifacts\best_student.keras
-.venv\Scripts\python.exe -m ai.deployment.benchmark_tflite --dataset-dir datasets\banana_leaf_5class --tflite-model ai\artifacts\enhanced_mobilenetv3_int8.tflite
+New-Item -ItemType Directory -Force $baselineOut, $warmupOut, $enhancedOut
+Copy-Item "ai/artifacts/source_labeled_baseline/split_manifest.json" "$warmupOut/split_manifest.json"
+Copy-Item "ai/artifacts/source_labeled_baseline/split_manifest.json" "$enhancedOut/split_manifest.json"
 ```
 
-## Standard MobileNetV3 Baseline
-
-The controlled baseline is the official Keras `MobileNetV3Small`, matching the
-enhanced student's Small variant and width multiplier. It uses the same RGB
-`224 x 224` float32 `[0, 1]` input, the same training-only augmentation, the
-same fixed five-label order, and the exact same `split_manifest.json`. Its graph
-contains a single `[0, 1]` to `[-1, 1]` rescaling operation, the stock
-MobileNetV3-Small backbone (including its standard SE blocks), global average
-pooling, dropout, and a five-logit classifier.
-
-It intentionally contains no Coordinate Attention, ResNet-101, SSL objective,
-knowledge distillation, or feature-distillation adapter.
-
-Train and evaluate it only after the canonical manifest has been created by
-dataset validation or the enhanced experiment:
+### 2. Train and evaluate the baseline
 
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_baseline `
   --dataset-dir datasets\banana_leaf_5class `
-  --split-manifest ai\artifacts\split_manifest.json
+  --config ai\config\source_labeled_baseline.json `
+  --output-dir $baselineOut `
+  --split-manifest ai\artifacts\source_labeled_baseline\split_manifest.json
 
 .venv\Scripts\python.exe -m ai.evaluation.evaluate_baseline `
   --dataset-dir datasets\banana_leaf_5class `
-  --split-manifest ai\artifacts\split_manifest.json `
-  --baseline-model ai\artifacts\best_baseline.keras
-
-.venv\Scripts\python.exe -m ai.deployment.convert_baseline_tflite `
-  --dataset-dir datasets\banana_leaf_5class `
-  --split-manifest ai\artifacts\split_manifest.json `
-  --baseline-model ai\artifacts\best_baseline.keras
-
-.venv\Scripts\python.exe -m ai.deployment.benchmark_tflite `
-  --model-kind baseline `
-  --dataset-dir datasets\banana_leaf_5class `
-  --split-manifest ai\artifacts\split_manifest.json `
-  --tflite-model ai\artifacts\baseline_mobilenetv3_small_int8.tflite
+  --config ai\config\source_labeled_baseline.json `
+  --output-dir $baselineOut `
+  --split-manifest ai\artifacts\source_labeled_baseline\split_manifest.json `
+  --baseline-model "$baselineOut/best_baseline.keras"
 ```
 
-To attach the same fairness fingerprint to the enhanced evaluation report, run:
+### 3. Warm up the enhanced model
+
+This stage transfers compatible ImageNet MobileNetV3 weights and initially freezes the shared backbone.
 
 ```powershell
-.venv\Scripts\python.exe -m ai.evaluation.evaluate_student `
+.venv\Scripts\python.exe -m ai.training.train_student `
   --dataset-dir datasets\banana_leaf_5class `
-  --split-manifest ai\artifacts\split_manifest.json `
-  --student-model ai\artifacts\best_student.keras
+  --config ai\config\source_labeled_enhanced_transfer.json `
+  --output-dir $warmupOut `
+  --teacher-model ai\artifacts\source_labeled_enhanced_cpu_pilot\best_teacher.keras
 ```
 
-Then combine actual held-out results. The command rejects reports unless their
-variant, input contract, labels, and split-manifest SHA-256 are identical:
+### 4. Fine-tune the enhanced model
+
+```powershell
+.venv\Scripts\python.exe -m ai.training.train_student `
+  --dataset-dir datasets\banana_leaf_5class `
+  --config ai\config\source_labeled_enhanced_transfer_finetune.json `
+  --output-dir $enhancedOut `
+  --teacher-model ai\artifacts\source_labeled_enhanced_cpu_pilot\best_teacher.keras `
+  --initial-student-model "$warmupOut/best_student.keras"
+
+.venv\Scripts\python.exe -m ai.evaluation.evaluate_student `
+  --dataset-dir datasets\banana_leaf_5class `
+  --config ai\config\source_labeled_enhanced_transfer_finetune.json `
+  --output-dir $enhancedOut `
+  --split-manifest ai\artifacts\source_labeled_baseline\split_manifest.json `
+  --student-model "$enhancedOut/best_student.keras"
+```
+
+### 5. Compare the held-out reports
 
 ```powershell
 .venv\Scripts\python.exe -m ai.evaluation.compare_models `
-  --baseline-report ai\artifacts\baseline_evaluation.json `
-  --enhanced-report ai\artifacts\student_evaluation.json `
-  --output ai\artifacts\model_comparison.json
+  --baseline-report "$baselineOut/baseline_evaluation.json" `
+  --enhanced-report "$enhancedOut/student_evaluation.json" `
+  --output "$enhancedOut/model_comparison.json"
 ```
 
-For a single-image research inspection, run both TFLite models sequentially on
-one decoded tensor. The baseline interpreter is released before the enhanced
-interpreter is created:
+The comparison command rejects mismatched preprocessing, label order, model variant, or split-manifest fingerprints.
+
+### Optional: retrain the teacher
+
+The commands above reuse the existing compatible teacher. Full ResNet-101 training is considerably slower, especially on a CPU.
 
 ```powershell
-.venv\Scripts\python.exe -m ai.deployment.compare_tflite `
-  --baseline-model ai\artifacts\baseline_mobilenetv3_small_int8.tflite `
-  --enhanced-model ai\artifacts\enhanced_mobilenetv3_int8.tflite `
-  --label-map ai\artifacts\label_map.json `
-  --image path\to\banana-leaf.jpg `
-  --output ai\artifacts\single_image_comparison.json
+.venv\Scripts\python.exe -m ai.training.train_teacher `
+  --dataset-dir datasets\banana_leaf_5class `
+  --config ai\config\source_labeled_enhanced_cpu_pilot.json
 ```
 
-The single-image report includes predictions, probabilities, confidence,
-invocation latency, file size, timestamp, runtime, agreement, and raw
-differences. It deliberately does not label either model "better" from
-confidence alone.
+Use the resulting `best_teacher.keras` path in both enhanced training commands.
 
-To expose that same sequential runner to the admin comparison page, configure
-the three `DAHONMD_*` artifact paths in `ai/.env`, then start the service:
+## Read the Results
+
+Training output shows validation accuracy. The thesis comparison must use the accuracy printed by the evaluation commands, which comes from the held-out test partition.
 
 ```powershell
-.venv\Scripts\python.exe -m uvicorn ai.deployment.comparison_service:app --host 127.0.0.1 --port 8100
+$report = Get-Content "$enhancedOut/model_comparison.json" | ConvertFrom-Json
+
+"Baseline accuracy: {0:P2}" -f $report.metrics.accuracy.baseline
+"Enhanced accuracy: {0:P2}" -f $report.metrics.accuracy.enhanced
+"Baseline macro F1: {0:P2}" -f $report.metrics.macro_f1.baseline
+"Enhanced macro F1: {0:P2}" -f $report.metrics.macro_f1.enhanced
+"Current leader: $($report.outcome.current_leader)"
 ```
 
-Set `AI_COMPARISON_URL=http://127.0.0.1:8100/compare` in
-`backend/.env`. The Laravel endpoint is administrator-only, validates the
-returned research contract, and never writes comparison runs to `diagnoses`.
-The service health endpoint remains `unconfigured` until all three real
-artifacts exist.
+Each evaluation folder contains:
 
-### Model artifact locations
-
-Generated weights remain untracked under `ai/artifacts/`:
-
-| Purpose | Expected file |
+| File | Meaning |
 | --- | --- |
-| Baseline training checkpoint | `ai/artifacts/best_baseline.keras` |
-| Baseline mobile FP32 | `ai/artifacts/baseline_mobilenetv3_small_fp32.tflite` |
-| Baseline mobile INT8 | `ai/artifacts/baseline_mobilenetv3_small_int8.tflite` |
-| Enhanced training checkpoint | `ai/artifacts/best_student.keras` |
-| Enhanced mobile FP32 | `ai/artifacts/enhanced_mobilenetv3_fp32.tflite` |
-| Enhanced mobile INT8 | `ai/artifacts/enhanced_mobilenetv3_int8.tflite` |
-| Shared label map | `ai/artifacts/label_map.json` |
-| Shared data partition | `ai/artifacts/split_manifest.json` |
+| `*_evaluation.json` | Overall and per-class test metrics |
+| `*_confusion_matrix.png` | Correct and confused class counts |
+| `*_history.json` | Per-epoch training and validation metrics |
+| `best_*.keras` | Validation-selected checkpoint |
+| `experiment_config.json` | Reproducible configuration snapshot |
+| `split_manifest.json` | Exact train/validation/test membership |
+| `label_map.json` | Output index-to-class mapping |
 
-No model file is generated or copied into the application until it has been
-trained, evaluated, converted, and validated with its matching label map. The
-current web and Expo inference adapters therefore remain explicitly
-unconfigured rather than returning fabricated model predictions.
+## TensorFlow Lite Export
 
-The first validation writes a persistent split manifest. Reuse the same dataset, manifest, configuration, and label map through teacher training, student distillation, evaluation, conversion, and deployment. Use a new output directory when intentionally starting a different split or experiment.
+Export and benchmark only after Keras evaluation is complete.
 
-The INT8 converter calibrates with representative training images. The final client must read the TFLite input tensor's scale and zero point rather than assuming an INT8 conversion formula. Pair every deployed model with the exact `label_map.json` produced by its experiment.
+### Baseline
 
-Full ResNet-101 self-supervised training is computationally expensive. A CPU can execute the pipeline but may take substantially longer than a suitable training accelerator. Record the TensorFlow version, hardware, seed, configuration snapshots, dataset provenance, and final artifact checksums for reproducibility.
+```powershell
+.venv\Scripts\python.exe -m ai.deployment.convert_baseline_tflite `
+  --dataset-dir datasets\banana_leaf_5class `
+  --config ai\config\source_labeled_baseline.json `
+  --output-dir $baselineOut `
+  --split-manifest ai\artifacts\source_labeled_baseline\split_manifest.json `
+  --baseline-model "$baselineOut/best_baseline.keras"
+```
 
-## Evaluation Expectations
+### Enhanced
 
-Report held-out accuracy, macro precision/recall/F1, per-class metrics, support counts, and the confusion matrix. Compare the FP32 Keras student, FP32 TFLite export, and INT8 TFLite model on the same untouched test records. For deployment claims, measure latency on the target phone after warm-up; desktop Python latency is not a substitute for on-device latency.
+```powershell
+.venv\Scripts\python.exe -m ai.deployment.convert_tflite `
+  --dataset-dir datasets\banana_leaf_5class `
+  --config ai\config\source_labeled_enhanced_transfer_finetune.json `
+  --output-dir $enhancedOut `
+  --student-model "$enhancedOut/best_student.keras"
+```
 
-Where the dataset permits, stratify results by capture device, image source, format, lighting or quality category, and field versus curated setting. Treat small subgroup results as exploratory and always publish their sample counts.
+Run `ai.deployment.benchmark_tflite` on the generated FP32 and INT8 files before deployment. An INT8 conversion is not acceptable merely because conversion succeeded; its held-out accuracy, per-class recall, tensor quantization, and target-device latency must also pass review.
 
-## Packages
+## Research Comparison Service
 
-- `config/`: reproducible experiment configuration
-- `data/`: image discovery, validation, splitting, augmentation, and masking code
-- `models/`: ResNet-101 teacher and Coordinate Attention MobileNetV3 student
-- `losses/`: supervised, SSL, and distillation objectives
-- `training/`: teacher and student training entry points
-- `evaluation/`: metrics, latency, confusion matrices, and Grad-CAM
-- `deployment/`: TFLite conversion, benchmarking, and one-image inference
+The optional local service runs the baseline and enhanced FP32 TFLite models sequentially on the same image.
+
+Set these values in `ai/.env`:
+
+```dotenv
+DAHONMD_BASELINE_TFLITE=artifacts/source_labeled_baseline/baseline_mobilenetv3_small_fp32.tflite
+DAHONMD_ENHANCED_TFLITE=artifacts/source_labeled_enhanced_transfer_finetune/enhanced_mobilenetv3_fp32.tflite
+DAHONMD_LABEL_MAP=artifacts/source_labeled_baseline/label_map.json
+DAHONMD_MODEL_COMPARISON_REPORT=artifacts/source_labeled_enhanced_transfer_finetune/model_comparison.json
+```
+
+Start the service:
+
+```powershell
+.venv\Scripts\python.exe -m uvicorn ai.deployment.comparison_service:app `
+  --host 127.0.0.1 `
+  --port 8100
+```
+
+Then set this in `backend/.env`:
+
+```dotenv
+AI_COMPARISON_URL=http://127.0.0.1:8100/compare
+```
+
+The comparison is clearly marked as research, is not a second diagnosis, and is never written to farmer history. A model with higher confidence on one photo is not automatically the more accurate model.
+
+## Evaluation Rules
+
+1. Keep related images from the same leaf, plant, plot, or capture session in one split.
+2. Select checkpoints and hyperparameters using validation data only.
+3. Open the held-out test set only after the experiment is frozen.
+4. Compare both models using the same `split_manifest.json` fingerprint.
+5. Report accuracy, macro precision/recall/F1, per-class metrics, support, and the confusion matrix.
+6. Compare Keras, FP32 TFLite, and INT8 TFLite results before deployment.
+7. Report target-phone latency; desktop Python latency is not a substitute.
+8. Record TensorFlow version, hardware, seed, configuration, provenance, and artifact checksums.
+
+Do not create format diversity by converting one image and distributing copies across different splits. PNG conversion cannot restore information lost from WEBP or JPEG, and near-identical copies can inflate metrics.
+
+## Project Layout
+
+| Folder | Responsibility |
+| --- | --- |
+| `config/` | Labels and reproducible experiment settings |
+| `data/` | Discovery, validation, grouping, splitting, augmentation, and masking |
+| `models/` | ResNet-101 teacher, baseline, and Coordinate Attention student |
+| `losses/` | Classification, self-supervised, and distillation objectives |
+| `training/` | Teacher, baseline, and student entry points |
+| `evaluation/` | Metrics, latency, confusion matrices, comparison, and Grad-CAM |
+| `deployment/` | TFLite conversion, parity benchmarking, and local inference service |
+| `tests/` | AI contract and regression tests |
+
+For dataset provenance and quality rules, read the [dataset guide](../datasets/README.md). For the required thesis evidence at each gate, use the [dataset/model trainer checklist](../docs/dataset-model-trainer-todo.md).

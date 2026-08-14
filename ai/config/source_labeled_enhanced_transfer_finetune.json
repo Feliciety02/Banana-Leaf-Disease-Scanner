@@ -1,0 +1,21 @@
+{
+  "data": {
+    "group_manifest": "datasets/group_manifest.json",
+    "batch_size": 16,
+    "cache_dataset": true
+  },
+  "student": {
+    "imagenet_weights": true,
+    "epochs": 30,
+    "learning_rate": 0.00001,
+    "pretrained_warmup_epochs": 0,
+    "distillation_alpha": 0.95,
+    "distillation_temperature": 2.0,
+    "feature_distillation_enabled": false
+  },
+  "runtime": {
+    "output_dir": "ai/artifacts/source_labeled_enhanced_transfer_finetune",
+    "early_stopping_patience": 8,
+    "reduce_lr_patience": 4
+  }
+}

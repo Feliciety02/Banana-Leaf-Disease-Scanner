@@ -25,14 +25,16 @@ class ApiTest extends TestCase
             ->assertOk()
             ->assertJsonCount(5, 'data')
             ->assertJsonPath('data.0.slug', 'healthy')
+            ->assertJsonPath('data.1.slug', 'dead')
+            ->assertJsonPath('data.1.name', 'Dead Leaf')
             ->assertJsonPath('data.0.sources_count', 3)
             ->assertJsonStructure(['data' => [['sources' => [['title', 'authors', 'reference_url']]]]]);
 
         $this->assertDatabaseCount('diseases', 5);
-        $this->assertDatabaseCount('disease_symptoms', 16);
-        $this->assertDatabaseCount('disease_management', 18);
-        $this->assertDatabaseCount('research_sources', 12);
-        $this->assertDatabaseCount('disease_evidence', 33);
+        $this->assertDatabaseCount('disease_symptoms', 13);
+        $this->assertDatabaseCount('disease_management', 15);
+        $this->assertDatabaseCount('research_sources', 8);
+        $this->assertDatabaseCount('disease_evidence', 29);
         $this->assertDatabaseCount('pesticide_regulatory_checks', 1);
         $this->assertDatabaseCount('disease_verifications', 5);
 

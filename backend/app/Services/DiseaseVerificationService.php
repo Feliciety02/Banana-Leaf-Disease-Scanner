@@ -22,8 +22,9 @@ class DiseaseVerificationService
             $errors['sources'][] = 'At least one authoritative agricultural or institutional source is required.';
         }
 
-        $isHealthyClass = str_contains(strtolower($disease->model_class_key.' '.$disease->name), 'healthy');
-        foreach ($isHealthyClass ? [] : ['causal_agent', 'curative_status'] as $claimType) {
+        $classIdentity = strtolower($disease->model_class_key.' '.$disease->name);
+        $isNonDiseaseClass = str_contains($classIdentity, 'healthy') || str_contains($classIdentity, 'dead');
+        foreach ($isNonDiseaseClass ? [] : ['causal_agent', 'curative_status'] as $claimType) {
             if (! $disease->evidence->contains('claim_type', $claimType)) {
                 $errors['evidence'][] = "A {$claimType} claim mapping is required.";
             }

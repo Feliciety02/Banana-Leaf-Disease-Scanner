@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -43,6 +44,31 @@ def _required_artifacts() -> tuple[Path, Path, Path]:
     return paths  # type: ignore[return-value]
 
 
+def _study_summary() -> dict | None:
+    value = os.getenv("DAHONMD_MODEL_COMPARISON_REPORT")
+    if not value:
+        return None
+    report_path = Path(value).expanduser()
+    if not report_path.is_absolute():
+        report_path = AI_ROOT / report_path
+    if not report_path.is_file():
+        raise HTTPException(status_code=503, detail=f"Configured comparison report was not found: {report_path.resolve()}")
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        accuracy = payload["metrics"]["accuracy"]
+        macro_f1 = payload["metrics"]["macro_f1"]
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=503, detail="Configured comparison report has an invalid contract") from error
+    leader = "baseline" if macro_f1["baseline"] > macro_f1["enhanced"] else "enhanced" if macro_f1["enhanced"] > macro_f1["baseline"] else "tie"
+    return {
+        "scope": "source-labeled CPU pilot on one fixed held-out split",
+        "current_leader": leader,
+        "baseline": {"accuracy": accuracy["baseline"], "macro_f1": macro_f1["baseline"]},
+        "enhanced": {"accuracy": accuracy["enhanced"], "macro_f1": macro_f1["enhanced"]},
+        "decision_note": "The baseline leads this pilot. This is provisional until labels are expert-validated and the enhanced method receives the full planned training budget.",
+    }
+
+
 @app.get("/health")
 def health() -> dict:
     try:
@@ -74,7 +100,11 @@ async def compare_image(image: Annotated[UploadFile, File(description="One banan
         image_path = Path(directory) / f"leaf{suffix}"
         image_path.write_bytes(contents)
         try:
-            return await run_in_threadpool(compare_models, baseline, enhanced, image_path, label_map)
+            report = await run_in_threadpool(compare_models, baseline, enhanced, image_path, label_map)
+            study = _study_summary()
+            if study:
+                report["study"] = study
+            return report
         except (FileNotFoundError, ValueError) as error:
             raise HTTPException(status_code=503, detail=str(error)) from error
         except Exception as error:

@@ -2,15 +2,13 @@
 
 ## Current content gate
 
-No dataset or final `label_map.json` is present in this repository. Existing demo names were not treated as model metadata and were removed from seed/fallback content. Therefore:
-
-> DISEASE CONTENT PENDING — final dataset class labels have not yet been established.
+The working dataset now follows the five-class contract `healthy`, `dead`, `black-sigatoka`, `yellow-sigatoka`, and `cordana-leaf-spot`. Generic Sigatoka images without subtype provenance remain outside the training root pending expert review. A final trained `label_map.json` is still required before model-runtime readiness can be claimed.
 
 Place the trained artifact's exact five-entry JSON label map at the configured `AI_LABEL_MAP_PATH`. The API accepts only keys `0` through `4`, five non-empty unique labels, and no extra classes. Disease drafts must use one of those exact values as `model_class_key`.
 
 ## Research dossier gate
 
-For every confirmed disease class, prepare and validate a dossier before database insertion. It must document the accepted and alternative names, current causal-agent taxonomy and type, Philippine relevance, leaf-visible and non-leaf symptoms, spread, curative status, prevention, management, referral/reporting action, visual look-alikes, image-only limitations, evidence quality, and full source metadata.
+For every confirmed disease class, prepare and validate a dossier before database insertion. It must document the accepted and alternative names, current causal-agent taxonomy and type, Philippine relevance, leaf-visible and non-leaf symptoms, spread, curative status, prevention, management, referral/reporting action, visual look-alikes, image-only limitations, evidence quality, and full source metadata. Non-disease visual classes such as Healthy and Dead leaf must explicitly omit pathogen claims and explain that the image class cannot establish a biological cause.
 
 The evidence target is at least two peer-reviewed sources, one authoritative agricultural/institutional source, and a Philippines-specific source where available. Foundational biological evidence must be distinguished from current management or regulatory guidance. Source disagreement is stored in evidence notes rather than silently removed.
 
@@ -29,4 +27,4 @@ All chemical management items must set `regulatory_check_required`. They remain 
 
 ## Public result rule
 
-Uncertain results show retry guidance and no disease-specific management. Healthy output says only that no supported disease pattern was strongly detected, and notes that the model covers only trained classes. Farmer guidance comes only from verified records. All results retain the screening disclaimer and image-only limitations.
+Uncertain results show retry guidance and no disease-specific management. Healthy output says only that no supported disease pattern was strongly detected. Dead leaf output describes a terminal visible condition and never assigns Moko disease or another cause. Farmer guidance comes only from verified records. All results retain the screening disclaimer and image-only limitations.

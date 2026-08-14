@@ -75,6 +75,8 @@ def benchmark(args: argparse.Namespace) -> dict:
     report["resources"] = {
         "model_file_bytes": model_path.stat().st_size,
         "num_threads": args.num_threads,
+        "delegate_mode": runner.delegate_mode,
+        "delegate_fallback_reason": runner.delegate_fallback_reason,
         "latency": {
             "mean_ms": float(np.mean(timings)),
             "median_ms": float(np.median(timings)),
@@ -89,6 +91,8 @@ def benchmark(args: argparse.Namespace) -> dict:
             "model_file_bytes": fp32_model_path.stat().st_size,
             "accuracy": fp32_report["accuracy"],
             "mean_latency_ms": fp32_mean_latency,
+            "delegate_mode": fp32_runner.delegate_mode,
+            "delegate_fallback_reason": fp32_runner.delegate_fallback_reason,
         }
         report["accuracy_change_from_fp32_tflite"] = report["accuracy"] - fp32_report["accuracy"]
         report["mean_latency_change_from_fp32_tflite_ms"] = report["resources"]["latency"]["mean_ms"] - fp32_mean_latency

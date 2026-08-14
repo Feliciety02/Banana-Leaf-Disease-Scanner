@@ -14,8 +14,27 @@ class TFLiteRunner:
         model_path = Path(model_path)
         if not model_path.is_file():
             raise FileNotFoundError(f"TFLite model not found: {model_path}")
+        self.delegate_mode = "default"
+        self.delegate_fallback_reason: str | None = None
         self.interpreter = tf.lite.Interpreter(model_path=str(model_path), num_threads=num_threads)
-        self.interpreter.allocate_tensors()
+        try:
+            self.interpreter.allocate_tensors()
+        except RuntimeError as error:
+            # TensorFlow 2.20 on Windows can fail while preparing the default
+            # XNNPACK delegate for an otherwise valid fully quantized graph.
+            # Retry with built-in kernels and record the fallback in reports.
+            if "XNNPACK" not in str(error):
+                raise
+            self.delegate_mode = "builtin_without_default_delegates"
+            self.delegate_fallback_reason = str(error)
+            self.interpreter = tf.lite.Interpreter(
+                model_path=str(model_path),
+                num_threads=num_threads,
+                experimental_op_resolver_type=(
+                    tf.lite.experimental.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES
+                ),
+            )
+            self.interpreter.allocate_tensors()
         self.input = self.interpreter.get_input_details()[0]
         self.output = self.interpreter.get_output_details()[0]
 
