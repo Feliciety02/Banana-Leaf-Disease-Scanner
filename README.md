@@ -88,9 +88,12 @@ Both models were evaluated on the same untouched 69-image test partition.
 | Model | Test accuracy | Macro F1 | Correct predictions |
 | --- | ---: | ---: | ---: |
 | Standard MobileNetV3-Small baseline | 91.30% | 90.40% | 63 / 69 |
-| Enhanced Coordinate Attention MobileNetV3-Small | **95.65%** | **96.05%** | **66 / 69** |
+| Proposed CA-MobileNetV3-Small | **95.65%** | **96.05%** | **66 / 69** |
 
-The enhanced model currently leads by **4.35 percentage points in accuracy** and **5.65 percentage points in macro F1**. This is an exploratory result, not a production claim: the test set is small, and Yellow Sigatoka has only three test images from one source group pending expert label confirmation.
+The proposed Coordinate Attention–enhanced MobileNetV3-Small (CA-MobileNetV3-Small) currently leads by **4.35 percentage points in accuracy** and **5.65 percentage points in macro F1**. This is an exploratory result, not a production claim: the test set is small, and Yellow Sigatoka has only three test images from one source group pending expert label confirmation.
+
+> [!WARNING]
+> The current trained artifact classifies `dead` leaves rather than Moko disease. These are not interchangeable labels, so this result does not yet validate the research proposal's Moko-disease target class.
 
 See the [AI pipeline guide](ai/README.md) for reproducible training and evaluation commands.
 

@@ -218,8 +218,25 @@ function ResearchModelComparison({ comparison }) {
   if (!comparison) return null;
   if (comparison.status !== 'ready') return <section className="panel farmer-research-comparison"><span className="section-label">THESIS COMPARISON</span><h2>Comparison unavailable</h2><p>{comparison.message}</p><small>Your screening result is still available. Research comparisons are never saved to scan history.</small></section>;
   const payload = comparison.data;
-  const Model = ({ title, value }) => <article className="comparison-model-card"><span>{title}</span><h2>{title === 'Baseline' ? 'MobileNetV3-Small' : 'Our CA-MobileNetV3-Small'}</h2><dl><div><dt>Prediction</dt><dd>{titleCase(value.predicted_class)}</dd></div><div><dt>Confidence</dt><dd>{(Number(value.confidence) * 100).toFixed(2)}%</dd></div><div><dt>Time on this server</dt><dd>{Number(value.inference_time_ms).toFixed(2)} ms</dd></div><div><dt>Model size</dt><dd>{(Number(value.model_size_bytes) / 1048576).toFixed(2)} MB</dd></div></dl></article>;
-  return <section className="farmer-research-comparison"><header><span className="section-label">THESIS COMPARISON · NOT SAVED</span><h2>Same photo, two models</h2><p>This side-by-side output is research evidence, not a second diagnosis.</p></header><div className="comparison-results"><Model title="Baseline" value={payload.baseline} /><Model title="Enhanced" value={payload.enhanced} /></div><article className="panel comparison-summary"><span>THIS PHOTO</span><h2>{payload.comparison.summary}</h2><p>{payload.comparison.interpretation_note}</p>{payload.study && <div className="study-result"><strong>Held-out test result</strong><p>Baseline: {(Number(payload.study.baseline.accuracy) * 100).toFixed(2)}% accuracy / {(Number(payload.study.baseline.macro_f1) * 100).toFixed(2)}% macro F1<br />Enhanced pilot: {(Number(payload.study.enhanced.accuracy) * 100).toFixed(2)}% accuracy / {(Number(payload.study.enhanced.macro_f1) * 100).toFixed(2)}% macro F1</p><small>{payload.study.decision_note}</small></div>}</article></section>;
+  return <section className="farmer-research-comparison">
+    <header>
+      <span className="section-label">THESIS COMPARISON · NOT SAVED</span>
+      <h2>Same photo, two models</h2>
+      <p>This side-by-side output is research evidence, not a second diagnosis.</p>
+    </header>
+    <div className="comparison-results">
+      <ComparisonModelCard title="Baseline" value={payload.baseline} />
+      <ComparisonModelCard title="Proposed" value={payload.enhanced} />
+    </div>
+    <article className="comparison-card comparison-summary">
+      <header className="comparison-card-header">
+        <span>This photo</span>
+        <h2>{payload.comparison.summary}</h2>
+      </header>
+      <p className="comparison-note">{payload.comparison.interpretation_note}</p>
+      {payload.study && <div className="study-result"><strong>Held-out test result</strong><p>Baseline MobileNetV3-Small: {(Number(payload.study.baseline.accuracy) * 100).toFixed(2)}% accuracy / {(Number(payload.study.baseline.macro_f1) * 100).toFixed(2)}% macro F1<br />Proposed CA-MobileNetV3-Small: {(Number(payload.study.enhanced.accuracy) * 100).toFixed(2)}% accuracy / {(Number(payload.study.enhanced.macro_f1) * 100).toFixed(2)}% macro F1</p><small>{payload.study.decision_note}</small></div>}
+    </article>
+  </section>;
 }
 
 function FarmerResult({ image, result, comparison, onReset, onSave, error }) {
@@ -236,6 +253,36 @@ function Warning() {
   </details>;
 }
 function Heading({ title, text }) { return <section className="role-page-heading"><h1>{title}</h1>{text && <p>{text}</p>}</section>; }
+
+function SectionHeading({ title, text }) {
+  return <header className="role-section-heading">
+    <h2>{title}</h2>
+    {text && <p>{text}</p>}
+  </header>;
+}
+
+function ComparisonModelCard({ title, value }) {
+  const modelName = title === 'Baseline' ? 'MobileNetV3-Small' : 'CA-MobileNetV3-Small';
+  const metrics = [
+    ['Prediction', titleCase(value.predicted_class)],
+    ['Confidence', `${(Number(value.confidence) * 100).toFixed(2)}%`],
+    ['Inference time', `${Number(value.inference_time_ms).toFixed(2)} ms`],
+    ['Model size', `${(Number(value.model_size_bytes) / 1048576).toFixed(2)} MB`],
+  ];
+
+  return <article className="comparison-card comparison-model-card">
+    <header className="comparison-card-header">
+      <span>{title}</span>
+      <h2>{modelName}</h2>
+    </header>
+    <dl className="comparison-metrics">
+      {metrics.map(([label, metric]) => <div key={label}>
+        <dt>{label}</dt>
+        <dd>{metric}</dd>
+      </div>)}
+    </dl>
+  </article>;
+}
 
 function FarmerHistory({ records, navigate, onOpen }) {
   const [query, setQuery] = useState(''); const [kind, setKind] = useState('all'); const [date, setDate] = useState(''); const filtered = records.filter((record) => { const resultKind = record.diseaseId === 'healthy' ? 'healthy' : record.diseaseId === 'dead' ? 'dead' : 'disease'; return (kind === 'all' || kind === resultKind) && (!date || record.date?.slice(0, 10) === date) && `${record.disease?.name || record.diseaseId} ${record.id}`.toLowerCase().includes(query.toLowerCase()); });
@@ -335,7 +382,7 @@ function AdminDashboard() {
 
 function AdminAnalytics() {
   const { data, error } = useAdmin('/admin/analytics'); if (error) return <div className="form-error">{error}</div>; if (!data) return <Loading text="Loading analytics..." />; const timeline = Object.entries(data.diagnoses_over_time); const max = Math.max(1, ...timeline.map(([, total]) => Number(total))); const review = data.model_review_analytics;
-  return <div className="role-stack"><Heading eyebrow="ANALYTICS" title="Diagnosis Activity" text="Useful research summaries without fabricated performance values." /><section className="admin-stat-grid three"><Stat label="Diagnoses" value={data.total_diagnoses} note="Saved records" icon={Database} /><Stat label="Average Confidence" value={`${Number(data.average_confidence).toFixed(1)}%`} note="Model confidence, not diagnostic certainty" icon={Activity} /><Stat label="Uncertain" value={data.uncertain_predictions} note={`${Number(data.uncertain_prediction_rate).toFixed(1)}% below ${data.confidence_threshold}%`} icon={AlertTriangle} /></section><section className="admin-overview-grid"><article className="panel analytics-chart"><h2>Diagnoses Over Time</h2>{timeline.length ? <div className="timeline-bars">{timeline.map(([date, total]) => <div key={date}><span style={{ height: `${Math.max(8, (Number(total) / max) * 100)}%` }}><b>{total}</b></span><small>{new Date(`${date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</small></div>)}</div> : <p className="empty-copy">No diagnosis activity yet.</p>}</article><Distribution title="Mobile versus Web" values={data.diagnoses_per_source} /><Distribution title="Condition summary" values={{ healthy: data.healthy_predictions, dead: data.dead_predictions, 'possible disease': data.diseased_predictions }} /></section><Heading eyebrow="MODEL REVIEW ANALYTICS" title="AI–Reviewer Agreement" text="Structured agricultural reviews provide agreement evidence without being presented as laboratory accuracy." /><section className="admin-stat-grid"><Stat label="Reviewed Diagnoses" value={review.reviewed_diagnoses} note={`${review.comparable_reviews} comparable assessments`} icon={ShieldCheck} /><Stat label="AI–Reviewer Agreement" value={review.agreement_rate === null ? 'Not available' : `${Number(review.agreement_rate).toFixed(1)}%`} note="Agreement, not diagnostic accuracy" icon={Check} /><Stat label="Disagreements" value={review.disagreements} note="Different supported class" icon={AlertTriangle} /><Stat label="Disagreement Confidence" value={review.average_disagreement_confidence === null ? "Not available" : `${Number(review.average_disagreement_confidence).toFixed(1)}%`} note="Average model confidence in disagreements" icon={Activity} /><Stat label="Outside Supported Classes" value={review.possible_outside_supported_classes} note="Reviewer flagged" icon={Info} /><Stat label="Unable to Determine" value={review.unable_to_determine} note={`${review.field_inspection_required} require field inspection`} icon={Eye} /></section><section className="admin-overview-grid"><Distribution title="Most Confused Classes" values={review.most_confused_classes} /><Distribution title="Disagreements by AI Class" values={review.disagreements_by_predicted_class} /><article className="panel review-band-panel"><h2>Agreement by Confidence Band</h2>{Object.entries(review.agreement_by_confidence).map(([band, item]) => <div key={band}><span>{titleCase(band)} confidence</span><strong>{item.agreement_rate === null ? 'No comparable reviews' : `${Number(item.agreement_rate).toFixed(1)}% agreement`}</strong><small>{item.reviewed} reviewed</small></div>)}</article><Distribution title="Research Dataset Candidates" values={data.dataset_candidates} /></section><div className="development-note"><Info size={18} /><p>{review.reference_standard_note}</p></div></div>;
+  return <div className="role-stack"><Heading eyebrow="ANALYTICS" title="Diagnosis Activity" text="Useful research summaries without fabricated performance values." /><section className="admin-stat-grid three"><Stat label="Diagnoses" value={data.total_diagnoses} note="Saved records" icon={Database} /><Stat label="Average Confidence" value={`${Number(data.average_confidence).toFixed(1)}%`} note="Model confidence, not diagnostic certainty" icon={Activity} /><Stat label="Uncertain" value={data.uncertain_predictions} note={`${Number(data.uncertain_prediction_rate).toFixed(1)}% below ${data.confidence_threshold}%`} icon={AlertTriangle} /></section><section className="admin-overview-grid"><article className="panel analytics-chart"><h2>Diagnoses Over Time</h2>{timeline.length ? <div className="timeline-bars">{timeline.map(([date, total]) => <div key={date}><span style={{ height: `${Math.max(8, (Number(total) / max) * 100)}%` }}><b>{total}</b></span><small>{new Date(`${date}T00:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</small></div>)}</div> : <p className="empty-copy">No diagnosis activity yet.</p>}</article><Distribution title="Mobile versus Web" values={data.diagnoses_per_source} /><Distribution title="Condition summary" values={{ healthy: data.healthy_predictions, dead: data.dead_predictions, 'possible disease': data.diseased_predictions }} /></section><SectionHeading title="AI–Reviewer Agreement" text="Structured agricultural reviews provide agreement evidence without being presented as laboratory accuracy." /><section className="admin-stat-grid"><Stat label="Reviewed Diagnoses" value={review.reviewed_diagnoses} note={`${review.comparable_reviews} comparable assessments`} icon={ShieldCheck} /><Stat label="AI–Reviewer Agreement" value={review.agreement_rate === null ? 'Not available' : `${Number(review.agreement_rate).toFixed(1)}%`} note="Agreement, not diagnostic accuracy" icon={Check} /><Stat label="Disagreements" value={review.disagreements} note="Different supported class" icon={AlertTriangle} /><Stat label="Disagreement Confidence" value={review.average_disagreement_confidence === null ? "Not available" : `${Number(review.average_disagreement_confidence).toFixed(1)}%`} note="Average model confidence in disagreements" icon={Activity} /><Stat label="Outside Supported Classes" value={review.possible_outside_supported_classes} note="Reviewer flagged" icon={Info} /><Stat label="Unable to Determine" value={review.unable_to_determine} note={`${review.field_inspection_required} require field inspection`} icon={Eye} /></section><section className="admin-overview-grid"><Distribution title="Most Confused Classes" values={review.most_confused_classes} /><Distribution title="Disagreements by AI Class" values={review.disagreements_by_predicted_class} /><article className="panel review-band-panel"><h2>Agreement by Confidence Band</h2>{Object.entries(review.agreement_by_confidence).map(([band, item]) => <div key={band}><span>{titleCase(band)} confidence</span><strong>{item.agreement_rate === null ? 'No comparable reviews' : `${Number(item.agreement_rate).toFixed(1)}% agreement`}</strong><small>{item.reviewed} reviewed</small></div>)}</article><Distribution title="Research Dataset Candidates" values={data.dataset_candidates} /></section><div className="development-note"><Info size={18} /><p>{review.reference_standard_note}</p></div></div>;
 }
 
 function FarmersAdmin() {
@@ -424,12 +471,93 @@ function SystemAdmin() {
 }
 
 function ModelComparisonAdmin() {
-  const input = useRef(null); const [file, setFile] = useState(null); const [preview, setPreview] = useState(''); const [result, setResult] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const input = useRef(null);
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState('');
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
-  const choose = (next) => { if (!next?.type.startsWith('image/')) { setError('Choose a JPG, PNG, or WEBP banana-leaf image.'); return; } if (preview) URL.revokeObjectURL(preview); setFile(next); setPreview(URL.createObjectURL(next)); setResult(null); setError(''); };
-  const compare = async () => { if (!file) return; setBusy(true); setError(''); setResult(null); const body = new FormData(); body.append('image', file); try { const payload = await api('/admin/model-comparison', { method: 'POST', body }); setResult(payload.data); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
-  const ModelResult = ({ title, value }) => <article className="comparison-model-card"><span>{title}</span><h2>{title === 'Baseline' ? 'MobileNetV3-Small' : 'CA-MobileNetV3-Small'}</h2><dl><div><dt>Prediction</dt><dd>{titleCase(value.predicted_class)}</dd></div><div><dt>Confidence</dt><dd>{(Number(value.confidence) * 100).toFixed(2)}%</dd></div><div><dt>Inference time</dt><dd>{Number(value.inference_time_ms).toFixed(2)} ms</dd></div><div><dt>Model size</dt><dd>{(Number(value.model_size_bytes) / 1048576).toFixed(2)} MB</dd></div></dl></article>;
-  return <div className="role-stack"><Heading eyebrow="ADMIN / RESEARCH" title="Model comparison" text="Run the standard baseline and enhanced model on one shared image. Research runs are not saved to farmer history." /><section className="panel comparison-workspace"><div className="comparison-image-panel">{preview ? <img src={preview} alt="Banana leaf selected for model comparison" /> : <div><FileImage size={38} /><strong>Select one banana leaf image</strong><small>JPG, PNG, or WEBP · up to 10 MB</small></div>}<input ref={input} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => choose(event.target.files[0])} /></div><div className="comparison-actions"><button className="secondary-button" onClick={() => input.current?.click()}><Upload size={17} />{file ? 'Choose another image' : 'Choose image'}</button><button className="primary-button" disabled={!file || busy} onClick={compare}>{busy ? <RefreshCw className="spin" size={17} /> : <GitCompareArrows size={17} />}{busy ? 'Running sequentially...' : 'Run comparison'}</button></div>{error && <div className="form-error">{error}</div>}<div className="development-note"><Info size={18} /><p>Baseline runs first and is released before the enhanced interpreter loads. A higher confidence on one image does not prove higher accuracy.</p></div></section>{result && <><section className="comparison-results"><ModelResult title="Baseline" value={result.baseline} /><ModelResult title="Enhanced" value={result.enhanced} /></section><section className="panel comparison-summary"><span>Comparison summary</span><h2>{result.comparison.summary}</h2><dl><div><dt>Prediction agreement</dt><dd>{result.comparison.prediction_agreement ? 'Agreement' : 'Different predictions'}</dd></div><div><dt>Enhanced confidence difference</dt><dd>{Number(result.comparison.enhanced_confidence_difference_percentage_points) >= 0 ? '+' : ''}{Number(result.comparison.enhanced_confidence_difference_percentage_points).toFixed(2)} points</dd></div><div><dt>Enhanced latency difference</dt><dd>{Number(result.comparison.enhanced_latency_difference_ms) >= 0 ? '+' : ''}{Number(result.comparison.enhanced_latency_difference_ms).toFixed(2)} ms</dd></div></dl><p>{result.comparison.interpretation_note}</p></section></>}</div>;
+
+  const choose = (next) => {
+    if (!next?.type.startsWith('image/')) {
+      setError('Choose a JPG, PNG, or WEBP banana-leaf image.');
+      return;
+    }
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(next);
+    setPreview(URL.createObjectURL(next));
+    setResult(null);
+    setError('');
+  };
+
+  const compare = async () => {
+    if (!file) return;
+    setBusy(true);
+    setError('');
+    setResult(null);
+    const body = new FormData();
+    body.append('image', file);
+
+    try {
+      const payload = await api('/admin/model-comparison', { method: 'POST', body });
+      setResult(payload.data);
+    } catch (exception) {
+      setError(exception.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const difference = (value, unit) => {
+    const amount = Number(value);
+    return `${amount >= 0 ? '+' : ''}${amount.toFixed(2)} ${unit}`;
+  };
+
+  return <div className="role-stack">
+    <Heading title="Model comparison" text="Run the baseline and proposed CA-MobileNetV3-Small on one shared image. Research runs are not saved to farmer history." />
+
+    <section className="panel comparison-workspace">
+      <div className="comparison-image-panel">
+        {preview
+          ? <img src={preview} alt="Banana leaf selected for model comparison" />
+          : <div><FileImage size={38} /><strong>Select one banana leaf image</strong><small>JPG, PNG, or WEBP · up to 10 MB</small></div>}
+        <input ref={input} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => choose(event.target.files[0])} />
+      </div>
+
+      <div className="comparison-actions">
+        <button className="secondary-button" onClick={() => input.current?.click()}><Upload size={17} />{file ? 'Choose another image' : 'Choose image'}</button>
+        <button className="primary-button" disabled={!file || busy} onClick={compare}>
+          {busy ? <RefreshCw className="spin" size={17} /> : <GitCompareArrows size={17} />}
+          {busy ? 'Running sequentially...' : 'Run comparison'}
+        </button>
+      </div>
+
+      {error && <div className="form-error">{error}</div>}
+      <div className="development-note"><Info size={18} /><p>Baseline runs first and is released before the proposed-model interpreter loads. A higher confidence on one image does not prove higher accuracy.</p></div>
+    </section>
+
+    {result && <>
+      <section className="comparison-results" aria-label="Model results">
+        <ComparisonModelCard title="Baseline" value={result.baseline} />
+        <ComparisonModelCard title="Proposed" value={result.enhanced} />
+      </section>
+
+      <section className="comparison-card comparison-summary">
+        <header className="comparison-card-header">
+          <span>Comparison summary</span>
+          <h2>{result.comparison.summary}</h2>
+        </header>
+        <dl className="comparison-metrics">
+          <div><dt>Prediction agreement</dt><dd>{result.comparison.prediction_agreement ? 'Agreement' : 'Different predictions'}</dd></div>
+          <div><dt>Confidence difference</dt><dd>{difference(result.comparison.enhanced_confidence_difference_percentage_points, 'points')}</dd></div>
+          <div><dt>Inference-time difference</dt><dd>{difference(result.comparison.enhanced_latency_difference_ms, 'ms')}</dd></div>
+        </dl>
+        <p className="comparison-note">{result.comparison.interpretation_note}</p>
+      </section>
+    </>}
+  </div>;
 }
 
 export default function RoleApp() {
