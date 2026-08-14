@@ -1138,7 +1138,7 @@ body { background: var(--page); }
 }
 
 /* Research model comparison */
-.comparison-workspace { display: grid; gap: 16px; }
+.comparison-workspace { padding: 24px; display: grid; gap: 16px; }
 .comparison-image-panel {
   min-height: 300px;
   overflow: hidden;
@@ -1154,16 +1154,63 @@ body { background: var(--page); }
 .comparison-image-panel img { display: block; width: 100%; height: 360px; object-fit: contain; background: #e7eee9; }
 .comparison-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .comparison-actions button { flex: 1 1 210px; justify-content: center; }
-.comparison-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.comparison-model-card { min-width: 0; padding: 22px; border: 1px solid #dce5df; border-radius: 14px; background: #fff; box-shadow: 0 12px 34px rgba(25, 59, 43, .06); }
-.comparison-model-card > span, .comparison-summary > span { color: #267348; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.comparison-model-card h2, .comparison-summary h2 { margin: 7px 0 18px; color: #183d2d; font-size: 20px; }
-.comparison-model-card dl, .comparison-summary dl { margin: 0; display: grid; gap: 1px; overflow: hidden; border: 1px solid #e3e9e5; border-radius: 10px; background: #e3e9e5; }
-.comparison-model-card dl > div, .comparison-summary dl > div { min-width: 0; padding: 11px 13px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #fff; }
-.comparison-model-card dt, .comparison-summary dt { color: #718078; font-size: 12px; }
-.comparison-model-card dd, .comparison-summary dd { min-width: 0; margin: 0; color: #203a2e; font-size: 13px; font-weight: 800; text-align: right; overflow-wrap: anywhere; }
-.comparison-summary p { margin: 15px 0 0; color: #69776f; font-size: 12px; line-height: 1.65; }
+.comparison-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.comparison-card {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-sm);
+}
+.comparison-model-card { height: 100%; }
+.comparison-card-header { margin-bottom: 18px; }
+.comparison-card-header > span {
+  display: block;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.comparison-card-header h2 {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1.3;
+  letter-spacing: -.015em;
+}
+.comparison-metrics {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.comparison-metrics > div {
+  min-width: 0;
+  min-height: 50px;
+  padding: 11px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+}
+.comparison-metrics > div + div { border-top: 1px solid var(--line); }
+.comparison-metrics dt { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.comparison-metrics dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.comparison-note { margin: 16px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
 .farmer-research-comparison { display: grid; gap: 14px; }
+.farmer-research-comparison.panel { padding: 24px; }
 .farmer-research-comparison > header { padding: 4px 2px; }
 .farmer-research-comparison > header h2, .farmer-research-comparison.panel h2 { margin: 6px 0 4px; color: #183d2d; font-size: 20px; }
 .farmer-research-comparison > header p, .farmer-research-comparison.panel p { margin: 0; color: #69776f; font-size: 13px; line-height: 1.6; }
@@ -1181,9 +1228,9 @@ body { background: var(--page); }
 }
 
 @media (max-width: 420px) {
-  .comparison-model-card { padding: 16px; }
-  .comparison-model-card dl > div, .comparison-summary dl > div { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .comparison-model-card dd, .comparison-summary dd { text-align: left; }
+  .comparison-workspace, .comparison-card, .farmer-research-comparison.panel { padding: 18px; }
+  .comparison-metrics > div { grid-template-columns: 1fr; gap: 4px; }
+  .comparison-metrics dd { text-align: left; }
 }
 
 /* Reference-matched banana leaf sign-in */
@@ -1744,4 +1791,369 @@ body { background: var(--page); }
 
 @media (max-width: 500px) {
   .role-sidebar { width: min(264px, calc(100vw - 32px)); }
+}
+
+/* Application-wide spacing and hierarchy */
+:root {
+  --page: #f5f7f5;
+  --panel: #ffffff;
+  --ink: #17251f;
+  --muted: #617068;
+  --line: #dce5e0;
+  --green: #176b4d;
+  --green-dark: #123d31;
+  --green-soft: #e9f2ed;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(15, 45, 34, .03), 0 8px 24px rgba(15, 45, 34, .045);
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --control-height: 44px;
+  --content-width: 1280px;
+}
+
+body {
+  color: var(--ink);
+  background: var(--page);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: not-allowed; }
+
+.role-shell { --role-sidebar-width: 248px; background: var(--page); }
+.role-main { min-width: 0; margin-left: var(--role-sidebar-width); }
+.role-page {
+  width: min(100%, var(--content-width));
+  margin-inline: auto;
+  padding: var(--space-8) clamp(var(--space-5), 3.5vw, 48px) 64px;
+}
+.role-stack { gap: 28px; }
+.role-stack > *, .role-page > * { min-width: 0; }
+
+.role-page-heading, .farmer-welcome, .result-title { max-width: 780px; }
+.role-page-heading h1, .farmer-welcome h1, .result-title h1 {
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -.035em;
+}
+.role-page-heading > p:last-child, .farmer-welcome > p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.role-section-heading {
+  max-width: 760px;
+  padding-top: var(--space-2);
+}
+.role-section-heading h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font-size: clamp(23px, 2.3vw, 28px);
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+.role-section-heading p {
+  max-width: 700px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.panel, .guide-role-list, .admin-stat-card, .comparison-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.panel-heading {
+  min-height: 32px;
+  margin-bottom: var(--space-3);
+  align-items: center;
+  gap: var(--space-4);
+}
+.panel-heading h2, .panel-heading h3,
+.quick-help h2, .farmer-recent h2,
+.admin-distribution h2, .admin-list-panel h2,
+.analytics-chart h2, .review-band-panel h2,
+.role-form h2, .admin-editor h2, .expert-review-form h2,
+.evidence-audit h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 750;
+  line-height: 1.3;
+  letter-spacing: -.018em;
+}
+
+.quick-help, .farmer-recent, .scan-photo-panel, .scan-check-panel,
+.history-role-panel, .guide-role-detail, .plain-result-summary,
+.result-guidance > .panel, .attention-panel, .role-form, .admin-editor,
+.admin-distribution, .admin-list-panel, .analytics-chart,
+.admin-overview-grid > .panel, .diagnosis-filters, .system-role-card,
+.expert-case-list, .expert-review-card, .expert-content-review,
+.dataset-candidate, .evidence-audit, .review-band-panel,
+.comparison-workspace, .comparison-card {
+  padding: var(--space-6);
+}
+
+.primary-button, .secondary-button, .danger-button {
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  gap: var(--space-2);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+.primary-button { box-shadow: 0 6px 16px rgba(23, 107, 77, .14); }
+.secondary-button { border-color: #cad6cf; }
+.text-button {
+  min-height: 36px;
+  padding: 0;
+  gap: var(--space-1);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.icon-button { border-radius: var(--radius-sm); }
+
+.role-form, .admin-editor, .expert-review-form { gap: var(--space-4); }
+.role-form label, .admin-editor label, .diagnosis-filters label,
+.expert-review-form > label, .expert-content-review > label,
+.farmer-review-notes, .review-request-form label {
+  gap: 7px;
+  color: #405249;
+  font-size: 12px;
+  font-weight: 700;
+}
+.role-form input, .admin-editor input, .admin-editor select, .admin-editor textarea,
+.diagnosis-filters input, .diagnosis-filters select,
+.expert-review-form select, .expert-review-form textarea,
+.expert-content-review textarea, .farmer-review-notes textarea,
+.review-request-form textarea, .dataset-candidate textarea {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 10px 12px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #cbd7d0;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.role-form textarea, .admin-editor textarea, .expert-review-form textarea,
+.expert-content-review textarea, .farmer-review-notes textarea,
+.review-request-form textarea, .dataset-candidate textarea { min-height: 104px; resize: vertical; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--green); }
+.admin-editor > div { gap: var(--space-4); }
+.admin-editor footer, .expert-content-review footer, .dataset-candidate footer {
+  margin-top: var(--space-5);
+  gap: var(--space-3);
+}
+
+.admin-search {
+  width: min(100%, 640px);
+  min-height: var(--control-height);
+  padding-left: var(--space-3);
+  gap: var(--space-2);
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.admin-search input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+.admin-search .secondary-button { min-height: 42px; margin: 1px; }
+
+.friendly-filters { padding-bottom: var(--space-5); gap: var(--space-3); }
+.friendly-filters label, .friendly-filters > input, .friendly-filters > select {
+  min-height: var(--control-height);
+  border-color: #cbd7d0;
+  border-radius: 9px;
+}
+.friendly-filters label { padding-inline: var(--space-3); }
+.friendly-filters > input, .friendly-filters > select { padding-inline: var(--space-3); }
+
+.farmer-home-grid, .farmer-scan-layout, .plain-result-grid,
+.result-guidance, .profile-role-grid, .admin-overview-grid,
+.guide-role-layout, .expert-review-layout, .expert-content-grid { gap: var(--space-5); }
+.admin-overview-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.admin-stat-grid { gap: var(--space-4); }
+.admin-stat-grid:has(> :nth-child(5)) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.admin-stat-card { min-height: 112px; padding: var(--space-5); gap: var(--space-3); }
+.admin-stat-card > span { width: 42px; height: 42px; border-radius: 10px; }
+.admin-stat-card div { gap: 2px; }
+.admin-stat-card small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.admin-stat-card strong { color: var(--ink); font-size: 26px; line-height: 1.2; }
+.admin-stat-card p { color: var(--muted); font-size: 11px; line-height: 1.4; }
+
+.admin-distribution > div, .system-role-card dl > div,
+.diagnosis-dialog dl > div, .comparison-metrics > div {
+  min-height: 50px;
+  padding-block: 11px;
+}
+.admin-distribution > div { font-size: 12px; }
+.admin-record-row { min-height: 68px; font-size: 12px; }
+.admin-record-row small, .admin-record-row time { font-size: 11px; }
+
+.admin-table-role > header, .admin-table-role > div {
+  min-height: 62px;
+  padding: 10px var(--space-4);
+  gap: var(--space-3);
+  font-size: 12px;
+}
+.admin-table-role > header {
+  min-height: 42px;
+  color: var(--muted);
+  background: #f4f7f5;
+  font-size: 10px;
+  letter-spacing: .04em;
+}
+.admin-table-role small { font-size: 11px; line-height: 1.4; }
+.admin-table-role button, .source-table a { min-height: 36px; font-size: 12px; }
+
+.quick-help > button, .recent-scan-card, .expert-case-row { min-height: 72px; }
+.quick-help > button { padding-block: var(--space-3); gap: var(--space-3); }
+.quick-help strong, .recent-copy strong, .expert-case-row strong { font-size: 13px; }
+.quick-help small, .recent-copy small, .recent-status, .expert-case-row small { font-size: 11px; line-height: 1.4; }
+.recent-scan-card { padding: var(--space-3) var(--space-1); gap: var(--space-3); }
+
+.development-note, .form-error, .success-message, .farmer-sync-banner,
+.screening-warning, .auth-notice, .review-notice, .review-result {
+  padding: 14px var(--space-4);
+  gap: var(--space-3);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.development-note p, .form-error p, .success-message p,
+.screening-warning p, .farmer-sync-banner p { font-size: 12px; line-height: 1.55; }
+
+.guide-role-list { overflow: hidden; }
+.guide-role-list button { min-height: 76px; padding: var(--space-3); gap: var(--space-3); }
+.guide-role-list strong { font-size: 13px; }
+.guide-role-list small { font-size: 11px; line-height: 1.4; }
+.guide-role-detail > section, .guide-detail-more > section { padding-block: var(--space-5); }
+.guide-role-detail section p, .guide-role-detail li { font-size: 12px; line-height: 1.65; }
+.guide-image-credit, .evidence-audit article small { font-size: 10px !important; }
+
+.comparison-results { gap: var(--space-5); }
+.comparison-card-header { margin-bottom: var(--space-4); }
+.comparison-card-header h2 { font-size: 20px; }
+.comparison-metrics dt { font-size: 12px; }
+.comparison-metrics dd { font-size: 13px; }
+.comparison-note { font-size: 12px; }
+
+.role-empty { padding: 48px var(--space-6); }
+.role-empty h3 { margin: var(--space-3) 0 var(--space-1); font-size: 18px; }
+.role-empty p { max-width: 480px; margin: 0 auto; color: var(--muted); font-size: 13px; line-height: 1.55; }
+
+.role-sidebar {
+  width: var(--role-sidebar-width);
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  background: #123c31;
+}
+.role-brand {
+  min-height: 66px;
+  margin: 0 0 var(--space-3);
+  padding: 0 var(--space-2) var(--space-5);
+  gap: var(--space-3);
+}
+.role-brand > span { width: 32px; height: 32px; }
+.role-brand strong { font-size: 15px; line-height: 1.2; }
+.role-brand small { color: #a9beb5; font-size: 10px; letter-spacing: 0; }
+.role-sidebar nav { gap: var(--space-1); }
+.role-sidebar nav button {
+  position: relative;
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  gap: var(--space-3);
+  border-radius: 7px;
+  color: #bed0c8;
+  font-size: 13px;
+  font-weight: 550;
+}
+.role-sidebar nav button.active { color: #fff; background: transparent; font-weight: 700; }
+.role-sidebar nav button.active::before { inset-block: 11px; width: 3px; }
+.sidebar-footer { padding: var(--space-4) var(--space-2) 0; }
+.sidebar-account { min-height: 52px; padding: 0 0 var(--space-3); gap: var(--space-3); }
+.sidebar-account > span { width: 34px; height: 34px; }
+.sidebar-account strong { font-size: 12px; }
+.sidebar-account small, .sidebar-network, .sidebar-logout { font-size: 10px; }
+.sidebar-footer-actions { min-height: 38px; }
+
+@media (max-width: 1050px) {
+  .role-main { width: 100%; margin-left: 0; }
+  .role-page { width: min(100%, 920px); padding-top: var(--space-7); }
+  .role-topbar { min-height: 62px; padding-inline: var(--space-4); }
+}
+
+@media (max-width: 760px) {
+  .role-page { padding: 28px 18px 52px; }
+  .farmer-shell .role-page { padding-bottom: 96px; }
+  .role-stack { gap: var(--space-5); }
+  .role-page-heading h1, .farmer-welcome h1, .result-title h1 { font-size: 30px; }
+  .farmer-home-grid, .farmer-scan-layout, .plain-result-grid,
+  .result-guidance, .profile-role-grid, .admin-overview-grid,
+  .guide-role-layout, .expert-review-layout, .expert-content-grid { grid-template-columns: 1fr; }
+  .quick-help, .farmer-recent, .scan-check-panel, .history-role-panel,
+  .guide-role-detail, .plain-result-summary, .result-guidance > .panel,
+  .attention-panel, .role-form, .admin-editor, .admin-distribution,
+  .admin-list-panel, .analytics-chart, .admin-overview-grid > .panel,
+  .diagnosis-filters, .system-role-card, .expert-case-list,
+  .expert-review-card, .expert-content-review, .dataset-candidate,
+  .evidence-audit, .review-band-panel, .comparison-workspace,
+  .comparison-card { padding: var(--space-5); }
+  .farmer-scan-layout .scan-photo-panel { padding: 0; }
+  .admin-stat-grid, .admin-stat-grid.three,
+  .admin-stat-grid:has(> :nth-child(5)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .farmer-bottom-nav { height: 72px; padding-bottom: env(safe-area-inset-bottom); }
+  .farmer-bottom-nav button { min-height: 54px; gap: var(--space-1); font-size: 10px; }
+  .friendly-filters { grid-template-columns: 1fr; }
+  .guide-symptom-card li { font-size: 11px; }
+  .guide-verified-badge { font-size: 9px; }
+  .guide-image-credit { font-size: 10px !important; }
+}
+
+@media (max-width: 520px) {
+  .role-page { padding: var(--space-6) 14px 48px; }
+  .farmer-shell .role-page { padding-bottom: 94px; }
+  .role-page-heading h1, .farmer-welcome h1, .result-title h1 { font-size: 28px; }
+  .role-page-heading > p:last-child, .farmer-welcome > p:last-child { font-size: 13px; }
+  .admin-stat-grid, .admin-stat-grid.three,
+  .admin-stat-grid:has(> :nth-child(5)), .admin-disease-grid,
+  .dataset-candidate-grid { grid-template-columns: 1fr; }
+  .admin-stat-card { min-height: 100px; }
+  .admin-search { grid-template-columns: auto minmax(0, 1fr); }
+  .admin-search .secondary-button { grid-column: 1 / -1; width: 100%; margin: 0; }
+  .primary-button, .secondary-button, .danger-button { width: 100%; }
+  .panel-heading .text-button, .camera-source-actions .secondary-button { width: auto; }
+  .comparison-metrics > div { grid-template-columns: 1fr; gap: var(--space-1); }
+  .comparison-metrics dd { text-align: left; }
+  .role-sidebar { width: min(280px, calc(100vw - 32px)); }
 }

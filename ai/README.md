@@ -30,12 +30,13 @@ Both models were tested on the same 69 held-out images.
 | Model | Test accuracy | Macro F1 | Correct images |
 | --- | ---: | ---: | ---: |
 | Baseline MobileNetV3-Small | 91.30% | 90.40% | 63 / 69 |
-| **Enhanced MobileNetV3-Small** | **95.65%** | **96.05%** | **66 / 69** |
+| **Proposed CA-MobileNetV3-Small** | **95.65%** | **96.05%** | **66 / 69** |
 
-The **enhanced model is the current winner** on this fixed test split.
+The **proposed CA-MobileNetV3-Small is the current winner** on this fixed test split.
 
 > [!CAUTION]
 > This is a thesis experiment, not guaranteed field accuracy. The test set is small, and Yellow Sigatoka has only three test images whose source labels still require expert confirmation.
+> The current artifact uses a `dead`-leaf class, not Moko disease; those labels must not be treated as equivalent.
 
 ## What Are We Comparing?
 
@@ -43,9 +44,9 @@ The **enhanced model is the current winner** on this fixed test split.
 
 The baseline is a standard MobileNetV3-Small classifier. It gives the thesis a fair reference model.
 
-### Enhanced model
+### Proposed CA-MobileNetV3-Small
 
-The enhanced model starts from MobileNetV3-Small, then adds:
+The formal name is **Coordinate Attention–enhanced MobileNetV3-Small (CA-MobileNetV3-Small)**. It starts from MobileNetV3-Small, then adds:
 
 - Coordinate Attention;
 - compatible ImageNet weight transfer;

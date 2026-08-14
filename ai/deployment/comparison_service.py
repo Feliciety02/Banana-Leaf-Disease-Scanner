@@ -60,12 +60,17 @@ def _study_summary() -> dict | None:
     except (KeyError, TypeError, ValueError) as error:
         raise HTTPException(status_code=503, detail="Configured comparison report has an invalid contract") from error
     leader = "baseline" if macro_f1["baseline"] > macro_f1["enhanced"] else "enhanced" if macro_f1["enhanced"] > macro_f1["baseline"] else "tie"
+    decision_note = {
+        "baseline": "The baseline leads this run.",
+        "enhanced": "The proposed CA-MobileNetV3-Small leads this run.",
+        "tie": "The models are tied on macro F1 in this run.",
+    }[leader]
     return {
-        "scope": "source-labeled CPU pilot on one fixed held-out split",
+        "scope": "source-labeled experiment on one fixed held-out split",
         "current_leader": leader,
         "baseline": {"accuracy": accuracy["baseline"], "macro_f1": macro_f1["baseline"]},
         "enhanced": {"accuracy": accuracy["enhanced"], "macro_f1": macro_f1["enhanced"]},
-        "decision_note": "The baseline leads this pilot. This is provisional until labels are expert-validated and the enhanced method receives the full planned training budget.",
+        "decision_note": f"{decision_note} This result is provisional until labels are expert-validated and the experiment is repeated across multiple fixed seeds.",
     }
 
 

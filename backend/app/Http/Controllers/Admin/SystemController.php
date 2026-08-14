@@ -11,9 +11,9 @@ class SystemController extends Controller
     public function show(ClassLabelRegistry $registry): JsonResponse
     {
         return response()->json(['success' => true, 'message' => 'System information retrieved.', 'data' => [
-            'model' => 'Enhanced MobileNetV3-Small',
+            'model' => 'CA-MobileNetV3-Small',
             'attention' => 'Coordinate Attention',
-            'deployment' => 'TensorFlow Lite INT8',
+            'deployment' => 'TensorFlow Lite FP32',
             'version' => config('banana.model_version'),
             'input_size' => config('banana.input_size'),
             'classes' => $registry->labels(),
