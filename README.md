@@ -32,6 +32,31 @@ You do not need to understand the whole repository before running it. Follow the
 
 For the easiest web and API preview, use Docker. For the mobile app or local AI comparison service, use the native-development workflow.
 
+## Next Time You Open the Project
+
+After Docker and the project dependencies have already been downloaded, open PowerShell in the main `DahonMD` folder and run:
+
+```powershell
+docker compose up
+```
+
+Then open:
+
+```text
+http://127.0.0.1:4173
+```
+
+Keep the PowerShell window open while using DahonMD. When you are finished, press `Ctrl+C`, then run:
+
+```powershell
+docker compose down
+```
+
+Use `docker compose up --build` instead when source code, dependencies, environment defaults, or Docker files have changed.
+
+> [!IMPORTANT]
+> Do not also run `php artisan serve` or `npm run dev` while using this Docker workflow. They can compete for ports `8001` and `4173`.
+
 ## At a Glance
 
 | Area | What it provides |
@@ -45,6 +70,7 @@ For the easiest web and API preview, use Docker. For the mobile app or local AI 
 ## Contents
 
 - [New student? Begin here](#new-student-begin-here)
+- [Next time you open the project](#next-time-you-open-the-project)
 - [Current research result](#current-research-result)
 - [Architecture](#architecture)
 - [Repository guide](#repository-guide)
@@ -267,7 +293,7 @@ These accounts are never seeded when `APP_ENV=production`.
 | --- | --- | --- |
 | Laravel | `APP_URL` | `http://127.0.0.1:8001` |
 | Laravel CORS | `WEB_FRONTEND_ORIGINS` | `http://127.0.0.1:4173,http://localhost:4173,http://localhost:5173` |
-| Web | `VITE_WEB_API_URL` | `http://127.0.0.1:8001/api` |
+| Web | `VITE_WEB_API_URL` | `/api` (Vite/Nginx proxies it to Laravel) |
 | Android emulator | `EXPO_PUBLIC_API_URL` | `http://10.0.2.2:8001/api` |
 | Physical phone | `EXPO_PUBLIC_API_URL` | `http://<computer-lan-ip>:8001/api` |
 | Research comparison | `AI_COMPARISON_URL` | `http://127.0.0.1:8100/compare` |
