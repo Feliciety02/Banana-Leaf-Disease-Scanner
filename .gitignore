@@ -14,7 +14,12 @@
 .venv/
 artifacts/
 
-# Keep image datasets local. Only the placement documentation is versioned.
+# Dataset files are ignored by default. The current audited five-class snapshot and
+# its Sigatoka label-review quarantine are explicit research exceptions.
 datasets/*
 !datasets/README.md
 !datasets/.gitkeep
+!datasets/banana_leaf_5class/
+!datasets/banana_leaf_5class/**
+!datasets/label-review/
+!datasets/label-review/**

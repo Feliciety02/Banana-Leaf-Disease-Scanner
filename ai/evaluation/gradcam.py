@@ -22,7 +22,25 @@ def _grad_model(model: tf.keras.Model, layer_name: str) -> tf.keras.Model:
             f"{[layer.name for layer in model.layers]}"
         ) from error
     logits = model.output["logits"] if isinstance(model.output, dict) else model.output
-    return tf.keras.Model(model.input, [feature_layer.output, logits])
+    try:
+        return tf.keras.Model(model.input, [feature_layer.output, logits])
+    except ValueError as error:
+        # Keras 3 gives a nested Functional model its own symbolic input/output
+        # tensors. Use the tensor from the nested model's outer call node so the
+        # feature map remains connected to the classifier logits.
+        inbound_nodes = getattr(feature_layer, "_inbound_nodes", ())
+        if len(inbound_nodes) != 1:
+            raise ValueError(
+                f"Grad-CAM layer '{layer_name}' is not connected unambiguously to the model input"
+            ) from error
+        connected_output = inbound_nodes[0].output_tensors
+        if isinstance(connected_output, (list, tuple)):
+            if len(connected_output) != 1:
+                raise ValueError(
+                    f"Grad-CAM layer '{layer_name}' has multiple connected outputs"
+                ) from error
+            connected_output = connected_output[0]
+        return tf.keras.Model(model.input, [connected_output, logits])
 
 
 def gradcam_heatmap(

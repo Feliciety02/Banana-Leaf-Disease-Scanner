@@ -35,8 +35,9 @@ def _dataset_root_from_environment() -> Optional[str]:
 @dataclass
 class DataConfig:
     dataset_dir: Optional[str] = field(default_factory=_dataset_root_from_environment)
-    # Optional JSON object mapping dataset-relative image paths to specimen/plant IDs.
-    # Supply this whenever multiple non-identical images can originate from one leaf/plant.
+    # Optional JSON object mapping known dataset-relative image paths to specimen/plant IDs.
+    # Unlisted images fall back to their SHA-256. Supply overrides whenever multiple
+    # non-identical images can originate from one leaf/plant.
     group_manifest: Optional[str] = None
     image_height: int = 224
     image_width: int = 224
@@ -99,14 +100,17 @@ class TeacherConfig:
 @dataclass
 class StudentConfig:
     backbone: str = "MobileNetV3SmallCoordinateAttention"
-    # This custom topology replaces stock SE blocks, so stock pretrained weights
-    # are intentionally not claimed to be directly compatible.
+    # When enabled, only shape-compatible convolution and BatchNorm weights are
+    # transferred from stock MobileNetV3-Small. New Coordinate Attention and
+    # classifier layers remain newly initialized.
     imagenet_weights: bool = False
     width_multiplier: float = 1.0
     coordinate_attention_reduction: int = 32
     dropout_rate: float = 0.20
     epochs: int = 100
     learning_rate: float = 3e-4
+    pretrained_warmup_epochs: int = 0
+    pretrained_warmup_learning_rate: float = 1e-3
     weight_decay: float = 1e-5
     # alpha is the hard-label weight; (1 - alpha) weights logit KD.
     distillation_alpha: float = 0.5
@@ -172,8 +176,6 @@ class ExperimentConfig:
             raise ValueError("The deployed student is fixed to Coordinate Attention-Enhanced MobileNetV3Small")
         if self.baseline.backbone != "MobileNetV3Small":
             raise ValueError("The research baseline must use the same MobileNetV3-Small variant as the enhanced student")
-        if self.student.imagenet_weights:
-            raise ValueError("Stock MobileNetV3 weights are incompatible after replacing SE with Coordinate Attention")
         if self.student.feature_distillation_enabled and self.student.feature_distillation_weight <= 0:
             raise ValueError("Enabled feature distillation requires a positive feature_distillation_weight")
         for name, value in {
@@ -188,10 +190,13 @@ class ExperimentConfig:
         }.items():
             if value <= 0:
                 raise ValueError(f"{name} must be positive")
+        if self.student.pretrained_warmup_epochs < 0:
+            raise ValueError("student.pretrained_warmup_epochs cannot be negative")
         for name, value in {
             "baseline.frozen_backbone_learning_rate": self.baseline.frozen_backbone_learning_rate,
             "baseline.fine_tune_learning_rate": self.baseline.fine_tune_learning_rate,
             "baseline.weight_decay": self.baseline.weight_decay,
+            "student.pretrained_warmup_learning_rate": self.student.pretrained_warmup_learning_rate,
         }.items():
             if value <= 0:
                 raise ValueError(f"{name} must be positive")

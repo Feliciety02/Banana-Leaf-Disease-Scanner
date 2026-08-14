@@ -90,9 +90,9 @@ def _records_for_classes(
         for path in paths:
             digest = _validate_and_hash(path, config.data.verify_images)
             relative = str(path.relative_to(dataset_root)).replace("\\", "/")
-            if group_map is not None and relative not in group_map:
-                raise ValueError(f"Group manifest has no specimen/plant ID for image: {relative}")
-            group_id = group_map[relative] if group_map is not None else digest
+            # A group manifest may contain only the known multi-image biological
+            # groups. Unlisted records retain the safe exact-hash fallback.
+            group_id = group_map.get(relative, digest) if group_map is not None else digest
             records.append(ImageRecord(str(path), label, class_name, digest, group_id))
     return records
 
@@ -317,7 +317,8 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
         if group_map is not None:
             for record in splits.train + splits.validation + splits.test:
                 relative = str(Path(record.path).relative_to(root)).replace("\\", "/")
-                if relative not in group_map or record.group_id != group_map[relative]:
+                expected_group = group_map.get(relative, record.sha256)
+                if record.group_id != expected_group:
                     raise ValueError(
                         "The existing split manifest does not match data.group_manifest. "
                         "Use a new output directory to create a new leakage-safe split."

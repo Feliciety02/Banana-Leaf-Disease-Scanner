@@ -23,8 +23,11 @@ class CoordinateAttention(tf.keras.layers.Layer):
         reduced = max(self.minimum_channels, channels // self.reduction)
         self.shared_conv = tf.keras.layers.Conv2D(reduced, 1, use_bias=False, name="shared_conv")
         self.shared_bn = tf.keras.layers.BatchNormalization(name="shared_bn")
-        self.height_conv = tf.keras.layers.Conv2D(channels, 1, activation="sigmoid", name="height_attention")
-        self.width_conv = tf.keras.layers.Conv2D(channels, 1, activation="sigmoid", name="width_attention")
+        # Two sigmoid gates multiply together. sigmoid(0.881)^2 is about 0.5,
+        # which is a safer neutral scale for a freshly initialized bottleneck.
+        attention_kwargs = {"kernel_initializer": "zeros", "bias_initializer": tf.keras.initializers.Constant(0.881)}
+        self.height_conv = tf.keras.layers.Conv2D(channels, 1, activation="sigmoid", name="height_attention", **attention_kwargs)
+        self.width_conv = tf.keras.layers.Conv2D(channels, 1, activation="sigmoid", name="width_attention", **attention_kwargs)
         super().build(input_shape)
 
     def call(self, inputs, training=None):

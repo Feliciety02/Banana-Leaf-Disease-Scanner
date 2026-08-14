@@ -2,92 +2,101 @@
 
 # DahonMD
 
-### Banana Leaf Disease Detection and Field Diagnosis System
+### Banana Leaf Screening and Field Diagnosis System
 
-One backend, one source of truth, and two clients designed for connected and offline field use.
+A shared Laravel API with web and mobile clients, offline field history, agricultural review, and a reproducible five-class AI research pipeline.
 
 ![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?logo=laravel&logoColor=white)
 ![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=0B1F2A)
 ![Expo](https://img.shields.io/badge/Expo-SDK_54-000020?logo=expo&logoColor=white)
-![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)
-![TypeScript](https://img.shields.io/badge/Mobile-TypeScript-3178C6?logo=typescript&logoColor=white)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-2.20-FF6F00?logo=tensorflow&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-Local_%2B_Central-003B57?logo=sqlite&logoColor=white)
 
 </div>
 
----
-
-## Overview
-
-DahonMD is a monorepo for identifying banana leaf diseases, recording diagnoses, and synchronizing field observations. The React web application and Expo mobile application share one authoritative Laravel REST API, one identity system, and one central database.
-
-The mobile application also maintains a private on-device SQLite database. This allows an authenticated farmer to view local history and save pending diagnoses when a network connection is unavailable. Pending records are synchronized to the central API when connectivity returns.
-
 > [!IMPORTANT]
-> `backend/` is the only runtime backend for both the web and mobile applications.
+> DahonMD is a screening and research system, not laboratory confirmation. Model confidence is not the biological probability that a plant has a disease.
 
-## Highlights
+## At a Glance
 
-- One Sanctum identity works across the web and mobile clients.
-- Web and synchronized mobile diagnoses share the same central history.
-- Mobile diagnoses remain available offline through on-device SQLite.
-- Mobile history is searchable and filterable, loads in bounded pages, and cleans orphaned image files.
-- UUID-based synchronization safely handles retries without duplicate records.
-- Authentication includes password recovery, email verification, in-app deletion, and a public credential-confirmed deletion page.
-- API health checks include database readiness, while request IDs, rate limits, failure logs, and scheduled SQLite backups improve operations.
-- Three scoped roles separate field use, agricultural review, and system administration.
-- Agricultural reviewers assess uncertain diagnoses and verify researched disease content without changing original AI outputs.
-- Review queues prioritize farmer requests, low-confidence results, and repeated uncertain scans.
-- Structured reviewer feedback records assessment, image quality, recommended next steps, and field-inspection needs for agreement analysis.
-- Reviewed images may be nominated for a separate manual research-candidate workflow but are never added to training data automatically.
-- Administrator routes provide protected farmer/reviewer management, disease editing, analytics, and system/model configuration.
-- The AI workspace separates teacher training, student distillation, evaluation, and TFLite deployment tooling.
+| Area | What it provides |
+| --- | --- |
+| Farmer experience | Camera/gallery scans, plain-language results, disease guide, history, and review requests |
+| Field reliability | Per-farmer offline SQLite history and retry-safe synchronization |
+| Agricultural review | Prioritized queues, structured assessments, field-inspection flags, and content verification |
+| Administration | User management, disease content, analytics, system settings, and model comparison |
+| AI research | Controlled MobileNetV3 baseline and Coordinate Attention enhanced model on one fixed split |
 
-## System Architecture
+## Contents
+
+- [Current research result](#current-research-result)
+- [Architecture](#architecture)
+- [Repository guide](#repository-guide)
+- [Quick start with Docker](#quick-start-with-docker)
+- [Native development](#native-development)
+- [Development accounts](#development-accounts)
+- [Configuration](#configuration)
+- [Quality checks](#quality-checks)
+- [Documentation](#documentation)
+
+## Current Research Result
+
+Both models were evaluated on the same untouched 69-image test partition.
+
+| Model | Test accuracy | Macro F1 | Correct predictions |
+| --- | ---: | ---: | ---: |
+| Standard MobileNetV3-Small baseline | 91.30% | 90.40% | 63 / 69 |
+| Enhanced Coordinate Attention MobileNetV3-Small | **95.65%** | **96.05%** | **66 / 69** |
+
+The enhanced model currently leads by **4.35 percentage points in accuracy** and **5.65 percentage points in macro F1**. This is an exploratory result, not a production claim: the test set is small, and Yellow Sigatoka has only three test images from one source group pending expert label confirmation.
+
+See the [AI pipeline guide](ai/README.md) for reproducible training and evaluation commands.
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    Web[React Web Client] -->|REST API| API[Laravel API]
-    Mobile[Expo Mobile Client] --> Local[(On-device SQLite)]
-    Local -->|Pending UUID sync| API
-    API --> Central[(Authoritative Database)]
+    Web[React web client] -->|REST API| API[Laravel API]
+    Mobile[Expo mobile client] --> Device[(Device SQLite)]
+    Device -->|Pending UUID sync| API
+    API --> Central[(Central database)]
+    API -. optional research call .-> Models[Baseline + enhanced models]
 
-    classDef client fill:#FFF8DC,stroke:#D4A017,color:#332600;
+    classDef client fill:#FFF8DC,stroke:#C99718,color:#332600;
     classDef service fill:#E8F5E9,stroke:#2E7D32,color:#173A19;
     classDef data fill:#E3F2FD,stroke:#1565C0,color:#102A43;
     class Web,Mobile client;
-    class API service;
-    class Local,Central data;
+    class API,Models service;
+    class Device,Central data;
 ```
 
-The API is the source of truth for accounts, diseases, synchronized diagnoses, and administrator analytics. By default, its development database is `backend/database/database.sqlite`. Mobile SQLite is a device-local cache and synchronization queue, not a second server database.
+The Laravel application in `backend/` is the only runtime backend. Mobile SQLite is a private device cache and synchronization queue; it is not a second server database.
 
-## Repository Layout
+## Repository Guide
 
-| Folder | Responsibility | Runtime status |
+| Path | Purpose | Guide |
 | --- | --- | --- |
-| `backend/` | Laravel 12 API, Sanctum authentication, central database, sync, and analytics | Authoritative |
-| `web-frontend/` | React and Vite browser application | Active client |
-| `mobile-frontend/` | Expo React Native application with offline SQLite | Active client |
-| `ai/` | ResNet-101 teacher and Coordinate Attention MobileNetV3-Small student pipeline | Training and deployment tooling |
-| `datasets/` | Local dataset location and preparation notes | Development data |
-| `docs/` | Architecture and backend-consolidation documentation | Reference |
+| `backend/` | Laravel REST API, authentication, central data, reviews, and analytics | [Backend README](backend/README.md) |
+| `web-frontend/` | React/Vite browser client | [Web README](web-frontend/README.md) |
+| `mobile-frontend/` | Expo app with offline SQLite and synchronization | [Mobile README](mobile-frontend/README.md) |
+| `ai/` | Training, evaluation, comparison, and TFLite tooling | [AI README](ai/README.md) |
+| `datasets/` | Five-class dataset and label-review workspace | [Dataset README](datasets/README.md) |
+| `docs/` | Architecture, governance, experiments, and team checklists | [Documentation](#documentation) |
 
-## Before You Start
+## Quick Start with Docker
 
-### Docker quick start
+### Requirements
 
-The authoritative API and web client can run together with Docker Desktop. From the repository root, run:
+- Docker Desktop
+- Git
+
+From the repository root:
 
 ```powershell
 docker compose up --build
 ```
 
-> [!IMPORTANT]
-> Type `up` without a hyphen. The correct command is `docker compose up --build`; `docker compose -u --build` and `docker compose -up --build` are invalid.
->
-> DahonMD has only one backend: the Laravel application in `backend/`. Docker starts this backend as the `api` service for both the web and mobile clients. Do not start a separate or second backend alongside it.
-
-Then open `http://localhost:4173`. The API is also available directly at `http://localhost:8001/api`, including for the Expo mobile client. The first startup installs the image dependencies, creates a persistent SQLite database, runs migrations, and seeds the development accounts.
+Open the web app at <http://localhost:4173>. The shared API is available at <http://localhost:8001/api>.
 
 Stop the stack with:
 
@@ -95,336 +104,160 @@ Stop the stack with:
 docker compose down
 ```
 
-Application data and the generated Laravel key remain in the `dahonmd_backend_data` Docker volume. To deliberately reset all Docker-managed application data, use `docker compose down --volumes`.
-
-To change the seeded development password without editing tracked files, set `DEV_USER_PASSWORD` before the first startup:
-
-```powershell
-$env:DEV_USER_PASSWORD = "choose-a-local-password"
-docker compose up --build
-```
-
-The Expo app remains a host/device development process; start it from `mobile-frontend/` as described below and point `EXPO_PUBLIC_API_URL` at port `8001` on the Docker host.
-
-### Native development
-
-This guide uses **PowerShell on Windows**. Install these tools first:
-
-- PHP 8.2 or newer with SQLite enabled
-- Composer
-- Node.js and npm
-- For mobile only: Expo Go on a phone, or Android Studio with an emulator
-
-Check that the main tools are installed:
-
-```powershell
-php --version
-composer --version
-node --version
-npm --version
-```
-
-Each command should print a version number. If PowerShell says that a command is not recognized, install that tool before continuing.
-
-> [!IMPORTANT]
-> Open every terminal in the main `DahonMD` folder. A command such as `cd backend` will not work correctly if the terminal starts in a different folder.
-
-## Choose What You Want to Run
-
-You do not need to start every project folder.
-
-| Goal | Terminals needed | Programs to run |
-| --- | ---: | --- |
-| Web app only | 2 | Laravel backend + web frontend |
-| Mobile app only | 2 | Laravel backend + mobile frontend |
-| Web and mobile together | 3 | Laravel backend + web frontend + mobile frontend |
-
-Both applications use the single Laravel application in `backend/`.
-
-## Run the Web App
-
-The web app needs two terminals. Keep both terminals open while using the app.
-
-### Web — Terminal 1: Laravel backend
-
-For the **first run**, enter these commands one line at a time:
-
-```powershell
-cd backend
-composer install
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-php artisan key:generate
-if (-not (Test-Path database/database.sqlite)) { New-Item database/database.sqlite -ItemType File }
-php artisan migrate --seed
-php artisan serve --host=0.0.0.0 --port=8001
-```
-
-When you see that the server is running, leave Terminal 1 open. The API is now available at `http://127.0.0.1:8001/api`.
-
-For **later runs**, only these commands are needed:
-
-```powershell
-cd backend
-php artisan serve --host=0.0.0.0 --port=8001
-```
-
-### Web — Terminal 2: React frontend
-
-Open a new terminal in the main project folder. For the **first run**, enter:
-
-```powershell
-cd web-frontend
-npm install
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-npm run dev -- --host 127.0.0.1 --port 4173
-```
-
-Leave Terminal 2 open, then visit `http://127.0.0.1:4173` in a browser.
-
-For **later runs**, enter:
-
-```powershell
-cd web-frontend
-npm run dev -- --host 127.0.0.1 --port 4173
-```
-
-## Run the Mobile App
-
-The mobile app also needs two terminals. It uses the same Laravel backend as the web app.
-
-### Mobile — Terminal 1: Laravel backend
-
-If the backend from the web instructions is already running, keep it open and skip this terminal. Otherwise, follow the first-run backend setup below:
-
-```powershell
-cd backend
-composer install
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-php artisan key:generate
-if (-not (Test-Path database/database.sqlite)) { New-Item database/database.sqlite -ItemType File }
-php artisan migrate --seed
-php artisan serve --host=0.0.0.0 --port=8001
-```
-
-For **later runs**, enter:
-
-```powershell
-cd backend
-php artisan serve --host=0.0.0.0 --port=8001
-```
-
-Leave Terminal 1 open. The `0.0.0.0` host is important because it allows an emulator or phone on the same network to reach the backend.
-
-### Mobile — Terminal 2: Expo frontend
-
-Open a new terminal in the main project folder. For the **first run**, enter:
-
-```powershell
-cd mobile-frontend
-npm install
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-npm start
-```
-
-For **later runs**, enter:
-
-```powershell
-cd mobile-frontend
-npm start
-```
-
-Keep Terminal 2 open. Then choose one way to open the app:
-
-- **Android emulator:** press `a` in the Expo terminal.
-- **Physical Android or iPhone:** open Expo Go and scan the QR code.
-- **iOS simulator:** press `i`; this option requires macOS.
-
-### Connect a Physical Phone to the Backend
-
-The default mobile setting works with an Android emulator. A physical phone needs the computer's local network address instead.
-
-1. Connect the phone and computer to the same Wi-Fi network.
-2. In PowerShell, run `ipconfig` and find the computer's **IPv4 Address**, such as `192.168.1.10`.
-3. Open `mobile-frontend/.env` and change the API line to use that address:
-
-   ```dotenv
-   EXPO_PUBLIC_API_URL=http://192.168.1.10:8001/api
-   ```
-
-4. Replace `192.168.1.10` with the actual IPv4 address from your computer.
-5. Stop Expo with `Ctrl+C`, run `npm start` again, and rescan the QR code.
+Docker preserves application data in the `dahonmd_backend_data` volume. Only use `docker compose down --volumes` when you intentionally want to reset Docker-managed application data.
 
 > [!TIP]
-> The setup commands create a local `.env` file only when one does not exist. They will not overwrite your current settings.
+> Set `$env:DEV_USER_PASSWORD = "your-local-password"` before the first startup to change the seeded development password.
 
-## Test Accounts
+## Native Development
 
-The first-run command `php artisan migrate --seed` creates exactly three demonstration accounts, one for each supported role. All seeded users use the password `DahonMD@2026`.
+This guide assumes Windows PowerShell. Install PHP 8.2+, Composer, Node.js, and npm. Expo Go or Android Studio is also required for mobile development.
+
+### 1. Start the API
+
+```powershell
+cd backend
+composer install
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+php artisan key:generate
+if (-not (Test-Path database/database.sqlite)) { New-Item database/database.sqlite -ItemType File }
+php artisan migrate --seed
+php artisan serve --host=0.0.0.0 --port=8001
+```
+
+Keep this terminal open. On later runs, only the final `php artisan serve` command is required.
+
+### 2A. Start the web client
+
+Open a second terminal from the repository root:
+
+```powershell
+cd web-frontend
+npm install
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npm run dev -- --host 127.0.0.1 --port 4173
+```
+
+Visit <http://127.0.0.1:4173>.
+
+### 2B. Start the mobile client
+
+Open another terminal from the repository root:
+
+```powershell
+cd mobile-frontend
+npm install
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+npm start
+```
+
+Press `a` for an Android emulator, or scan the QR code with Expo Go. The phone and computer must use the same local network.
+
+For a physical phone, replace the API URL in `mobile-frontend/.env` with the computer's LAN address:
+
+```dotenv
+EXPO_PUBLIC_API_URL=http://192.168.1.10:8001/api
+```
+
+Restart Expo after changing environment variables.
+
+## Development Accounts
+
+`php artisan migrate --seed` creates one local account for each role. The default password is `DahonMD@2026` unless `DEV_USER_PASSWORD` is set.
 
 | Email | Role |
 | --- | --- |
 | `admin@dahonmd.test` | Administrator |
-| `reviewer@dahonmd.test` | Agricultural Reviewer |
+| `reviewer@dahonmd.test` | Agricultural reviewer |
 | `maria.santos@dahonmd.test` | Farmer |
 
-These accounts are for local development only. Change `DEV_USER_PASSWORD` in `backend/.env` before reseeding if your group wants a different test password. They are never seeded when `APP_ENV=production`.
+These accounts are never seeded when `APP_ENV=production`.
 
-## Stop the Apps
+## Configuration
 
-Click each running terminal and press `Ctrl+C`. Closing a frontend terminal does not automatically stop the backend terminal.
-
-## Common Terminal Problems
-
-| Problem | What to do |
-| --- | --- |
-| `php`, `composer`, `node`, or `npm` is not recognized | Install the missing tool, close PowerShell, and open a new terminal. |
-| `cd backend` says the path does not exist | Reopen the terminal in the main `DahonMD` folder. |
-| The terminal looks stuck after starting a server | This is normal. The server is waiting for requests. Leave it open and use a new terminal for the next program. |
-| Port `8001` or `4173` is already in use | Another copy may already be running. Find its terminal and press `Ctrl+C`, then start it again. |
-| The web page opens but cannot load data | Confirm that both the Laravel backend and React frontend terminals are still running. |
-| A phone cannot connect to the API | Confirm that both devices use the same Wi-Fi, the phone's `.env` URL contains the computer's IPv4 address, and the Laravel server uses `--host=0.0.0.0`. |
-| Expo does not use a changed `.env` value | Stop Expo with `Ctrl+C`, run `npm start` again, and reopen the app. |
-
-## Client API Configuration
-
-| Client | Environment variable | Development value |
+| Client or service | Variable | Local value |
 | --- | --- | --- |
-| Web browser | `VITE_WEB_API_URL` | `http://127.0.0.1:8001/api` |
+| Web | `VITE_WEB_API_URL` | `http://127.0.0.1:8001/api` |
 | Android emulator | `EXPO_PUBLIC_API_URL` | `http://10.0.2.2:8001/api` |
 | Physical phone | `EXPO_PUBLIC_API_URL` | `http://<computer-lan-ip>:8001/api` |
+| Research comparison | `AI_COMPARISON_URL` | `http://127.0.0.1:8100/compare` |
 
-The Laravel server must use `--host=0.0.0.0` for access from another device. The phone and development computer must also be connected to the same local network.
+The optional comparison service is research-only. It runs both models side by side and does not save its output as a farmer diagnosis.
 
 ## Shared Data Flow
 
-1. A farmer signs in through either client using the same email and password.
-2. Web diagnoses are stored directly through the central API.
-3. Mobile diagnoses are first written to the farmer's device-local SQLite history.
-4. The mobile client sends pending records to `POST /api/mobile/sync` when online.
-5. The server uses each diagnosis UUID as an idempotency key.
-6. A local record is marked as synchronized only after the API returns `created` or `already_synchronized`.
+1. A farmer signs in through either client using the same account.
+2. Web diagnoses are saved directly through the central API.
+3. Mobile diagnoses are saved first to the farmer's private on-device history.
+4. Pending mobile records are sent to `POST /api/mobile/sync` when connectivity returns.
+5. Diagnosis UUIDs make retries idempotent and prevent duplicate server records.
+6. Agricultural reviews are stored separately and never overwrite the original model output.
 
-This flow prevents retry-related duplicates while keeping field diagnosis available during unreliable connectivity.
+## Quality Checks
 
-## Main API Routes
-
-| Method and route | Purpose | Authentication |
-| --- | --- | --- |
-| `GET /api/health` | API health check | Public |
-| `POST /api/auth/register` | Create an account | Public |
-| `POST /api/auth/login` | Issue a Sanctum token | Public |
-| `GET /api/diseases` | Read the disease catalog | Public |
-| `GET, POST /api/diagnoses` | List or create diagnoses | Farmer |
-| `POST /api/inference` | Submit an inference request | Farmer |
-| `POST /api/mobile/sync` | Synchronize queued mobile diagnoses | Farmer |
-| `POST /api/diagnoses/{diagnosis}/review-request` | Request agricultural review of an owned diagnosis | Farmer |
-| `/api/expert/diagnosis-reviews/*` | Assess uncertain and farmer-requested cases | Agricultural Reviewer |
-| `/api/expert/diseases/*` | Verify or return researched disease content | Agricultural Reviewer |
-| `/api/expert/dataset-candidates/*` | Manually nominate and review future-dataset candidates | Agricultural Reviewer |
-| `/api/admin/*` | Manage users, diseases, diagnoses, and analytics | Administrator |
-
-## Development Checks
-
-Run the checks for the part your group changed. Start each block in a new terminal opened at the main project folder.
-
-### Backend checks
+Run the checks for the component you changed.
 
 ```powershell
+# Backend
 cd backend
 php artisan test
 vendor\bin\pint --test
 ```
 
-### Web frontend check
-
 ```powershell
+# Web
 cd web-frontend
 npm run build
 ```
 
-### Mobile frontend check
-
 ```powershell
+# Mobile
 cd mobile-frontend
 npm test
 npm run typecheck
 npm run release:status
 ```
 
-## AI Pipeline
-
-```text
-Banana leaf dataset
-  -> ResNet-101 self-supervised pretraining
-  -> five-class supervised teacher
-  -> logit and feature distillation
-  -> Coordinate Attention MobileNetV3-Small student
-  -> full INT8 TensorFlow Lite conversion
-  -> mobile inference adapter
+```powershell
+# AI
+.venv\Scripts\python.exe -m unittest discover -s ai\tests -v
 ```
 
-The ResNet-101 teacher is used only during offline training. It is never packaged into either client. The mobile application is designed to receive only the optimized student model; its current inference service is an adapter that can be replaced by the final TFLite bridge without changing screen code.
+## Common Problems
 
-## Image Compatibility and Accuracy
+| Problem | Resolution |
+| --- | --- |
+| A command is not recognized | Install the missing runtime, reopen PowerShell, and verify its version. |
+| `cd backend` cannot find the folder | Open the terminal in the main `DahonMD` repository first. |
+| A server terminal appears stuck | That is expected; it is waiting for requests. Keep it open. |
+| Port `8001` or `4173` is occupied | Stop the other process using that port, then restart the service. |
+| The web client cannot load data | Confirm both the Laravel and Vite terminals are running. |
+| A phone cannot reach the API | Use the computer's LAN IP, the same Wi-Fi, and Laravel host `0.0.0.0`. |
+| Expo ignores an `.env` change | Stop Expo, run `npm start` again, and reopen the app. |
 
-The training decoder accepts JPG/JPEG, PNG, BMP, and WEBP. The client-facing diagnosis flow uses the common field formats JPG/JPEG, PNG, and WEBP. A file's extension is not supplied to the neural network: every supported image is decoded to three-channel RGB, resized to `224 x 224`, converted to `float32`, and normalized to `[0, 1]` before inference. A farmer's PNG capture can therefore be classified by a model trained from WEBP files.
+## Scientific Boundaries
 
-Matching tensor shapes does not guarantee matching field accuracy. Lossy WEBP or JPEG artifacts, camera processing, lighting, blur, distance, background, cultivar, disease stage, and acquisition device can all create a distribution shift. A model trained from one curated source may learn source-specific visual cues that are absent from farmer photographs.
-
-Dataset and evaluation rules:
-
-- Include genuine field photographs from the intended phones and capture workflow; do not rely only on format-converted copies.
-- Keep all images of the same leaf, plant, or capture session in one split by supplying specimen/plant group IDs.
-- Reserve an untouched test set containing the formats and capture conditions expected during deployment.
-- Never place a WEBP image and a PNG conversion of that same image in different splits. Conversion does not restore information lost by compression and can cause leakage.
-- Apply exactly the same orientation handling, RGB conversion, resize, normalization, label order, and INT8 quantization parameters in Python, web-service, and mobile inference paths.
-- Report performance overall and, when sample counts permit, by device, source, file format, image quality, and class. Small subgroups should be reported with their support counts and interpreted cautiously.
-
-See [the dataset guide](datasets/README.md) for layout and quality requirements, [the AI guide](ai/README.md) for the complete training sequence, and [the dataset/model trainer checklist](docs/dataset-model-trainer-todo.md) for the assigned thesis-member tasks and required evidence.
+- `dead` means a visibly dried or necrotic leaf. It is not evidence of Moko disease or any specific pathogen.
+- Black and Yellow Sigatoka must not be assigned from lesion color alone when provenance or expert review is uncertain.
+- Original predictions, model versions, uncertainty flags, and reviewer decisions remain separate for auditability.
+- Disease guidance requires traceable evidence and agricultural review. Chemical directions are withheld unless current Philippine regulatory evidence supports them.
+- The `healthy` class is not proof that a plant is disease-free.
 
 ## Documentation
 
-- [System architecture](docs/architecture.md)
-- [Backend consolidation record](docs/backend-consolidation.md)
-- [AI pipeline guide](ai/README.md)
-- [Backend guide](backend/README.md)
-- [Mobile frontend guide](mobile-frontend/README.md)
-
-## Scientific Content Governance
-
-Disease content is not generated at runtime or copied from unsourced blogs. Non-production seeding imports a source-audited development baseline for Healthy, Moko disease, Black Sigatoka, Yellow Sigatoka, and Cordana leaf spot using the stable model keys documented in `datasets/README.md`. It populates the disease, symptom, management, research-source, claim-evidence, regulatory-check, and verification-history tables. The web and mobile farmer Disease Guides display those records and link their research sources. The seeded verification note explicitly requires independent confirmation by a qualified agricultural reviewer before production publication.
-
-The authoritative API separately reads a trained model's five-entry `label_map.json` through `AI_LABEL_MAP_PATH`. That artifact is still required for model-runtime readiness and must be produced and deployed with the matching trained model; the research seeder does not fabricate a trained-model artifact.
-
-Content follows a controlled lifecycle: `DRAFT` → `RESEARCHED` → `VERIFIED` → `ARCHIVED`. Only `VERIFIED` records are returned by the farmer disease API. Editing verified disease content or a supporting source automatically returns affected content to `RESEARCHED` for another review. Normal farmers cannot access knowledge or source mutation routes.
-
-Scientific facts and farmer recommendations must be supported by claim-level evidence. Peer-reviewed and authoritative agricultural sources are prioritized, with Philippine evidence preferred whenever available. A disease cannot be verified without at least two peer-reviewed sources, one authoritative institutional source, causal-agent and curative-status mappings, and mappings for any symptom or management content. Missing evidence is represented as “Insufficient verified evidence available,” never guessed.
-
-Chemical guidance is not inferred from academic efficacy studies. It is marked separately as requiring regulatory review and is withheld from farmer responses unless its Philippine regulatory check is current. Administrators and agricultural reviewers see `REGULATORY RE-CHECK REQUIRED` when a time-sensitive check is missing or stale. Exact product directions must come from the current FPA-approved label or a licensed agricultural professional; the system does not invent doses, intervals, application methods, re-entry intervals, or pre-harvest intervals.
-
-The development baseline contains one time-sensitive product record supported directly by the Philippine FPA list dated June 30, 2026: Daconil 720 SC for banana/Black Sigatoka, listed through December 21, 2027. The database deliberately stores no dose or application directions and requires re-checking the registry and approved label before use. No product-specific chemical record is seeded for Moko, Yellow Sigatoka, Cordana Leaf Spot, or the healthy class.
-
-The classifier is a screening aid, not laboratory confirmation. Model confidence measures the strength of a match to learned class patterns and is not the biological probability that a plant has a disease. The healthy class must not be presented as proof that a plant is disease-free. Image results cannot perform PCR, culture, isolation, or molecular diagnosis. Simulated records are explicitly flagged and remain distinct from later research-deployment records.
-
-### Source database schema
-
-- `diseases`: model class key, accepted/common/scientific names, causal agent, pathogen type, farmer summary, curative status, evidence level, review dates, verification state, verifier, image-only limitations, and referral guidance.
-- `disease_symptoms`: disease, stage, plant part, technical and farmer text, leaf-image visibility, and display order.
-- `disease_management`: category, technical and farmer recommendation, evidence strength, professional/referral flag, regulatory-review flag/date, and display order.
-- `research_sources`: APA-ready authorship and publication fields, DOI/URL, source type, geography, peer-review and Philippine flags, access date, and notes.
-- `disease_evidence`: disease/source mapping at claim level, claim type/text, evidence strength, and disagreement/context notes.
-- `pesticide_regulatory_checks`: separate product/crop/target registration status, expiry, FPA/regulatory source, approved-label URL, reviewer, and check date linked to a chemical management claim.
-- `diagnoses`: immutable original prediction, confidence, model version, inference time, diagnosis date, source, and simulation flag.
-- `diagnosis_reviews`: separate agricultural assessment, supported label, image-quality category, structured next steps, professional notes, field-inspection flag, reviewer, and review timestamps; original predictions are never overwritten.
-- `disease_verifications`: auditable agricultural-review decisions and notes for researched disease records.
-- `dataset_candidates`: manual research-only nominations and approval decisions linked to reviewed diagnoses; approval does not itself export or train on an image.
-
-The finalized production AI architecture remains unchanged: ResNet-101 teacher with BYOL, NT-Xent contrastive learning and masked image modeling; five-class fine-tuning; and a custom Coordinate Attention MobileNetV3-Small student distilled and deployed as INT8 TensorFlow Lite. A separate stock MobileNetV3-Small supervised baseline now exists under `ai/` for controlled research comparison only; farmer diagnosis remains enhanced-only.
+| Document | Purpose |
+| --- | --- |
+| [System architecture](docs/architecture.md) | Components, boundaries, and data flow |
+| [Scientific content governance](docs/scientific-content-governance.md) | Evidence, review, and regulatory rules |
+| [Dataset/model checklist](docs/dataset-model-trainer-todo.md) | Required experiment gates and evidence |
+| [Baseline experiment](docs/experiments/source-labeled-baseline-2026-08-14.md) | Controlled baseline results |
+| [Enhanced CPU pilot](docs/experiments/source-labeled-enhanced-cpu-pilot-2026-08-15.md) | Earlier enhanced-model pilot |
+| [Backend consolidation](docs/backend-consolidation.md) | Record of the single-backend architecture |
 
 ---
 
 <div align="center">
 
-Built for dependable banana disease monitoring across web, mobile, and offline field workflows.
+Built for careful, auditable banana-leaf screening across web, mobile, and offline field workflows.
 
 </div>

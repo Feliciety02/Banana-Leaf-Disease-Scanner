@@ -63,6 +63,13 @@ class ModelComparisonController extends Controller
             'comparison.enhanced_confidence_difference_percentage_points' => ['required', 'numeric'],
             'comparison.enhanced_latency_difference_ms' => ['required', 'numeric'],
             'comparison.interpretation_note' => ['required', 'string'],
+            'study' => ['sometimes', 'array'],
+            'study.current_leader' => ['required_with:study', 'in:baseline,enhanced,tie'],
+            'study.baseline.accuracy' => ['required_with:study', 'numeric', 'between:0,1'],
+            'study.baseline.macro_f1' => ['required_with:study', 'numeric', 'between:0,1'],
+            'study.enhanced.accuracy' => ['required_with:study', 'numeric', 'between:0,1'],
+            'study.enhanced.macro_f1' => ['required_with:study', 'numeric', 'between:0,1'],
+            'study.decision_note' => ['required_with:study', 'string'],
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -74,7 +81,7 @@ class ModelComparisonController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Model comparison completed. This research run was not added to farmer history.',
+                'message' => 'Research comparison completed. This run was not added to diagnosis history.',
             'data' => $payload,
         ]);
     }

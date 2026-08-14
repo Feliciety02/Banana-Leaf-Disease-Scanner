@@ -7,7 +7,7 @@ from __future__ import annotations
 # API/database slugs, avoiding a separate and error-prone inference-time remapping.
 CLASS_LABELS: tuple[str, ...] = (
     "healthy",
-    "moko-disease",
+    "dead",
     "black-sigatoka",
     "yellow-sigatoka",
     "cordana-leaf-spot",
@@ -15,7 +15,7 @@ CLASS_LABELS: tuple[str, ...] = (
 
 CLASS_DISPLAY_NAMES: dict[str, str] = {
     "healthy": "Healthy",
-    "moko-disease": "Moko disease",
+    "dead": "Dead leaf",
     "black-sigatoka": "Black Sigatoka",
     "yellow-sigatoka": "Yellow Sigatoka",
     "cordana-leaf-spot": "Cordana leaf spot",

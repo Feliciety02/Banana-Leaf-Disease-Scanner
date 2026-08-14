@@ -31,6 +31,17 @@ class ModelComparisonTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
+    public function test_authenticated_farmer_can_request_the_non_persistent_research_comparison(): void
+    {
+        config(['banana.comparison_url' => null]);
+        Sanctum::actingAs(User::factory()->farmer()->create());
+
+        $this->post('/api/research/model-comparison', ['image' => $this->image()], ['Accept' => 'application/json'])
+            ->assertStatus(503)
+            ->assertJsonPath('success', false);
+        $this->assertDatabaseCount('diagnoses', 0);
+    }
+
     public function test_valid_comparison_is_forwarded_without_creating_farmer_history(): void
     {
         config(['banana.comparison_url' => 'https://research.test/compare']);
