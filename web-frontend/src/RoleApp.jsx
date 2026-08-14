@@ -210,40 +210,142 @@ function FarmerScan({ onSaved, navigate, online }) {
     } catch { setError('Something went wrong. Please try again.'); setStage('preview'); }
   };
   const save = async (requestReview = false, farmerNotes = '') => { if (!online) { setError('Connect to the internet before saving this result online.'); return; } try { await onSaved({ diseaseId: result.diseaseId, confidence: result.confidence, latency: result.latency, date: new Date().toISOString(), source: 'web', model: result.model, image: image === '/assets/black-sigatoka-sample.png' ? image : null, farmerNotes }, imageFile, requestReview); navigate('/farmer/history'); } catch { setError('Something went wrong. Please try again.'); } };
-  if (stage === 'result') return <FarmerResult image={image} result={result} comparison={comparison} onReset={reset} onSave={save} error={error} />;
+  if (stage === 'result') return <FarmerResult image={image} result={result} comparison={comparison} onReset={reset} onSave={save} navigate={navigate} error={error} />;
   return <div className="role-stack"><Heading title="Scan a leaf" text={image ? 'Review your photo before analysis.' : 'Point the camera at one banana leaf and take a clear photo.'} /><section className="farmer-scan-layout"><div className="panel scan-photo-panel">{!image ? <div className={`camera-scanner ${cameraStatus}`} onDrop={(event) => { event.preventDefault(); useFile(event.dataTransfer.files[0]); }} onDragOver={(event) => event.preventDefault()}><video ref={video} autoPlay muted playsInline aria-label="Live rear camera preview" /><div className="camera-frame" aria-hidden="true"><i /><i /><i /><i /></div>{cameraStatus === 'idle' && <div className="camera-message"><span><Camera size={36} /></span><h2>Ready to scan a leaf?</h2><p>Open the camera and keep one leaf inside the frame.</p><button className="primary-button" onClick={startCamera}><Camera size={18} />Open camera</button></div>}{cameraStatus === 'starting' && <div className="camera-message"><RefreshCw className="spin" size={30} /><h2>Opening camera...</h2><p>Allow camera access when your browser asks.</p></div>}{cameraStatus === 'unavailable' && <div className="camera-message"><span><Camera size={36} /></span><h2>Camera did not open</h2><p>Allow camera access, or use your phone's camera picker below.</p><button className="primary-button" onClick={() => cameraInput.current?.click()}><Camera size={18} />Use phone camera</button><button className="text-button" onClick={startCamera}>Try live camera again</button></div>}{cameraStatus === 'active' && <div className="camera-live-controls"><small>Keep the affected area in focus</small><button className="camera-shutter" aria-label="Take photo" onClick={takePhoto}><span /></button></div>}<div className="camera-source-actions"><button className="secondary-button" onClick={() => galleryInput.current?.click()}><ImagePlus size={18} />Choose from gallery</button><button className="sample-link" onClick={() => { stopCamera(); setImage('/assets/black-sigatoka-sample.png'); setFileName('Development sample'); setStage('preview'); }}>Use development sample</button></div><input ref={cameraInput} hidden type="file" accept="image/*" capture="environment" onChange={(event) => useFile(event.target.files[0])} /><input ref={galleryInput} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => useFile(event.target.files[0])} /></div> : <div className="friendly-preview"><img src={image} alt="Selected banana leaf" />{stage === 'checking' && <div className="checking-cover"><RefreshCw className="spin" size={28} /><strong>Checking the leaf...</strong><p>Examining visible patterns.</p></div>}<span><FileImage size={16} />{fileName}</span></div>}</div><aside className="panel scan-check-panel"><span className="step-number">{image ? '2' : '1'}</span><h2>{image ? 'Review your photo' : 'Take a clear photo'}</h2><p>{image ? 'Make sure the leaf is centered and easy to see.' : 'Use these tips for a clearer result.'}</p><Tips /><div className="development-note"><Info size={18} /><p>This development build uses simulated results and cannot confirm disease.</p></div>{image && <><button className="primary-button full" disabled={stage === 'checking'} onClick={check}><ScanLine size={18} />Analyze photo</button><button className="secondary-button full" disabled={stage === 'checking'} onClick={reset}>Retake photo</button></>}</aside></section>{error && <div className="form-error">{error}</div>}</div>;
 }
 
-function ResearchModelComparison({ comparison }) {
-  if (!comparison) return null;
-  if (comparison.status !== 'ready') return <section className="panel farmer-research-comparison"><span className="section-label">THESIS COMPARISON</span><h2>Comparison unavailable</h2><p>{comparison.message}</p><small>Your screening result is still available. Research comparisons are never saved to scan history.</small></section>;
-  const payload = comparison.data;
-  return <section className="farmer-research-comparison">
-    <header>
-      <span className="section-label">THESIS COMPARISON · NOT SAVED</span>
-      <h2>Same photo, two models</h2>
-      <p>This side-by-side output is research evidence, not a second diagnosis.</p>
-    </header>
-    <div className="comparison-results">
-      <ComparisonModelCard title="Baseline" value={payload.baseline} />
-      <ComparisonModelCard title="Proposed" value={payload.enhanced} />
-    </div>
-    <article className="comparison-card comparison-summary">
-      <header className="comparison-card-header">
-        <span>This photo</span>
-        <h2>{payload.comparison.summary}</h2>
-      </header>
-      <p className="comparison-note">{payload.comparison.interpretation_note}</p>
-      {payload.study && <div className="study-result"><strong>Held-out test result</strong><p>Baseline MobileNetV3-Small: {(Number(payload.study.baseline.accuracy) * 100).toFixed(2)}% accuracy / {(Number(payload.study.baseline.macro_f1) * 100).toFixed(2)}% macro F1<br />Proposed CA-MobileNetV3-Small: {(Number(payload.study.enhanced.accuracy) * 100).toFixed(2)}% accuracy / {(Number(payload.study.enhanced.macro_f1) * 100).toFixed(2)}% macro F1</p><small>{payload.study.decision_note}</small></div>}
-    </article>
-  </section>;
-}
+function FarmerResult({ image, result, comparison, onReset, onSave, navigate, error }) {
+  const screeningUnavailable = result.diseaseId === 'development-unconfigured';
+  const proposedResult = screeningUnavailable && comparison?.status === 'ready' ? comparison.data.enhanced : null;
+  const researchOnly = Boolean(proposedResult);
+  const unavailable = screeningUnavailable && !researchOnly;
+  const activeDiseaseId = researchOnly ? proposedResult.predicted_class : result.diseaseId;
+  const confidence = researchOnly ? Number(proposedResult.confidence || 0) * 100 : Number(result.confidence || 0);
+  const uncertain = !unavailable && confidence < THRESHOLD;
+  const healthy = activeDiseaseId === 'healthy';
+  const dead = activeDiseaseId === 'dead';
+  const [disease, setDisease] = useState(null);
+  const [farmerNotes, setFarmerNotes] = useState('');
+  useEffect(() => {
+    if (unavailable) { setDisease(null); return undefined; }
+    api('/diseases').then((payload) => setDisease(payload.data.find((item) => item.slug === activeDiseaseId) || null)).catch(() => undefined);
+    return undefined;
+  }, [activeDiseaseId, researchOnly, unavailable]);
+  const hasVerifiedGuidance = !researchOnly && !uncertain && disease?.is_verified;
+  const heading = unavailable
+    ? 'Screening is not available yet'
+    : researchOnly
+      ? 'Possible leaf problem'
+    : uncertain
+      ? 'This scan needs another look'
+      : healthy
+        ? 'No supported disease pattern was strongly detected'
+        : dead
+          ? 'This leaf appears fully dried or dead'
+          : 'Possible disease pattern found';
+  const resultName = unavailable
+    ? 'No result produced'
+    : researchOnly
+      ? `Possible ${disease?.name || titleCase(activeDiseaseId)}`
+    : uncertain
+      ? 'No confident match'
+      : disease?.name || titleCase(activeDiseaseId);
+  const statusLabel = unavailable
+    ? 'SERVICE NOT CONNECTED'
+    : researchOnly
+      ? 'PHOTO SCREENING · NEEDS REVIEW'
+    : uncertain
+      ? 'UNCERTAIN SCREENING'
+      : healthy
+        ? 'SCREENING RESULT'
+        : dead
+          ? 'VISIBLE CONDITION'
+          : 'POSSIBLE DISEASE';
 
-function FarmerResult({ image, result, comparison, onReset, onSave, error }) {
-  const uncertain = result.confidence < THRESHOLD; const healthy = result.diseaseId === 'healthy'; const dead = result.diseaseId === 'dead'; const [disease, setDisease] = useState(null); const [farmerNotes, setFarmerNotes] = useState('');
-  useEffect(() => { api('/diseases').then((payload) => setDisease(payload.data.find((item) => item.slug === result.diseaseId) || null)).catch(() => undefined); }, [result.diseaseId]);
-  const hasVerifiedGuidance = !uncertain && disease?.is_verified;
-  return <div className="role-stack"><section className="result-title"><button className="text-button" onClick={onReset}><ArrowLeft size={18} />Scan another leaf</button><p className="eyebrow">RESULT</p><h1>{uncertain ? "We couldn't identify this leaf confidently." : healthy ? 'No supported disease pattern was strongly detected' : dead ? 'This leaf appears fully dried or dead' : 'Possible disease'}</h1></section><section className="plain-result-grid"><div className="panel plain-result-image"><img src={image} alt="Scanned banana leaf" /></div><div className={`panel plain-result-summary ${uncertain ? 'uncertain' : healthy ? 'healthy' : dead ? 'dead' : ''}`}>{!uncertain && <><span className="section-label">{healthy ? 'SCREENING RESULT' : dead ? 'VISIBLE CONDITION' : 'POSSIBLE DISEASE'}</span><h2>{disease?.name || 'Supported class'}</h2></>}<div className="confidence-plain"><strong>{confidenceText(result.confidence)}</strong><span>{result.confidence.toFixed(1)}%</span></div><p>{uncertain ? 'The system could not make a confident match. Try another clear photo or save it for an agricultural reviewer. No disease-specific management is shown for an uncertain result.' : dead ? 'The image matched the visual pattern of a fully dried leaf. This does not identify why the leaf died.' : 'The image matched visual patterns learned for this supported class. Model confidence is not the probability that the plant truly has the disease.'}</p>{uncertain && <div className="retry-box"><strong>Try again with:</strong><ul><li>Better lighting</li><li>One leaf centered</li><li>The affected area visible</li><li>Less blur</li></ul><button className="primary-button" onClick={onReset}>Take Another Photo</button><label className="farmer-review-notes">What have you noticed?<textarea value={farmerNotes} onChange={(event) => setFarmerNotes(event.target.value)} placeholder="Optional: describe changes, spread, weather, or repeated symptoms." maxLength={1000} /></label><button className="secondary-button full" onClick={() => onSave(true, farmerNotes)}><ShieldCheck size={17} />Save &amp; Request Agricultural Review</button></div>}</div></section><ResearchModelComparison comparison={comparison} />{hasVerifiedGuidance && <section className="result-guidance"><article className="panel"><span className="section-label">WHAT THIS MEANS</span><p>{healthy ? 'No supported disease pattern was strongly detected in this image. The model covers only its trained classes, so continue monitoring the plant.' : disease.description}</p><span className="section-label">WHAT YOU MAY NOTICE</span>{disease.symptoms?.length ? <ul>{disease.symptoms.map((symptom) => <li key={symptom}><Check size={17} />{symptom}</li>)}</ul> : <p>Insufficient verified evidence available.</p>}</article><article className="panel result-action"><ShieldCheck size={24} /><div><span className="section-label">WHAT YOU CAN DO</span><p>{disease.management || 'Insufficient verified evidence available.'}</p><span className="section-label">WHEN TO ASK FOR HELP</span><p>{disease.professional_referral || 'Ask a qualified agriculture professional if symptoms are severe, unusual, spreading rapidly, or uncertain.'}</p></div></article></section>}<details className="panel attention-panel"><summary><Eye size={18} />Areas the system noticed</summary><div><figure><img src={image} alt="Original leaf" /><figcaption>Original leaf</figcaption></figure><figure className="highlighted"><img src={image} alt="Illustrative highlighted preview" /><i /><figcaption>Development visualization</figcaption></figure></div><p>Highlighted areas contributed more strongly to the simulated result. They do not prove that a pathogen is present.</p></details><Warning />{error && <div className="form-error">{error}</div>}<div className="result-actions-bottom"><button className="secondary-button" onClick={onReset}>Scan Another Leaf</button><button className="primary-button" onClick={() => onSave(false)}>Save Result</button></div></div>;
+  return <div className={`role-stack scan-result-page ${researchOnly ? 'research' : unavailable ? 'unavailable' : uncertain ? 'uncertain' : 'available'}`}>
+    <section className="result-title scan-result-heading">
+      <button className="text-button" onClick={onReset}><ArrowLeft size={18} />Back to scan</button>
+      <p className="eyebrow">LEAF SCREENING</p>
+      <h1>{heading}</h1>
+      <p>{unavailable ? 'Your photo is safe, but the screening service did not return a classification.' : researchOnly ? 'Here is what the photo may show and what you can safely do next.' : uncertain ? 'The image did not match one supported class strongly enough for disease-specific guidance.' : 'Review the screening result and recommended next steps below.'}</p>
+    </section>
+
+    <section className="scan-result-hero">
+      <figure className="panel scan-result-photo">
+        <img src={image} alt="Scanned banana leaf" />
+        <figcaption><FileImage size={15} />Photo submitted for screening</figcaption>
+      </figure>
+
+      <article className="panel scan-result-card">
+        <header className="scan-result-status">
+          <span className="scan-result-status-icon">{unavailable || uncertain || researchOnly ? <AlertTriangle size={22} /> : <Leaf size={22} />}</span>
+          <div>
+            <small>{statusLabel}</small>
+            <h2>{resultName}</h2>
+          </div>
+          {!unavailable && !researchOnly && <div className="scan-result-score"><strong>{confidence.toFixed(1)}%</strong><small>model confidence</small></div>}
+          {researchOnly && <div className="scan-result-match-label"><strong>Possible match</strong><small>not a diagnosis</small></div>}
+        </header>
+
+        {!unavailable && !researchOnly && <div className="scan-confidence-track" role="img" aria-label={`${confidence.toFixed(1)} percent model confidence`}><i style={{ width: `${Math.min(100, Math.max(0, confidence))}%` }} /></div>}
+
+        <p className="scan-result-summary">{unavailable
+          ? 'The normal screening endpoint is still in development. The previous 0.0% display was a fallback value, not a model prediction.'
+          : researchOnly
+            ? `The visible pattern looks similar to ${disease?.name || titleCase(activeDiseaseId)}, but several diseases, aging, nutrient problems, and weather damage can look alike in a photo.`
+          : uncertain
+            ? `Confidence is below the ${THRESHOLD}% screening threshold. Retake the photo for the clearest next result, or save it for an agricultural reviewer.`
+            : dead
+              ? 'The image matched the visible pattern of a fully dried leaf. This result does not identify why the leaf died.'
+              : 'The image matched visual patterns learned for this supported class. Model confidence is not the probability that the plant truly has the disease.'}</p>
+
+        {researchOnly && <div className="farmer-result-information">
+          <section>
+            <span><Eye size={19} /></span>
+            <div><strong>What to look for</strong>{disease?.symptoms?.length ? <ul>{disease.symptoms.slice(0, 3).map((symptom) => <li key={symptom}>{symptom}</li>)}</ul> : <p>Check for changes in spots, streaks, yellowing, drying, or how quickly the affected area is spreading.</p>}</div>
+          </section>
+          <section>
+            <span><ShieldCheck size={19} /></span>
+            <div><strong>What to do next</strong><p>Check another affected leaf and take a close, well-lit photo. Ask an agricultural worker or plant-health professional if the symptoms are spreading or severe.</p></div>
+          </section>
+          <section className="farmer-result-caution">
+            <span><Info size={19} /></span>
+            <div><strong>Keep in mind</strong><p>This is an experimental photo screening. Do not apply disease-specific treatment based only on this result.</p></div>
+          </section>
+        </div>}
+
+        {unavailable && <div className="scan-service-notice">
+          <Info size={19} />
+          <div><strong>Why am I seeing this?</strong><p>The application could not run its normal farmer screening. Any model comparison shown farther down is experimental research output and is not used as a diagnosis.</p></div>
+        </div>}
+
+        {uncertain && <div className="scan-retry-guide">
+          <strong>For a clearer second photo</strong>
+          <ul><li><Check size={15} />Use bright, even light</li><li><Check size={15} />Center one leaf</li><li><Check size={15} />Keep the affected area sharp</li></ul>
+        </div>}
+
+        <div className="scan-result-primary-actions">
+          <button className="primary-button" onClick={onReset}><Camera size={18} />{unavailable ? 'Return to scan' : 'Take another photo'}</button>
+          {researchOnly && <button className="secondary-button" onClick={() => navigate('/farmer/diseases')}><BookOpen size={18} />Open leaf guide</button>}
+          {uncertain && !researchOnly && <button className="text-button" onClick={() => onSave(false)}>Save to history without review</button>}
+        </div>
+
+        {uncertain && !researchOnly && <details className="scan-review-request">
+          <summary><span><ShieldCheck size={19} /><span><strong>Request agricultural review</strong><small>Save this image for a qualified reviewer</small></span></span><ChevronDown size={18} /></summary>
+          <div>
+            <label className="farmer-review-notes">What have you noticed?<textarea value={farmerNotes} onChange={(event) => setFarmerNotes(event.target.value)} placeholder="Optional: describe changes, spread, weather, or repeated symptoms." maxLength={1000} /></label>
+            <button className="secondary-button full" onClick={() => onSave(true, farmerNotes)}><ShieldCheck size={17} />Save &amp; Request Review</button>
+          </div>
+        </details>}
+      </article>
+    </section>
+
+    {hasVerifiedGuidance && <section className="result-guidance"><article className="panel"><span className="section-label">WHAT THIS MEANS</span><p>{healthy ? 'No supported disease pattern was strongly detected in this image. The model covers only its trained classes, so continue monitoring the plant.' : disease.description}</p><span className="section-label">WHAT YOU MAY NOTICE</span>{disease.symptoms?.length ? <ul>{disease.symptoms.map((symptom) => <li key={symptom}><Check size={17} />{symptom}</li>)}</ul> : <p>Insufficient verified evidence available.</p>}</article><article className="panel result-action"><ShieldCheck size={24} /><div><span className="section-label">WHAT YOU CAN DO</span><p>{disease.management || 'Insufficient verified evidence available.'}</p><span className="section-label">WHEN TO ASK FOR HELP</span><p>{disease.professional_referral || 'Ask a qualified agriculture professional if symptoms are severe, unusual, spreading rapidly, or uncertain.'}</p></div></article></section>}
+    {!unavailable && !researchOnly && <details className="panel attention-panel"><summary><Eye size={18} />Areas the system noticed</summary><div><figure><img src={image} alt="Original leaf" /><figcaption>Original leaf</figcaption></figure><figure className="highlighted"><img src={image} alt="Illustrative highlighted preview" /><i /><figcaption>Development visualization</figcaption></figure></div><p>Highlighted areas contributed more strongly to the simulated result. They do not prove that a pathogen is present.</p></details>}
+    <Warning />
+    {error && <div className="form-error">{error}</div>}
+    {!unavailable && !researchOnly && !uncertain && <div className="result-actions-bottom"><button className="secondary-button" onClick={onReset}>Scan Another Leaf</button><button className="primary-button" onClick={() => onSave(false)}>Save Result</button></div>}
+  </div>;
 }
 
 function Warning() {
