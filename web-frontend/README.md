@@ -6,17 +6,52 @@ The React and Vite interface for farmers, agricultural reviewers, and administra
 
 </div>
 
+## Start Here
+
+Use this folder when your task involves browser pages, forms, dashboards, responsive styles, or the farmer/reviewer/admin web experience.
+
+Before starting, make sure:
+
+- Node.js and npm are installed;
+- the Laravel API is running on port `8001`; and
+- your terminal is open in the main DahonMD repository.
+
 ## Quick Start
 
-Start the Laravel API first, then run these commands from `web-frontend/`:
+### 1. Open the web folder
+
+```powershell
+cd web-frontend
+```
+
+### 2. Install packages
 
 ```powershell
 npm install
+```
+
+### 3. Create local settings
+
+```powershell
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+### 4. Start the website
+
+```powershell
 npm run dev -- --host 127.0.0.1 --port 4173
 ```
 
-Open <http://127.0.0.1:4173>.
+Leave the terminal open, then visit <http://127.0.0.1:4173>.
+
+You know it worked when the DahonMD sign-in screen loads without an API connection warning.
+
+For later runs, only use:
+
+```powershell
+cd web-frontend
+npm run dev -- --host 127.0.0.1 --port 4173
+```
 
 ## Configuration
 
@@ -64,6 +99,21 @@ When the optional service is configured, the interface can show baseline and enh
 npm run build
 ```
 
+A successful build ends without an error and creates the ignored `dist/` folder.
+
+Run this check before submitting web changes.
+
+## Common Problems
+
+| Problem | What to do |
+| --- | --- |
+| `npm` is not recognized | Install Node.js, reopen PowerShell, and run `npm --version`. |
+| The page cannot load data | Start the Laravel API and verify `VITE_WEB_API_URL`. |
+| Port 4173 is already in use | Stop the other Vite terminal with `Ctrl+C`. |
+| An `.env` change is ignored | Stop Vite and start it again. |
+| The page looks outdated | Refresh the browser; if needed, restart Vite. |
+| `npm run build` fails | Read the first error shown, fix it, and rerun the command. |
+
 ## Useful Paths
 
 | Path | Purpose |
@@ -72,5 +122,14 @@ npm run build
 | `src/styles.css` | Shared visual system and responsive layout |
 | `public/assets/disease-guide/` | Attributed educational disease images |
 | `.env.example` | Local API configuration template |
+
+## Safe Student Workflow
+
+1. Start the API and web client.
+2. Sign in with the role related to your task.
+3. Make one focused interface change.
+4. Check narrow mobile and wide desktop layouts.
+5. Test loading, empty, success, and error states.
+6. Run `npm run build` before handing off the change.
 
 Return to the [main project guide](../README.md) or read the [backend guide](../backend/README.md).

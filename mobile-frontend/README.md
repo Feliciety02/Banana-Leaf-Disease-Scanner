@@ -6,6 +6,17 @@ An Expo React Native application for farmer screening, offline history, and reli
 
 </div>
 
+## Start Here
+
+Use this folder when your task involves the farmer phone app, camera/gallery flow, offline history, synchronization, or Android/iOS builds.
+
+Before starting, install Node.js and one of these options:
+
+- Expo Go on a physical phone; or
+- Android Studio with an Android emulator.
+
+The Laravel API must also be running with `--host=0.0.0.0`.
+
 ## What Works
 
 - Farmer registration, login, profile, password management, and secure session restoration
@@ -20,15 +31,40 @@ Authentication, disease data, and synchronization all use the authoritative Lara
 
 ## Quick Start
 
-Start the Laravel API with host `0.0.0.0`, then run these commands from `mobile-frontend/`:
+### 1. Open the mobile folder
+
+```powershell
+cd mobile-frontend
+```
+
+### 2. Install packages
 
 ```powershell
 npm install
+```
+
+### 3. Create local settings
+
+```powershell
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+### 4. Start Expo
+
+```powershell
 npm start
 ```
 
 Press `a` for Android, `i` for the iOS simulator on macOS, or scan the QR code with Expo Go.
+
+You know it worked when the DahonMD sign-in screen opens on the device or emulator.
+
+For later runs, use only:
+
+```powershell
+cd mobile-frontend
+npm start
+```
 
 ## Connect to the API
 
@@ -90,6 +126,25 @@ npm run typecheck
 npm run release:status
 ```
 
+| Command | Purpose |
+| --- | --- |
+| `npm test` | Run automated behavior tests |
+| `npm run typecheck` | Find TypeScript mistakes without building the app |
+| `npm run release:status` | Explain which production-release requirements remain |
+
+## Common Problems
+
+| Problem | What to do |
+| --- | --- |
+| `npm` is not recognized | Install Node.js, reopen PowerShell, and check `npm --version`. |
+| Expo cannot find the project | Confirm the terminal is inside `mobile-frontend`. |
+| Android emulator cannot reach the API | Use `http://10.0.2.2:8001/api`. |
+| Physical phone cannot reach the API | Use the computer's LAN IP and the same Wi-Fi network. |
+| An `.env` change is ignored | Stop Expo, run `npm start`, and reopen the app. |
+| Camera permission is denied | Enable camera/photo permission in device settings and retry. |
+| Offline records do not sync | Restore connectivity, confirm the API is running, and use manual retry. |
+| Tests fail after a UI change | Read the first failure, update the behavior or its test, and rerun `npm test`. |
+
 ## Android Builds
 
 | Command | Purpose |
@@ -108,5 +163,14 @@ See [PLAY_STORE_RELEASE.md](./PLAY_STORE_RELEASE.md) for EAS setup, store prepar
 - Report overall and per-class accuracy with support counts.
 - Where sample size permits, analyze device, format, lighting, and image-quality subgroups.
 - Preserve model version and simulation state when offline records synchronize.
+
+## Safe Student Workflow
+
+1. Start the API and Expo.
+2. Confirm login while online.
+3. Test the feature on the intended device or emulator.
+4. Turn connectivity off and verify the offline state when relevant.
+5. Restore connectivity and confirm pending records synchronize only once.
+6. Run the three development checks before handing off the change.
 
 Return to the [main project guide](../README.md) or read the [AI pipeline guide](../ai/README.md).
