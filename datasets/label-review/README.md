@@ -24,22 +24,26 @@ If evidence is insufficient, leave the image here. Exclusion is safer than creat
 
 | Path | Contents | Training status |
 | --- | --- | --- |
-| `sigatoka-unverified/` | 473 images received with only the generic label `sigatoka` | Excluded |
-| `exact-duplicates/` | 38 Healthy copies and 1 Yellow Sigatoka copy | Excluded as duplicate samples |
-| `malformed/` | Unreliably decoded `black-sigatoka/452.jpeg` | Excluded |
-| `yellow-sigatoka-review.csv` | Review status and grouping for source-labeled Yellow images | Pending expert review |
+| `sigatoka-unverified/` | 473 generic Sigatoka images without sufficient provenance | Excluded |
+| `exact-duplicates/` | 38 earlier Healthy copies, 428 incoming Healthy copies, and 1 legacy Yellow-source Sigatoka copy | Excluded as duplicate samples |
+| `malformed/` | Earlier malformed Sigatoka `452.jpeg` plus 3 warning-producing incoming Sigatoka JPEGs | Excluded |
+| `sigatoka-legacy-yellow-review.csv` | Original source label, review status, and grouping for 23 Yellow-source images now trained as `sigatoka` | Pending expert review |
 
 These folders remain outside `banana_leaf_5class`, so the training loader cannot silently treat them as ground truth.
 
-## Sigatoka Review Rule
+## Sigatoka and Panama Review Rule
 
 > [!CAUTION]
-> Do not decide Black versus Yellow Sigatoka from lesion color alone. Different stages, related pathogens, Cordana-like symptoms, and mixed infection can overlap visually.
+> The model no longer distinguishes Black from Yellow Sigatoka. Do not admit a
+> generic or ambiguous leaf spot merely because it resembles either subtype.
+> Panama disease leaf symptoms also require provenance or expert support because
+> leaf-only images cannot confirm Fusarium wilt.
 
 A qualified reviewer or authoritative source record must assign exactly one outcome:
 
-- `black-sigatoka`
-- `yellow-sigatoka`
+- `sigatoka`
+- `panama-disease`
+- `cordana-leaf-spot`
 - `exclude`
 
 Use `exclude` for mixed, uncertain, or visually indistinguishable cases.
@@ -65,15 +69,16 @@ image: sigatoka-unverified/123.jpeg
 final_label: exclude
 reviewer_or_source: Dr. Example Reviewer
 review_date: 2026-08-15
-evidence_note: Black versus Yellow subtype cannot be confirmed from the available image and provenance.
+evidence_note: The image and provenance cannot distinguish a supported target leaf spot from a look-alike.
 ```
 
 Do not use a model prediction as the authority for relabeling that model's own training dataset.
 
 ## Known Findings
 
-- Sixty-two generic Sigatoka files are exact duplicates of files already retained under `banana_leaf_5class/black-sigatoka`. Keep only one training copy of each image.
-- The Yellow review sheet records conservative biological grouping and visible Cordana-like overlap.
+- Sixty-two generic Sigatoka files are exact duplicates of files already retained under `banana_leaf_5class/sigatoka`. Keep only one training copy of each image.
+- The legacy Yellow-source review sheet records conservative biological grouping and visible Cordana-like overlap.
+- `banana_leaf_5class/panama-disease` contains 42 source-labeled candidates; agricultural-expert review and biological/source grouping are still pending.
 - The malformed JPEG produced both a truncated-read warning and malformed MPO interpretation in Pillow; keeping it here preserves recoverability without weakening reproducibility.
 
 ## Before Moving an Image

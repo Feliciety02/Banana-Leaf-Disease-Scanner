@@ -24,6 +24,7 @@ export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Prom
       model_version: diagnosis.modelVersion,
       inference_time_ms: diagnosis.latency,
       diagnosed_at: diagnosis.diagnosedAt,
+      research_consent: diagnosis.researchConsent,
     })) }),
   });
   const payload = await response.json().catch(() => null);
@@ -34,11 +35,32 @@ export async function syncDiagnoses(diagnoses: Diagnosis[], token: string): Prom
   if (!Array.isArray(payload?.data?.results)) {
     throw new SyncRequestError('The synchronization service returned an unexpected response.', false);
   }
-  const acceptedIds = payload.data.results
+  const metadataAcceptedIds = payload.data.results
     .filter((item: { status: string }) => ['created', 'already_synchronized'].includes(item.status))
     .map((item: { sync_uuid: string }) => item.sync_uuid);
   const rejectedIds = payload.data.results
     .filter((item: { status: string; sync_uuid?: string }) => item.status === 'rejected' && typeof item.sync_uuid === 'string')
     .map((item: { sync_uuid: string }) => item.sync_uuid);
+  const acceptedIds: string[] = [];
+  for (const id of metadataAcceptedIds) {
+    const diagnosis = diagnoses.find((item) => item.id === id);
+    if (!diagnosis?.researchConsent || !diagnosis.imageUri) {
+      acceptedIds.push(id);
+      continue;
+    }
+
+    const body = new FormData();
+    body.append('image', { uri: diagnosis.imageUri, name: `${id}.jpg`, type: 'image/jpeg' } as unknown as Blob);
+    const imageResponse = await fetchWithTimeout(`${API_URL}/mobile/sync/${encodeURIComponent(id)}/image`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+      body,
+    });
+    const imagePayload = await imageResponse.json().catch(() => null);
+    if (!imageResponse.ok) {
+      throw new SyncRequestError(imagePayload?.message ?? 'The consented research image could not be synchronized.', isRetryableHttpStatus(imageResponse.status));
+    }
+    acceptedIds.push(id);
+  }
   return { acceptedIds, rejectedIds };
 }

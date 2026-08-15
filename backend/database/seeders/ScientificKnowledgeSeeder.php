@@ -29,39 +29,48 @@ class ScientificKnowledgeSeeder extends Seeder
             $management = $record['management_records'];
             $evidence = $record['evidence'];
             $regulatoryCheck = $record['regulatory_check'] ?? null;
-            unset($record['symptom_records'], $record['management_records'], $record['evidence'], $record['regulatory_check']);
+            $verificationStatus = $record['verification_status'] ?? 'verified';
+            $isVerified = $verificationStatus === 'verified';
+            unset($record['symptom_records'], $record['management_records'], $record['evidence'], $record['regulatory_check'], $record['verification_status']);
             $record['symptoms'] = array_values(array_filter(array_column($symptoms, 'farmer_friendly_text')));
 
             $disease = Disease::query()->updateOrCreate(
                 ['slug' => $record['slug']],
                 [
                     ...$record,
-                    'verification_status' => 'verified',
-                    'is_verified' => true,
-                    'last_reviewed_at' => $this->reviewedAt,
-                    'verified_at' => $this->reviewedAt,
-                    'verified_by' => $reviewer?->id,
+                    'verification_status' => $verificationStatus,
+                    'is_verified' => $isVerified,
+                    'last_reviewed_at' => $isVerified ? $this->reviewedAt : null,
+                    'verified_at' => $isVerified ? $this->reviewedAt : null,
+                    'verified_by' => $isVerified ? $reviewer?->id : null,
                 ],
             );
 
+            $symptomIds = [];
             foreach ($symptoms as $symptom) {
-                $disease->symptomRecords()->updateOrCreate(
+                $symptomRecord = $disease->symptomRecords()->updateOrCreate(
                     ['stage' => $symptom['stage'], 'plant_part' => $symptom['plant_part'], 'sort_order' => $symptom['sort_order']],
                     $symptom,
                 );
+                $symptomIds[] = $symptomRecord->id;
             }
+            $disease->symptomRecords()->whereNotIn('id', $symptomIds ?: [0])->delete();
 
             $managementRecords = [];
+            $managementIds = [];
             foreach ($management as $item) {
                 $managementRecords[$item['category']] = $disease->managementRecords()->updateOrCreate(
                     ['category' => $item['category'], 'sort_order' => $item['sort_order']],
                     $item,
                 );
+                $managementIds[] = $managementRecords[$item['category']]->id;
             }
+            $disease->managementRecords()->whereNotIn('id', $managementIds ?: [0])->delete();
 
+            $evidenceIds = [];
             foreach ($evidence as $claim) {
                 $source = $sources[$claim['source']];
-                $disease->evidence()->updateOrCreate(
+                $evidenceRecord = $disease->evidence()->updateOrCreate(
                     ['source_id' => $source->id, 'claim_type' => $claim['claim_type']],
                     [
                         'claim_text' => $claim['claim_text'],
@@ -69,7 +78,9 @@ class ScientificKnowledgeSeeder extends Seeder
                         'notes' => $claim['notes'] ?? null,
                     ],
                 );
+                $evidenceIds[] = $evidenceRecord->id;
             }
+            $disease->evidence()->whereNotIn('id', $evidenceIds ?: [0])->delete();
 
             if ($regulatoryCheck) {
                 $managementRecord = $managementRecords[$regulatoryCheck['management_category']];
@@ -93,13 +104,17 @@ class ScientificKnowledgeSeeder extends Seeder
                 $disease->update(['regulatory_checked_at' => $this->reviewedAt]);
             }
 
-            $disease->verifications()->updateOrCreate(
-                ['status' => 'verified', 'expert_id' => $reviewer?->id],
-                [
-                    'notes' => 'Source-audited development baseline imported from the documented research dossier. A qualified agricultural reviewer must independently confirm the content before production publication.',
-                    'verified_at' => $this->reviewedAt,
-                ],
-            );
+            if ($isVerified) {
+                $disease->verifications()->updateOrCreate(
+                    ['status' => 'verified', 'expert_id' => $reviewer?->id],
+                    [
+                        'notes' => 'Source-audited development baseline imported from the documented research dossier. A qualified agricultural reviewer must independently confirm the content before production publication.',
+                        'verified_at' => $this->reviewedAt,
+                    ],
+                );
+            } else {
+                $disease->verifications()->delete();
+            }
         }
     }
 
@@ -246,79 +261,54 @@ class ScientificKnowledgeSeeder extends Seeder
                 ],
             ],
             [
-                'slug' => 'black-sigatoka', 'model_class_key' => 'black-sigatoka', 'name' => 'Black Sigatoka', 'alternative_names' => ['Black leaf streak disease'],
-                'scientific_name' => 'Pseudocercospora fijiensis', 'causal_agent' => 'Pseudocercospora fijiensis', 'pathogen_type' => 'fungus',
-                'short_description' => 'Dark streaks and expanding leaf spots',
-                'farmer_summary' => 'Black Sigatoka is a fungal leaf disease that damages the green leaf surface needed for photosynthesis. Severe infection can kill large areas of leaf tissue and affect fruit development and ripening.',
+                'slug' => 'sigatoka', 'model_class_key' => 'sigatoka', 'name' => 'Sigatoka Leaf Spot', 'alternative_names' => ['Black Sigatoka', 'Yellow Sigatoka', 'Black leaf streak disease', 'Yellow leaf spot'],
+                'scientific_name' => 'Pseudocercospora fijiensis / Pseudocercospora musae', 'causal_agent' => 'Pseudocercospora fijiensis or Pseudocercospora musae', 'pathogen_type' => 'fungus',
+                'short_description' => 'A merged image-screening class for Black and Yellow Sigatoka leaf-spot patterns',
+                'farmer_summary' => 'This class combines source-labeled Black and Yellow Sigatoka images because their visible leaf symptoms can overlap. It screens for the Sigatoka leaf-spot complex and does not identify which pathogen species is present.',
                 'curative_status' => 'manageable_not_curable', 'evidence_level' => 'high',
-                'image_only_limitations' => 'Other banana leaf-spot diseases can look similar to Black Sigatoka. DahonMD provides image-based screening, not pathogen or laboratory confirmation.',
-                'professional_referral' => 'Ask an agriculturist for assessment when spotting is severe, spreading, or uncertain, especially before using a fungicide program.',
-                'description' => 'A fungal leaf disease that progresses from small streaks to larger dark lesions and dead leaf tissue.',
-                'management' => 'Use integrated field sanitation, good nutrition, drainage, monitoring, and professional advice where disease pressure remains high.',
+                'image_only_limitations' => 'Black Sigatoka, Yellow Sigatoka, Cordana, and other leaf spots may look similar as symptoms progress. A photograph cannot reliably identify the causal pathogen species.',
+                'professional_referral' => 'Ask an agriculturist for assessment when spotting is severe, spreading, or uncertain, especially before choosing disease-specific or chemical control.',
+                'description' => 'A merged screening category for Sigatoka-like fungal leaf disease, which can progress from streaks to larger lesions and dead leaf tissue.',
+                'management' => 'Use integrated field sanitation, good nutrition, drainage, monitoring, and professional assessment when disease pressure remains high.',
                 'prevention' => 'Remove heavily necrotic leaf tissue appropriately, improve drainage and crop nutrition, and reduce conditions that maintain excessive plantation humidity.',
                 'symptom_records' => [
-                    ['stage' => 'early', 'plant_part' => 'leaves', 'symptom' => 'Tiny pale or yellowish specks develop into rusty-brown or reddish-brown streaks.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Small brown or dark streaks may first appear on the leaf.', 'sort_order' => 1],
-                    ['stage' => 'typical', 'plant_part' => 'leaves', 'symptom' => 'Streaks enlarge into elongated or elliptical dark lesions.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'The streaks may grow into longer dark spots.', 'sort_order' => 2],
-                    ['stage' => 'advanced', 'plant_part' => 'leaves', 'symptom' => 'Mature lesions may develop a black margin, yellow halo, and pale or gray necrotic center.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Older spots can develop a gray center, dark edge, and yellowing around the damaged area.', 'sort_order' => 3],
+                    ['stage' => 'early', 'plant_part' => 'leaves', 'symptom' => 'Pale, light-green, yellowish, rusty-brown, or reddish-brown streaks may develop along the leaf.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Small pale, yellowish, brown, or dark streaks may first appear on the leaf.', 'sort_order' => 1],
+                    ['stage' => 'typical', 'plant_part' => 'leaves', 'symptom' => 'Streaks may enlarge into elongated or elliptical brown-to-dark lesions.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'The streaks may grow into longer brown or dark spots.', 'sort_order' => 2],
+                    ['stage' => 'advanced', 'plant_part' => 'leaves', 'symptom' => 'Mature lesions may develop a dark margin, yellow surrounding tissue, and pale or gray necrotic center.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Older spots can develop a gray center, dark edge, and yellowing around the damaged area.', 'sort_order' => 3],
                     ['stage' => 'advanced', 'plant_part' => 'leaves', 'symptom' => 'Coalescing lesions kill broad areas of leaf tissue.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'When spots join together, larger sections of the leaf may dry out.', 'sort_order' => 4],
                 ],
                 'management_records' => [
                     ['category' => 'sanitation', 'recommendation' => 'Remove heavily necrotic leaf tissue using appropriate plantation sanitation practices.', 'farmer_friendly_text' => 'Remove heavily diseased or dead leaf tissue following proper farm sanitation practices.', 'evidence_strength' => 'high', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 1],
                     ['category' => 'cultural', 'recommendation' => 'Maintain balanced soil fertility, adequate nutrition, good drainage, weed management, and canopy conditions that reduce excessive humidity.', 'farmer_friendly_text' => 'Maintain good drainage and plant nutrition and regularly inspect nearby plants.', 'evidence_strength' => 'high', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 2],
                     ['category' => 'prevention', 'recommendation' => 'Use integrated disease monitoring and combine cultural practices rather than relying on a single control measure.', 'farmer_friendly_text' => 'Monitor new leaves and nearby plants and use an integrated management plan if spotting continues to spread.', 'evidence_strength' => 'high', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 3],
-                    ['category' => 'chemical', 'recommendation' => 'A fungicide program must use a currently FPA-registered product for banana and Black Sigatoka and follow its approved label and resistance-management advice.', 'farmer_friendly_text' => 'If an agriculturist recommends fungicide treatment, use only a currently FPA-registered product labeled for banana and Black Sigatoka and follow the approved label exactly.', 'evidence_strength' => 'high', 'requires_professional' => true, 'regulatory_check_required' => true, 'regulatory_checked_at' => $this->reviewedAt, 'sort_order' => 4],
-                    ['category' => 'expert_referral', 'recommendation' => 'Seek expert or pathogen-specific confirmation when lesions are atypical or management response is poor.', 'farmer_friendly_text' => 'Ask an agriculturist for help when symptoms are severe, unusual, or continue spreading.', 'evidence_strength' => 'high', 'requires_professional' => true, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 5],
+                    ['category' => 'expert_referral', 'recommendation' => 'Seek expert or pathogen-specific confirmation before disease-specific or chemical control, particularly when lesions are atypical or management response is poor.', 'farmer_friendly_text' => 'Ask an agriculturist for help before disease-specific treatment when symptoms are severe, unusual, or continue spreading.', 'evidence_strength' => 'high', 'requires_professional' => true, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 4],
                 ],
                 'evidence' => [
                     ['source' => 'mendoza_2019', 'claim_type' => 'causal_agent', 'claim_text' => 'Pseudocercospora fijiensis populations were molecularly investigated from banana-growing provinces in Luzon, Philippines.', 'evidence_strength' => 'high'],
-                    ['source' => 'esguera_2024', 'claim_type' => 'symptom', 'claim_text' => 'Black Sigatoka progresses from specks and reddish-brown streaks to elliptical lesions with dark margins, yellow haloes, and gray necrotic centers.', 'evidence_strength' => 'high'],
-                    ['source' => 'esguera_2024', 'claim_type' => 'transmission', 'claim_text' => 'Conidia support local rain-splash dispersal while ascospores disperse through wind and water over longer distances; wet, humid conditions support disease.', 'evidence_strength' => 'high'],
-                    ['source' => 'esguera_2024', 'claim_type' => 'management', 'claim_text' => 'Integrated management includes removal of necrotic tissue, adequate nutrition, drainage, humidity reduction, monitoring, and combined control measures.', 'evidence_strength' => 'high'],
+                    ['source' => 'esguera_2024', 'claim_type' => 'causal_agent', 'claim_text' => 'The Sigatoka complex includes Black Sigatoka caused by Pseudocercospora fijiensis and Yellow Sigatoka caused by Pseudocercospora musae.', 'evidence_strength' => 'high'],
+                    ['source' => 'esguera_2024', 'claim_type' => 'symptom', 'claim_text' => 'Black and Yellow Sigatoka progress through overlapping streak and lesion stages that can include dark margins, yellow tissue, and gray necrotic centers.', 'evidence_strength' => 'high'],
+                    ['source' => 'esguera_2024', 'claim_type' => 'transmission', 'claim_text' => 'Leaf wetness, rain, humidity, conidia, and wind or water dispersal contribute to infection and spread within the Sigatoka complex.', 'evidence_strength' => 'high'],
+                    ['source' => 'esguera_2024', 'claim_type' => 'management', 'claim_text' => 'Integrated management includes removal of necrotic tissue, adequate nutrition, drainage, humidity reduction, monitoring, and combined control measures for the Sigatoka complex.', 'evidence_strength' => 'high'],
                     ['source' => 'pcaarrd_2017', 'claim_type' => 'philippine_relevance', 'claim_text' => 'Sigatoka leaf spot is an important disease in Philippine Lakatan and Cardaba production systems, where GAP includes deleafing and crop-management practices.', 'evidence_strength' => 'moderate'],
                     ['source' => 'nozawa_2026', 'claim_type' => 'differential_diagnosis', 'claim_text' => 'Nigrospora species predominated among isolates from Sigatoka-like lesions at sampled Mindanao sites, demonstrating that visual similarity can mislead.', 'evidence_strength' => 'high'],
                     ['source' => 'esguera_2024', 'claim_type' => 'curative_status', 'claim_text' => 'Integrated management reduces disease development and inoculum; necrotic leaf tissue does not return to healthy tissue.', 'evidence_strength' => 'high'],
-                    ['source' => 'fpa_registered_2026', 'claim_type' => 'chemical_management', 'claim_text' => 'The official FPA registry listed Daconil 720 SC for banana and Black Sigatoka with full registration through December 21, 2027 as of the June 30, 2026 list.', 'evidence_strength' => 'high'],
                     ['source' => 'fpa_banned_restricted', 'claim_type' => 'prevention', 'claim_text' => 'Any pesticide decision must also be checked against the current Philippine banned and restricted pesticide list.', 'evidence_strength' => 'high'],
-                ],
-                'regulatory_check' => [
-                    'management_category' => 'chemical', 'source' => 'fpa_registered_2026', 'product_name' => 'Daconil 720 SC', 'active_ingredient' => null,
-                    'permitted_crop' => 'Banana', 'permitted_target' => 'Black Sigatoka', 'registration_number' => null, 'registration_status' => 'registered',
-                    'registration_expires_at' => '2027-12-21', 'approved_label_url' => null,
-                    'notes' => 'Verified against the FPA pesticide-products-under-drone-use list dated June 30, 2026. This record does not provide a dose, interval, application method, REI, or PHI; obtain and follow the current FPA-approved label and professional advice.',
                 ],
             ],
             [
-                'slug' => 'yellow-sigatoka', 'model_class_key' => 'yellow-sigatoka', 'name' => 'Yellow Sigatoka', 'alternative_names' => ['Yellow leaf spot'],
-                'scientific_name' => 'Pseudocercospora musae', 'causal_agent' => 'Pseudocercospora musae', 'pathogen_type' => 'fungus',
-                'short_description' => 'Light-green or yellow streaks that develop into leaf spots',
-                'farmer_summary' => 'Yellow Sigatoka is a fungal banana leaf disease that produces streaks and spots that can enlarge and kill portions of the leaf.',
-                'curative_status' => 'manageable_not_curable', 'evidence_level' => 'high',
-                'image_only_limitations' => 'Black and Yellow Sigatoka and other leaf spots may look similar as symptoms progress. A photograph alone may not reliably identify the pathogen species.',
-                'professional_referral' => 'Seek agricultural advice if leaf spotting spreads, causes substantial leaf death, or cannot be distinguished from other leaf-spot diseases.',
-                'description' => 'A fungal leaf disease that commonly progresses from light-green streaks to brown lesions with yellow and gray areas.',
-                'management' => 'Use field sanitation, drainage, crop nutrition, monitoring, and integrated management with professional advice when necessary.',
-                'prevention' => 'Remove heavily damaged leaf tissue appropriately, keep the plantation well managed and drained, and monitor nearby plants.',
-                'symptom_records' => [
-                    ['stage' => 'early', 'plant_part' => 'leaves', 'symptom' => 'Narrow light-green markings develop on the upper leaf surface and extend along veins.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Look for light-green or yellowish streaks running along the leaf veins.', 'sort_order' => 1],
-                    ['stage' => 'typical', 'plant_part' => 'leaves', 'symptom' => 'Streaks become rusty red or brown and enlarge into elliptical lesions.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'The streaks may turn rusty brown and become larger spots.', 'sort_order' => 2],
-                    ['stage' => 'advanced', 'plant_part' => 'leaves', 'symptom' => 'Developed lesions may show a dark sunken center and yellow surrounding tissue.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Larger spots may have yellow areas around them.', 'sort_order' => 3],
-                    ['stage' => 'advanced', 'plant_part' => 'leaves', 'symptom' => 'Older lesions may develop a gray dried center with a darker border.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Older spots may develop a gray center and dark border.', 'sort_order' => 4],
-                ],
-                'management_records' => [
-                    ['category' => 'sanitation', 'recommendation' => 'Remove heavily necrotic leaf tissue using appropriate farm sanitation practices.', 'farmer_friendly_text' => 'Remove heavily damaged leaf tissue as part of proper farm sanitation.', 'evidence_strength' => 'high', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 1],
-                    ['category' => 'cultural', 'recommendation' => 'Maintain adequate crop nutrition, drainage, weed control, and canopy conditions that reduce prolonged humidity.', 'farmer_friendly_text' => 'Keep the plantation well managed and drained and monitor nearby plants.', 'evidence_strength' => 'high', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 2],
-                    ['category' => 'prevention', 'recommendation' => 'Use regular disease monitoring as part of an integrated management program.', 'farmer_friendly_text' => 'Inspect new leaves regularly and act early when spotting continues to spread.', 'evidence_strength' => 'high', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 3],
-                    ['category' => 'expert_referral', 'recommendation' => 'Obtain agricultural assessment before choosing disease-specific or chemical control.', 'farmer_friendly_text' => 'Seek agricultural advice when leaf spotting continues to spread or the cause is uncertain.', 'evidence_strength' => 'high', 'requires_professional' => true, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 4],
-                ],
-                'evidence' => [
-                    ['source' => 'esguera_2024', 'claim_type' => 'causal_agent', 'claim_text' => 'Yellow Sigatoka is caused by Pseudocercospora musae and was recorded in the Philippines by 1921.', 'evidence_strength' => 'high'],
-                    ['source' => 'esguera_2024', 'claim_type' => 'symptom', 'claim_text' => 'Yellow Sigatoka progresses from light-green streaks along veins to rusty-brown elliptical lesions with yellow tissue and gray necrotic centers.', 'evidence_strength' => 'high'],
-                    ['source' => 'esguera_2024', 'claim_type' => 'transmission', 'claim_text' => 'Leaf wetness, rain, humidity, conidia, and wind or water dispersal contribute to Sigatoka infection and spread.', 'evidence_strength' => 'high'],
-                    ['source' => 'esguera_2024', 'claim_type' => 'management', 'claim_text' => 'Integrated sanitation, necrotic-tissue removal, nutrition, drainage, humidity reduction, monitoring, and combined controls are recommended for the Sigatoka complex.', 'evidence_strength' => 'high'],
-                    ['source' => 'pcaarrd_2017', 'claim_type' => 'philippine_relevance', 'claim_text' => 'Sigatoka leaf spot affects Philippine Lakatan and Cardaba production systems and is addressed within GAP interventions.', 'evidence_strength' => 'moderate'],
-                    ['source' => 'nozawa_2026', 'claim_type' => 'differential_diagnosis', 'claim_text' => 'Other fungal leaf spots in Mindanao can resemble Sigatoka lesions, limiting image-only species identification.', 'evidence_strength' => 'high'],
-                    ['source' => 'esguera_2024', 'claim_type' => 'curative_status', 'claim_text' => 'Integrated management can reduce development and spread but does not restore already necrotic leaf tissue.', 'evidence_strength' => 'high'],
-                ],
+                'slug' => 'panama-disease', 'model_class_key' => 'panama-disease', 'name' => 'Panama Disease', 'alternative_names' => ['Banana Fusarium wilt'],
+                'scientific_name' => null, 'causal_agent' => null, 'pathogen_type' => 'fungus',
+                'short_description' => 'New model class with source-labeled leaf candidates awaiting expert review and scientific content verification',
+                'farmer_summary' => 'Panama disease support is being added. Disease-specific guidance remains unavailable until image review, scientific sourcing, and agricultural review are complete.',
+                'curative_status' => 'unclear_evidence', 'verification_status' => 'draft', 'evidence_level' => 'limited',
+                'image_only_limitations' => 'The source-labeled leaf candidates have not completed expert review, and no trained or validated Panama disease model is available under the new class contract yet.',
+                'professional_referral' => 'Seek agricultural assessment for unexplained yellowing, wilting, or plant decline rather than relying on this pending class.',
+                'description' => 'Scientific and image-visible symptom content is pending source review.',
+                'management' => 'Disease-specific management guidance is pending source and agricultural review.',
+                'prevention' => 'Prevention guidance is pending source and agricultural review.',
+                'symptom_records' => [],
+                'management_records' => [],
+                'evidence' => [],
             ],
             [
                 'slug' => 'cordana-leaf-spot', 'model_class_key' => 'cordana-leaf-spot', 'name' => 'Cordana Leaf Spot', 'alternative_names' => ['Cordana leafspot', 'Cordana musae leaf spot'],

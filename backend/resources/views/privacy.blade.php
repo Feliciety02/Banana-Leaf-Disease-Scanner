@@ -12,9 +12,10 @@
 
     <h2>How data is used</h2>
     <p>Data is used to provide diagnosis history, synchronize your devices, support agricultural-expert review when requested, secure the service, and improve reliability. A leaf image is not submitted for expert review unless that workflow is requested.</p>
+    <p>Research contribution is optional. A mobile leaf image is uploaded for future research only when you select “Contribute this photo to future research.” Consented images still require agricultural review and a separate dataset-candidate decision before they can be approved for training use. The consent version and date are recorded with the image.</p>
 
     <h2>Storage and deletion</h2>
-    <p>Mobile history is stored on your device and synchronized records are stored by the DahonMD server. You can delete individual history records in the app, delete your signed-in account from the profile screen, or use the <a href="{{ route('account-deletion') }}">account deletion page</a>. Device-only files may also be removed by clearing the app's data or uninstalling it.</p>
+    <p>Mobile history is stored on your device and synchronized records are stored by the DahonMD server. You can delete individual history records in the app, withdraw research consent before an image is approved for a research dataset, delete your signed-in account from the profile screen, or use the <a href="{{ route('account-deletion') }}">account deletion page</a>. Device-only files may also be removed by clearing the app's data or uninstalling it. If an image is already part of an approved research dataset, contact the research team to request removal from that dataset.</p>
 
     <h2>Permissions</h2>
     <p>Camera access is used only when you open the scanner. The camera stream is stopped after capture, cancellation, or leaving the scanner. Photo-library access is used only when you choose an existing image.</p>

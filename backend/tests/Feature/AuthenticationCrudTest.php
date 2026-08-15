@@ -6,6 +6,8 @@ use App\Models\Diagnosis;
 use App\Models\Disease;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -30,7 +32,7 @@ class AuthenticationCrudTest extends TestCase
     private function diagnosis(User $user, array $overrides = []): Diagnosis
     {
         return Diagnosis::query()->create([...[
-            'user_id' => $user->id, 'disease_id' => null, 'predicted_class' => 'placeholder-class',
+            'user_id' => $user->id, 'disease_id' => null, 'predicted_class' => 'healthy',
             'confidence' => 91.2, 'model_version' => 'demo', 'inference_time_ms' => 80,
             'source' => 'web', 'diagnosed_at' => now(),
         ], ...$overrides]);
@@ -79,10 +81,33 @@ class AuthenticationCrudTest extends TestCase
         $other = User::factory()->create();
         Sanctum::actingAs($user);
         $this->postJson('/api/diagnoses', [
-            'user_id' => $other->id, 'predicted_class' => 'placeholder-class', 'confidence' => 80,
+            'user_id' => $other->id, 'predicted_class' => 'healthy', 'confidence' => 80,
             'model_version' => 'demo', 'inference_time_ms' => 30, 'source' => 'web', 'diagnosed_at' => now()->toIso8601String(),
         ])->assertCreated();
-        $this->assertDatabaseHas('diagnoses', ['user_id' => $user->id, 'predicted_class' => 'placeholder-class']);
+        $this->assertDatabaseHas('diagnoses', ['user_id' => $user->id, 'predicted_class' => 'healthy']);
+    }
+
+    public function test_research_consent_requires_an_image_and_records_the_current_consent_version(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $payload = [
+            'predicted_class' => 'healthy', 'confidence' => 80,
+            'model_version' => 'demo', 'inference_time_ms' => 30, 'source' => 'web',
+            'diagnosed_at' => now()->toIso8601String(), 'research_consent' => true,
+        ];
+
+        $this->postJson('/api/diagnoses', $payload)->assertUnprocessable()->assertJsonValidationErrors('image');
+        $response = $this->post('/api/diagnoses', [
+            ...$payload,
+            'image' => UploadedFile::fake()->image('leaf.jpg'),
+        ])->assertCreated()->assertJsonPath('data.research_consent', true);
+
+        $this->assertDatabaseHas('diagnoses', [
+            'id' => $response->json('data.id'),
+            'research_consent_version' => 'research-image-consent-v1',
+        ]);
     }
 
     public function test_admin_authorization_user_management_and_system_diagnoses(): void
@@ -147,12 +172,12 @@ class AuthenticationCrudTest extends TestCase
 
         Sanctum::actingAs(User::factory()->admin()->create());
         $created = $this->postJson('/api/admin/diseases', [
-            'slug' => 'fixture-class-1', 'model_class_key' => 'fixture-class-1', 'name' => 'Fixture class one',
+            'slug' => 'sigatoka', 'model_class_key' => 'sigatoka', 'name' => 'Fixture class one',
             'curative_status' => 'unclear_evidence', 'evidence_level' => 'limited',
         ])->assertCreated();
         $id = $created->json('data.id');
         $this->putJson("/api/admin/diseases/{$id}", [
-            'slug' => 'fixture-class-1', 'model_class_key' => 'fixture-class-1', 'name' => 'Updated fixture',
+            'slug' => 'sigatoka', 'model_class_key' => 'sigatoka', 'name' => 'Updated fixture',
             'curative_status' => 'unclear_evidence', 'evidence_level' => 'limited',
         ])->assertOk();
         $this->deleteJson("/api/admin/diseases/{$id}")->assertOk()->assertJsonPath('message', 'Disease knowledge record archived.');
@@ -171,17 +196,52 @@ class AuthenticationCrudTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('model_class_key');
     }
 
+    public function test_obsolete_black_yellow_label_map_is_rejected_until_retraining(): void
+    {
+        config(['banana.label_map_path' => base_path('tests/fixtures/obsolete_label_map.json')]);
+        Sanctum::actingAs(User::factory()->admin()->create());
+
+        $this->getJson('/api/admin/system')->assertOk()
+            ->assertJsonPath('data.final_model_classes_known', false)
+            ->assertJsonCount(0, 'data.classes');
+    }
+
     public function test_mobile_sync_uuid_is_idempotent(): void
     {
         $user = User::factory()->create();
         Sanctum::actingAs($user);
         $payload = ['diagnoses' => [[
-            'sync_uuid' => '550e8400-e29b-41d4-a716-446655440000', 'predicted_class' => 'placeholder-class',
+            'sync_uuid' => '550e8400-e29b-41d4-a716-446655440000', 'predicted_class' => 'healthy',
             'confidence' => 90, 'model_version' => 'demo', 'inference_time_ms' => 40, 'diagnosed_at' => now()->toIso8601String(),
         ]]];
         $this->postJson('/api/mobile/sync', $payload)->assertOk()->assertJsonPath('data.results.0.status', 'created');
         $this->postJson('/api/mobile/sync', $payload)->assertOk()->assertJsonPath('data.results.0.status', 'already_synchronized');
         $this->assertDatabaseCount('diagnoses', 1);
+    }
+
+    public function test_mobile_uploads_only_an_explicitly_consented_research_image(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+        $syncUuid = 'c68fdf7b-b2ab-464f-bde4-f1df128b69d8';
+        $payload = ['diagnoses' => [[
+            'sync_uuid' => $syncUuid,
+            'predicted_class' => 'healthy',
+            'confidence' => 90,
+            'diagnosed_at' => now()->toIso8601String(),
+            'research_consent' => true,
+        ]]];
+
+        $this->postJson('/api/mobile/sync', $payload)->assertOk()->assertJsonPath('data.results.0.status', 'created');
+        $this->post("/api/mobile/sync/{$syncUuid}/image", [
+            'image' => UploadedFile::fake()->image('mobile-leaf.jpg'),
+        ])->assertOk();
+
+        $diagnosis = Diagnosis::query()->where('sync_uuid', $syncUuid)->firstOrFail();
+        $this->assertTrue($diagnosis->hasActiveResearchConsent());
+        $this->assertNotNull($diagnosis->image_path);
+        Storage::disk('public')->assertExists($diagnosis->image_path);
     }
 
     public function test_one_identity_mobile_sync_web_history_admin_analytics_and_cross_user_authorization(): void
@@ -206,7 +266,7 @@ class AuthenticationCrudTest extends TestCase
 
         $syncPayload = ['diagnoses' => [[
             'sync_uuid' => 'f09e7c28-e57b-4db0-a553-1e6bded2cf61',
-            'predicted_class' => 'simulated-placeholder',
+            'predicted_class' => 'healthy',
             'confidence' => 88.5,
             'model_version' => 'simulated-mobile-adapter',
             'inference_time_ms' => 73,

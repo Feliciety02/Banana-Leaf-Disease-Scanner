@@ -41,6 +41,29 @@ class ComparisonServiceTest(unittest.TestCase):
         self.assertEqual(summary["current_leader"], "enhanced")
         self.assertIn("proposed CA-MobileNetV3-Small leads", summary["decision_note"])
 
+    def test_obsolete_label_map_keeps_service_unconfigured(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            baseline = root / "baseline.tflite"
+            enhanced = root / "enhanced.tflite"
+            label_map = root / "label_map.json"
+            baseline.write_bytes(b"fixture")
+            enhanced.write_bytes(b"fixture")
+            label_map.write_text(json.dumps({
+                "0": "healthy", "1": "dead", "2": "black-sigatoka",
+                "3": "yellow-sigatoka", "4": "cordana-leaf-spot",
+            }), encoding="utf-8")
+            with patch.dict(os.environ, {
+                "DAHONMD_BASELINE_TFLITE": str(baseline),
+                "DAHONMD_ENHANCED_TFLITE": str(enhanced),
+                "DAHONMD_LABEL_MAP": str(label_map),
+            }):
+                with self.assertRaises(HTTPException) as context:
+                    _required_artifacts()
+
+        self.assertEqual(context.exception.status_code, 503)
+        self.assertIn("obsolete", context.exception.detail)
+
 
 if __name__ == "__main__":
     unittest.main()

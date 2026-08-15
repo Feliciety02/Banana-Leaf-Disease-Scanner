@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import warnings
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -61,9 +62,11 @@ def _image_paths(directory: Path, extensions: Sequence[str]) -> list[Path]:
 def _validate_and_hash(path: Path, verify: bool) -> str:
     if verify:
         try:
-            with Image.open(path) as image:
-                image.verify()
-        except (UnidentifiedImageError, OSError, ValueError) as error:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                with Image.open(path) as image:
+                    image.verify()
+        except (UnidentifiedImageError, OSError, ValueError, UserWarning) as error:
             raise ValueError(f"Unreadable or invalid image: {path}: {error}") from error
     digest = hashlib.sha256()
     try:
@@ -242,7 +245,11 @@ def _write_manifest(splits: DatasetSplits, root: Path, destination: Path) -> Non
 
 
 def _read_manifest(
-    path: Path, root: Path, expected_class_names: Sequence[str], verify_images: bool
+    path: Path,
+    root: Path,
+    expected_class_names: Sequence[str],
+    verify_images: bool,
+    allowed_extensions: Sequence[str],
 ) -> DatasetSplits:
     payload = json.loads(path.read_text(encoding="utf-8"))
     class_names = payload.get("class_names", [])
@@ -287,6 +294,16 @@ def _read_manifest(
             )
     splits = DatasetSplits(class_names, **values)
     all_records = splits.train + splits.validation + splits.test
+    manifest_paths = {Path(record.path).resolve() for record in all_records}
+    current_paths = {image.resolve() for image in _image_paths(root, allowed_extensions)}
+    if manifest_paths != current_paths:
+        added = sorted(str(image.relative_to(root)) for image in current_paths - manifest_paths)
+        removed = sorted(str(image.relative_to(root)) for image in manifest_paths - current_paths)
+        raise ValueError(
+            f"Dataset inventory changed after split manifest {path} was created. "
+            f"Added: {added[:3] or 'none'}; removed: {removed[:3] or 'none'}. "
+            "Use a new output directory for a new leakage-safe split."
+        )
     _validate_hash_labels(all_records)
     seen_hashes: dict[str, str] = {}
     seen_groups: dict[str, str] = {}
@@ -313,7 +330,13 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
         ):
             raise ValueError("data.group_manifest must be a JSON object mapping relative paths to non-empty group IDs")
     if manifest.is_file():
-        splits = _read_manifest(manifest, root, config.data.class_names, config.data.verify_images)
+        splits = _read_manifest(
+            manifest,
+            root,
+            config.data.class_names,
+            config.data.verify_images,
+            config.data.allowed_extensions,
+        )
         if group_map is not None:
             for record in splits.train + splits.validation + splits.test:
                 relative = str(Path(record.path).relative_to(root)).replace("\\", "/")

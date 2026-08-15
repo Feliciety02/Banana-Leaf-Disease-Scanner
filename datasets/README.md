@@ -25,20 +25,55 @@ If you are new to the dataset, follow this order:
 > [!CAUTION]
 > Do not move an uncertain image into the class that merely looks closest. Ask a qualified reviewer or keep it excluded.
 
-## Dataset Snapshot
+## Current Class Contract (August 16, 2026)
 
-The cleaned source-labeled dataset contains **459 unique, validator-readable images**.
+Black and Yellow Sigatoka are now one model class, `sigatoka`. The former
+Yellow output slot is now `panama-disease`. This order is fixed and must not be
+sorted alphabetically or changed independently in another client.
 
-| Output | Model key | Display name | Images |
+| Output | Model key | Display name | Working images |
 | ---: | --- | --- | ---: |
-| 0 | `healthy` | Healthy | 91 |
+| 0 | `healthy` | Healthy | 298 |
 | 1 | `dead` | Dead leaf | 55 |
-| 2 | `black-sigatoka` | Black Sigatoka | 128 |
-| 3 | `yellow-sigatoka` | Yellow Sigatoka | 23 |
-| 4 | `cordana-leaf-spot` | Cordana leaf spot | 162 |
-|  |  | **Total** | **459** |
+| 2 | `sigatoka` | Sigatoka leaf spot | 251 |
+| 3 | `panama-disease` | Panama disease | 42 |
+| 4 | `cordana-leaf-spot` | Cordana leaf spot | 231 |
+|  |  | **Total** | **877** |
 
-The class order is fixed and must not be sorted alphabetically or changed independently in another client.
+> [!WARNING]
+> The 42 Panama images are readable, source-labeled leaf candidates, not
+> laboratory confirmation. Structural validation can pass, but formal training
+> and deployment remain gated on agricultural-expert review and biological/source
+> grouping. Existing model artifacts use the obsolete Black/Yellow contract and
+> are not compatible with this dataset.
+
+All 877 active files are validator-readable and byte-unique. Source labels and
+biological grouping still require the review gates described below, so this is
+not a claim of laboratory-confirmed ground truth.
+
+### Kaggle original-image expansion
+
+The August 16, 2026 Kaggle expansion imported 300 leaf-only original images:
+100 Healthy images from *Nutrient Deficient Banana Plant Leaves*, plus 100
+Sigatoka and 100 Cordana images from BananaLSD. Three Sigatoka files that
+triggered truncated/MPO decoder-recovery warnings were subsequently
+quarantined, leaving 297 active additions. Source-provided augmentations were
+not admitted. Exact-hash, decoder, and perceptual near-duplicate checks were run
+before final admission. See
+[`banana_leaf_5class/SOURCES.md`](banana_leaf_5class/SOURCES.md) for source,
+license, mapping, and selection details.
+
+A repository-wide rescan then found 428 exact Healthy copies in four repeated
+107-image batches. They were moved to
+`label-review/exact-duplicates/healthy-incoming-2026-08-16/`; one clean
+`fresh1.jpg` through `fresh107.jpg` set remains active.
+
+### Legacy research snapshot
+
+The August 14 experiment used the retired contract: Healthy 91, Dead leaf 55,
+Black Sigatoka 128, Yellow Sigatoka 23, and Cordana leaf spot 162 (459 total).
+Its reports remain unchanged as historical evidence, but its scores and
+artifacts cannot be used with the current class contract.
 
 ## Required Layout
 
@@ -47,8 +82,8 @@ datasets/
 └── banana_leaf_5class/
     ├── healthy/
     ├── dead/
-    ├── black-sigatoka/
-    ├── yellow-sigatoka/
+    ├── sigatoka/
+    ├── panama-disease/
     └── cordana-leaf-spot/
 ```
 
@@ -71,33 +106,88 @@ datasets/banana_leaf_5class/
 | --- | --- | --- |
 | Healthy | No target-class symptoms visible in the image | Not proof the entire plant is disease-free |
 | Dead leaf | Fully dried or necrotic leaf appearance | Not a Moko diagnosis or causal claim |
-| Black Sigatoka | Provenance- or expert-supported Black Sigatoka | Do not infer from dark lesion color alone |
-| Yellow Sigatoka | Provenance- or expert-supported Yellow Sigatoka | Visually overlaps other leaf spots and stages |
+| Sigatoka leaf spot | Provenance- or expert-supported Black or Yellow Sigatoka presentation | The model does not distinguish Black from Yellow Sigatoka |
+| Panama disease | Provenance- or expert-supported Panama disease leaf presentation | Leaf symptoms alone cannot confirm Fusarium wilt; field or laboratory assessment may be needed |
 | Cordana leaf spot | Provenance- or expert-supported Cordana presentation | Review images with Sigatoka-like overlap |
 
 Mixed, uncertain, or visually indistinguishable cases do not belong in a single-label supervised class until a qualified reviewer or authoritative provenance record resolves them.
 
 ## Audit and Reorganization Record
 
+On August 16, 2026, the 131 cleaned Black Sigatoka images and 23 retained
+source-labeled Yellow Sigatoka images were merged into `sigatoka`. Their
+original filenames and review provenance remain intact. `panama-disease` was
+created for the 42 newly added source-labeled Panama leaf candidates. Their
+source audit is stored beside the images; expert review remains pending.
+
+The same day's Black Sigatoka incoming-image audit retained three usable
+additions (`Black Sigatoka Disease (68-70).jpg`) and removed these items from
+the active training set:
+
+| Finding | Action |
+| --- | --- |
+| `bananier_cercosporiose_noire_sigatocare.jpg` exactly duplicated image 70 | Removed the second active copy |
+| Malformed `452.jpeg` was reintroduced and exactly matched quarantined copies | Removed the reintroduced active copy; the original audit copy remains under `label-review/malformed/sigatoka/` |
+| 5 unrelated PDFs and 1 executable were present in the class folder | Removed; these formats are never loaded by the model |
+
+The 131 retained Black-source images are now part of the 154-image `sigatoka`
+class. The three additions had no strong near-duplicate match in the older set.
+
+The targeted Yellow Sigatoka and Cordana audit also removed these files from
+the active training set:
+
+| Finding | Action |
+| --- | --- |
+| 296 byte-identical Cordana copies across repeated filename batches | Removed duplicate copies |
+| 130 augmented or near-duplicate Cordana variants from 12 source clusters | Kept one least-compressed representative per cluster and removed the variants |
+| 1 Cordana image with the class name printed on it | Removed to prevent label leakage |
+| 1 Cordana image with a camera timestamp | Removed to prevent a spurious shortcut |
+| 2 Yellow-source images without provenance, review rows, or biological groups | Excluded from the merged class pending verification |
+
+Before the later source expansion, the active folders contained **154 Sigatoka** and **131 Cordana
+leaf spot** images. Both target folders are readable and contain no
+byte-identical duplicates. Other incoming class batches were outside this
+targeted audit.
+
+The new Panama batch contains **42 readable, byte-unique leaf images**: 37
+source-labeled originals from the Kaggle Banana Disease Recognition Dataset and
+5 Fusarium Wilt Race 1 images from the Zenodo Banana Leaves Imagery Dataset.
+The source audit excluded 4 pseudostem-containing originals and all 287
+augmented exports. A cross-class difference-hash scan found no strong
+near-duplicate match against the other active images. The five web-guide
+copies are byte-identical educational assets outside the training root and are
+not additional training samples. See
+[`panama-disease/README.md`](banana_leaf_5class/panama-disease/README.md) for the
+source and license record.
+
 The August 14, 2026 audit made these recoverable changes:
 
 | Finding | Action |
 | --- | --- |
 | 38 duplicate Healthy files | Moved to `label-review/exact-duplicates/` |
-| 1 duplicate Yellow Sigatoka file | Moved to `label-review/exact-duplicates/` |
-| Malformed `black-sigatoka/452.jpeg` | Moved to `label-review/malformed/` |
+| 1 duplicate Yellow-source Sigatoka file | Moved to `label-review/exact-duplicates/sigatoka/` |
+| Malformed Sigatoka image `452.jpeg` | Moved to `label-review/malformed/sigatoka/` |
 | Former `moko-disease` images | Renamed and retained as the visual `dead` class |
 | 473 generic `sigatoka` images | Moved outside training to `label-review/sigatoka-unverified/` |
 
 The old Moko folder name was not supported by image-only evidence. Renaming it to `dead` describes visible condition only and makes no claim about why the leaves died.
 
-Of the 473 generic Sigatoka files, 62 are exact copies of images already retained under `black-sigatoka`. The remaining source label does not establish Black Sigatoka, Yellow Sigatoka, another presentation in the disease complex, or mixed infection. They remain excluded from supervised training.
+Of the 473 generic Sigatoka files, 62 are exact copies of retained images. The
+remaining records still lack enough provenance to establish a supervised label
+or rule out another leaf spot or mixed infection. They remain excluded pending
+review even though the current model no longer predicts Black and Yellow
+subtypes separately.
 
-## Yellow Sigatoka Review Status
+## Legacy Yellow-source Review Status
 
-The 23 retained Yellow Sigatoka images came from Mafi et al., *Banana Disease Recognition Dataset*, Version 1, DOI [`10.17632/79w2n6b4kf.1`](https://doi.org/10.17632/79w2n6b4kf.1), licensed CC BY 4.0.
+The 23 Yellow-source images now included in `sigatoka` came from Mafi et al.,
+*Banana Disease Recognition Dataset*, Version 1, DOI
+[`10.17632/79w2n6b4kf.1`](https://doi.org/10.17632/79w2n6b4kf.1), licensed CC BY 4.0.
 
-The source documents field collection and augmentation but not molecular confirmation or expert review for every retained image. Several images have Cordana-like visual overlap. Their status is recorded in `label-review/yellow-sigatoka-review.csv` as `pending-expert`.
+The source documents field collection and augmentation but not molecular
+confirmation or expert review for every retained image. Several images have
+Cordana-like visual overlap. Their original source label and pending status are
+recorded in `label-review/sigatoka-legacy-yellow-review.csv`.
 
 These images support source-labeled exploratory research only. They must not support a production diagnostic claim until reviewed.
 
@@ -110,12 +200,13 @@ An admission decision must record:
 | Required field | Example |
 | --- | --- |
 | Relative path | `sigatoka-unverified/123.jpeg` |
-| Final class | `black-sigatoka`, `yellow-sigatoka`, or `exclude` |
+| Final class | `sigatoka`, `panama-disease`, `cordana-leaf-spot`, or `exclude` |
 | Authority | Reviewer name or authoritative source |
 | Review date | ISO date such as `2026-08-15` |
 | Evidence note | Why the final label is justified |
 
-Never assign Black versus Yellow Sigatoka from lesion color alone. Mark mixed or unresolved cases as `exclude`.
+The model no longer assigns Black versus Yellow Sigatoka. Mark mixed,
+unsupported, or unresolved cases as `exclude`.
 
 ### Student decision guide
 

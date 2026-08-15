@@ -17,7 +17,7 @@ class AgriculturalExpertWorkflowTest extends TestCase
     {
         return Diagnosis::query()->create([
             'user_id' => $farmer->id,
-            'predicted_class' => 'fixture-class-0',
+            'predicted_class' => 'sigatoka',
             'confidence' => $confidence,
             'model_version' => 'immutable-test-model',
             'inference_time_ms' => 42,
@@ -28,9 +28,11 @@ class AgriculturalExpertWorkflowTest extends TestCase
 
     public function test_farmer_requests_review_and_only_designated_reviewer_can_assess_it(): void
     {
-        Disease::query()->create([
-            'slug' => 'fixture-class-1', 'model_class_key' => 'fixture-class-1', 'name' => 'Alternative fixture',
-            'description' => 'Test-only alternative class.', 'symptoms' => [], 'management' => 'Test-only guidance.',
+        Disease::query()->where('model_class_key', 'panama-disease')->update([
+            'name' => 'Alternative fixture',
+            'description' => 'Test-only alternative class.',
+            'symptoms' => [],
+            'management' => 'Test-only guidance.',
         ]);
         $farmer = User::factory()->farmer()->create();
         $diagnosis = $this->diagnosis($farmer);
@@ -50,19 +52,19 @@ class AgriculturalExpertWorkflowTest extends TestCase
             ->assertJsonPath('data.farmer_review_requests', 1);
         $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", [
             'review_status' => 'alternate_class',
-            'verified_label' => 'fixture-class-1',
+            'verified_label' => 'panama-disease',
             'image_quality' => 'good',
             'next_steps' => ['monitor_plant', 'seek_field_inspection'],
             'notes' => 'Visible signs better support the alternate configured class.',
         ])->assertOk()
-            ->assertJsonPath('data.predicted_class', 'fixture-class-0')
+            ->assertJsonPath('data.predicted_class', 'sigatoka')
             ->assertJsonPath('data.confidence', 61)
             ->assertJsonPath('data.review.review_status', 'alternate_class')
-            ->assertJsonPath('data.review.verified_label', 'fixture-class-1')
+            ->assertJsonPath('data.review.verified_label', 'panama-disease')
             ->assertJsonPath('data.review.image_quality', 'good')
             ->assertJsonPath('data.review.requires_field_inspection', true);
 
-        $this->assertDatabaseHas('diagnoses', ['id' => $diagnosis->id, 'predicted_class' => 'fixture-class-0', 'confidence' => 61]);
+        $this->assertDatabaseHas('diagnoses', ['id' => $diagnosis->id, 'predicted_class' => 'sigatoka', 'confidence' => 61]);
         $this->assertDatabaseHas('diagnosis_reviews', ['diagnosis_id' => $diagnosis->id, 'expert_id' => $expert->id, 'review_status' => 'alternate_class']);
 
         Sanctum::actingAs(User::factory()->admin()->create());
@@ -113,6 +115,13 @@ class AgriculturalExpertWorkflowTest extends TestCase
             'notes' => 'The visible condition is not represented by the configured classes.',
         ])->assertOk();
         $this->assertDatabaseCount('dataset_candidates', 0);
+        $this->postJson("/api/expert/dataset-candidates/from-diagnosis/{$diagnosis->id}")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('diagnosis');
+        $diagnosis->update([
+            'research_consented_at' => now(),
+            'research_consent_version' => 'research-image-consent-v1',
+        ]);
         $candidate = $this->postJson("/api/expert/dataset-candidates/from-diagnosis/{$diagnosis->id}")
             ->assertCreated()->assertJsonPath('data.status', 'pending');
         $this->assertDatabaseMissing('dataset_candidates', ['diagnosis_id' => $diagnosis->id, 'status' => 'approved']);
@@ -120,5 +129,15 @@ class AgriculturalExpertWorkflowTest extends TestCase
         $this->putJson('/api/expert/dataset-candidates/'.$candidate->json('data.id'), [
             'status' => 'uncertain', 'review_notes' => 'Retain outside training data pending better evidence.',
         ])->assertOk()->assertJsonPath('data.status', 'uncertain');
+
+        Sanctum::actingAs($farmer);
+        $this->deleteJson("/api/diagnoses/{$diagnosis->id}/research-consent")
+            ->assertOk()
+            ->assertJsonPath('data.research_consent', false);
+
+        Sanctum::actingAs($expert);
+        $this->putJson('/api/expert/dataset-candidates/'.$candidate->json('data.id'), [
+            'status' => 'approved', 'review_notes' => 'Attempted after withdrawal.',
+        ])->assertUnprocessable()->assertJsonValidationErrors('status');
     }
 }

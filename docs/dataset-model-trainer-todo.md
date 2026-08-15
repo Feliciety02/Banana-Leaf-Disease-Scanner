@@ -6,20 +6,20 @@ evidence. Check an item only when its required evidence has been saved.
 
 ## Current status
 
-Status reviewed on 2026-08-14 against the repository and automated tests.
+Status reviewed on 2026-08-16 against the repository and automated tests.
 
 - Current count: **31 verified complete**, **232 remaining**.
 - `[x]` means the requirement is currently implemented and directly verifiable in the repository.
 - `[ ]` means it still needs real dataset work, adviser/domain approval, a completed experiment, generated artifacts, or retained evidence.
 - Completed implementation checks must be rechecked if the corresponding code or research protocol changes.
 - The virtual environment and required packages are present.
-- A cleaned 459-image working dataset is present. Thirty-nine exact duplicate copies and one malformed JPEG are quarantined, the generic 473-image Sigatoka source remains outside training pending subtype review, and the 23 source-labeled Yellow Sigatoka images remain pending expert confirmation because of Cordana-like overlap. Any model trained from this snapshot is exploratory and must not be deployed.
-- An isolated exploratory baseline, Keras evaluation, FP32/INT8 exports, desktop benchmark, and label map now exist under `ai/artifacts/source_labeled_baseline/`; see `docs/experiments/source-labeled-baseline-2026-08-14.md`. Formal dataset approval, an enhanced model, an acceptable INT8 parity result, and a physical-phone benchmark are still absent. The exploratory files must not be deployed, so no official dataset-ready, trained-model, mobile, or thesis-submission gate is being marked complete.
+- The current contract merges Black and Yellow Sigatoka into `sigatoka` and replaces the former Yellow output with `panama-disease`. After source expansion, exact-duplicate cleanup, and malformed-file quarantine, the active dataset has 877 byte-unique images: 298 Healthy, 55 Dead leaf, 251 Sigatoka, 42 source-labeled Panama candidates, and 231 Cordana. Structural validation passes, but formal retraining remains gated on expert review and biological/source grouping of the Panama candidates.
+- Existing baseline/enhanced artifacts and their reports use the retired five-class contract. They remain historical evidence only and are rejected by current runtime label-map validation. No current-contract model is trained or deployable.
 
-The production model remains the existing Coordinate Attention-enhanced
-MobileNetV3-Small. The research baseline is the standard supervised
-MobileNetV3-Small. Do not change either variant without an approved thesis
-protocol amendment.
+The intended enhanced architecture remains Coordinate Attention-enhanced
+MobileNetV3-Small, and the research baseline remains standard supervised
+MobileNetV3-Small. Neither has a deployable artifact for the current taxonomy.
+Do not change either variant without an approved thesis protocol amendment.
 
 ## Fixed research contract
 
@@ -27,8 +27,8 @@ protocol amendment.
 - [x] Preserve the exact output-index order from `ai/config/labels.py`:
   - `0` — `healthy`
   - `1` — `dead`
-  - `2` — `black-sigatoka`
-  - `3` — `yellow-sigatoka`
+  - `2` — `sigatoka`
+  - `3` — `panama-disease`
   - `4` — `cordana-leaf-spot`
 - [x] Confirm both models use MobileNetV3-Small with the same width multiplier.
 - [x] Confirm model input is RGB, `224 x 224`, float32 `[0, 1]` before model-internal rescaling.
@@ -423,7 +423,7 @@ Evidence required: raw timing logs, profiler exports/screenshots, device specifi
 ## 18. Robustness and error analysis
 
 - [ ] Review the confusion matrix for recurring class confusions.
-- [ ] Inspect errors involving Dead leaf, Black Sigatoka, Yellow Sigatoka, Cordana leaf spot, and Healthy separately.
+- [ ] Inspect errors involving Dead leaf, Sigatoka, Panama disease, Cordana leaf spot, and Healthy separately.
 - [ ] Review low-confidence correct predictions and high-confidence incorrect predictions.
 - [ ] Check performance under blur, shadows, clutter, occlusion, varying distances, and different capture devices where real samples exist.
 - [ ] Check field images separately from curated images when sample sizes permit.

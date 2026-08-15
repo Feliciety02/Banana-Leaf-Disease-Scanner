@@ -48,16 +48,16 @@ class ModelComparisonTest extends TestCase
         Http::fake(['research.test/*' => Http::response([
             'timestamp' => now()->toIso8601String(),
             'baseline' => [
-                'model' => 'baseline', 'predicted_class' => 'black-sigatoka', 'confidence' => 0.84,
+                'model' => 'baseline', 'predicted_class' => 'sigatoka', 'confidence' => 0.84,
                 'inference_time_ms' => 43.2, 'model_size_bytes' => 1800000,
             ],
             'enhanced' => [
-                'model' => 'enhanced', 'predicted_class' => 'black-sigatoka', 'confidence' => 0.91,
+                'model' => 'enhanced', 'predicted_class' => 'sigatoka', 'confidence' => 0.91,
                 'inference_time_ms' => 48.1, 'model_size_bytes' => 1900000,
             ],
             'comparison' => [
                 'prediction_agreement' => true,
-                'summary' => 'Both models predicted black-sigatoka.',
+                'summary' => 'Both models predicted sigatoka.',
                 'enhanced_confidence_difference_percentage_points' => 7.0,
                 'enhanced_latency_difference_ms' => 4.9,
                 'interpretation_note' => 'Confidence differences for one image do not establish accuracy or model superiority.',

@@ -2324,6 +2324,22 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--green); }
 .scan-review-request > div { padding: 0 var(--space-4) var(--space-4); border-top: 1px solid var(--line); }
 .scan-review-request .farmer-review-notes { margin-top: var(--space-4); }
 
+.research-consent-card {
+  padding: var(--space-4);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.research-consent-card.selected { background: var(--green-soft); border-color: var(--green); }
+.research-consent-card input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--green); }
+.research-consent-card span { display: grid; gap: 4px; }
+.research-consent-card strong { color: var(--ink); font-size: 13px; }
+.research-consent-card small { color: var(--muted); font-size: 11px; line-height: 1.5; }
+
 @media (max-width: 900px) {
   .scan-result-hero { grid-template-columns: 1fr; }
   .scan-result-photo, .scan-result-photo img { min-height: 390px; max-height: 480px; }

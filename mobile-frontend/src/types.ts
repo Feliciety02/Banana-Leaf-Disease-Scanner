@@ -14,6 +14,7 @@ export type Diagnosis = {
   syncAttempts?: number;
   syncError?: string | null;
   isSimulated: boolean;
+  researchConsent: boolean;
 };
 
 export type User = { id: number; name: string; email: string; role: 'farmer' | 'agricultural_expert' | 'admin'; email_verified_at?: string | null };

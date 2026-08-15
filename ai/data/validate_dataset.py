@@ -14,7 +14,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-dir", help="Overrides DATASET_ROOT from ai/.env")
     parser.add_argument("--config", help="Optional experiment JSON override")
-    parser.add_argument("--output-dir", default="ai/artifacts/dataset-validation")
+    parser.add_argument("--output-dir", default="ai/artifacts/dataset-validation-current-contract")
     args = parser.parse_args()
 
     config = load_config(args.config)

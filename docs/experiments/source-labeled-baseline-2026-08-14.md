@@ -1,5 +1,10 @@
 # Source-labeled baseline experiment — 2026-08-14
 
+> [!IMPORTANT]
+> Legacy experiment: this report intentionally preserves the retired separate
+> Black/Yellow Sigatoka labels. Its artifacts are incompatible with the current
+> `sigatoka` / `panama-disease` contract and must not be deployed.
+
 ## Decision
 
 This run is a reproducible exploratory baseline, not a production or biological-validation result. Do not deploy either TFLite file. Full teacher/student training is deferred until the Yellow Sigatoka labels receive expert review and the class has enough independent biological groups for meaningful validation and testing.
@@ -70,7 +75,7 @@ Generated artifacts are isolated under `ai/artifacts/source_labeled_baseline/` a
 
 ## Required before the next official run
 
-1. Obtain expert review or stronger ground-truth evidence for every Yellow record, especially the Cordana-like cases in `datasets/label-review/yellow-sigatoka-review.csv`.
+1. Preserve expert review or stronger ground-truth evidence for every legacy Yellow-source record, especially the Cordana-like cases in `datasets/label-review/sigatoka-legacy-yellow-review.csv`.
 2. Add enough independent, verified Yellow specimens to support more than one test group and a protocol-approved per-class sample target.
 3. Establish source/specimen groups for the other classes where acquisition metadata permits.
 4. Investigate INT8 calibration/runtime compatibility and require acceptable per-class parity—particularly nonzero Dead recall—before mobile integration.

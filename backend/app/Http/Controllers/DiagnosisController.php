@@ -25,11 +25,15 @@ class DiagnosisController extends Controller
 
     public function store(StoreDiagnosisRequest $request): JsonResponse
     {
-        $data = $request->safe()->except('image');
+        $data = $request->safe()->except(['image', 'research_consent']);
         $data['user_id'] = $request->user()->id;
         $data['is_simulated'] = config('banana.ai_mode') !== 'PRODUCTION';
         $data['image_path'] = $request->hasFile('image') ? $request->file('image')->store('diagnoses', 'public') : null;
         $data['sync_status'] = $data['source'] === 'mobile' ? 'synced' : null;
+        if ($request->boolean('research_consent')) {
+            $data['research_consented_at'] = now();
+            $data['research_consent_version'] = config('banana.research_consent_version');
+        }
         $diagnosis = Diagnosis::query()->create($data);
 
         return response()->json(['success' => true, 'message' => 'Diagnosis created.', 'data' => new DiagnosisResource($diagnosis->load(['disease', 'review.expert']))], 201);
@@ -73,6 +77,25 @@ class DiagnosisController extends Controller
         $diagnosis->delete();
 
         return response()->json(status: 204);
+    }
+
+    public function withdrawResearchConsent(Request $request, Diagnosis $diagnosis): JsonResponse
+    {
+        $this->authorize('view', $diagnosis);
+        if (! $diagnosis->hasActiveResearchConsent()) {
+            return response()->json(['success' => false, 'message' => 'This diagnosis has no active research consent.', 'errors' => (object) []], 422);
+        }
+        if ($diagnosis->datasetCandidate?->status === 'approved') {
+            return response()->json(['success' => false, 'message' => 'This image is already part of an approved research dataset. Contact the research team to request removal.', 'errors' => (object) []], 422);
+        }
+
+        $diagnosis->update(['research_consent_withdrawn_at' => now()]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Research consent withdrawn. This image can no longer be approved for a research dataset.',
+            'data' => new DiagnosisResource($diagnosis->fresh()->load(['disease', 'review.expert'])),
+        ]);
     }
 
     private function paginated($paginator, string $message): JsonResponse

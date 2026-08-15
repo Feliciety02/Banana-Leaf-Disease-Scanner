@@ -27,6 +27,9 @@ class DatasetCandidateController extends Controller
         if (! $diagnosis->image_path) {
             throw ValidationException::withMessages(['diagnosis' => 'Only diagnoses with a retained image can become research candidates.']);
         }
+        if (! $diagnosis->hasActiveResearchConsent()) {
+            throw ValidationException::withMessages(['diagnosis' => 'The farmer must give active research-image consent before this image can be nominated.']);
+        }
         if (! $diagnosis->review || $diagnosis->review->review_status === 'pending') {
             throw ValidationException::withMessages(['diagnosis' => 'Complete the agricultural review before nominating this image.']);
         }
@@ -45,6 +48,10 @@ class DatasetCandidateController extends Controller
             'status' => ['required', Rule::in(['approved', 'rejected', 'uncertain'])],
             'review_notes' => ['nullable', 'string', 'max:5000'],
         ]);
+        $candidate->load('diagnosis');
+        if ($data['status'] === 'approved' && ! $candidate->diagnosis->hasActiveResearchConsent()) {
+            throw ValidationException::withMessages(['status' => 'This candidate cannot be approved because research consent is missing or was withdrawn.']);
+        }
         $candidate->update([...$data, 'reviewed_by' => $request->user()->id, 'reviewed_at' => now()]);
 
         return response()->json(['success' => true, 'message' => 'Manual dataset-candidate decision recorded.', 'data' => new DatasetCandidateResource($candidate->load(['diagnosis.user', 'diagnosis.disease', 'diagnosis.review.expert', 'proposer:id,name', 'reviewer:id,name']))]);
