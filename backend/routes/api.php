@@ -40,9 +40,11 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
     Route::delete('/profile', [ProfileController::class, 'destroy']);
     Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
     Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview']);
+    Route::delete('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'withdrawResearchConsent']);
     Route::post('/inference', InferenceController::class);
     Route::post('/research/model-comparison', ModelComparisonController::class);
     Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
+    Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
 
     Route::prefix('admin')->middleware('admin')->group(function () {
         Route::get('/', DashboardController::class);

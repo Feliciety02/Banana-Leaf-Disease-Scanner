@@ -16,7 +16,7 @@ class LabelContractTest(unittest.TestCase):
         self.assertEqual(config.data.num_classes, len(CLASS_LABELS))
         self.assertEqual(
             [CLASS_DISPLAY_NAMES[label] for label in CLASS_LABELS],
-            ["Healthy", "Dead leaf", "Black Sigatoka", "Yellow Sigatoka", "Cordana leaf spot"],
+            ["Healthy", "Dead leaf", "Sigatoka leaf spot", "Panama disease", "Cordana leaf spot"],
         )
 
     def test_configuration_cannot_override_final_classes(self) -> None:

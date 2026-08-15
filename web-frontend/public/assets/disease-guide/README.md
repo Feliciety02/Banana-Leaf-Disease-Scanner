@@ -28,9 +28,9 @@ Before adding an asset:
 | --- | --- | --- | --- |
 | Healthy | `healthy-*.jpg` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
 | Dead leaf | `dead-*.jpg` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
-| Black Sigatoka | `black-sigatoka-*.jpg` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
-| Yellow Sigatoka | `yellow-sigatoka-*.jpg` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
+| Sigatoka leaf spot | `sigatoka-*.jpg` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
 | Cordana leaf spot | `cordana-*.jpg` | Arman et al. (2023), *Banana Leaf Spot Diseases (BananaLSD) Dataset*, V1 | CC BY 4.0 |
+| Panama disease leaf stages | `panama-stages/*/panama-leaf-stage-*.jpg` | Mduma & Elinisa (2025), *Banana Leaves Imagery Dataset* | CC BY 4.0 |
 
 ## Sources
 
@@ -50,6 +50,16 @@ The `dead-*.jpg` examples show visibly dried or necrotic leaves. They do not ide
 - **DOI:** <https://doi.org/10.17632/9tb7k297ff.1>
 - **License:** [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/)
 
+### Banana Leaves Imagery Dataset
+
+- **Authors:** Mduma, Neema; Elinisa, Christian
+- **Published:** 2025, Zenodo
+- **DOI:** <https://doi.org/10.5281/zenodo.7670326>
+- **Related article:** <https://doi.org/10.1038/s41597-025-04456-4>
+- **License:** [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/)
+
+The `panama-stages` collection uses only images from the dataset's Fusarium Wilt Race 1 class. Its stage ordering is a provisional leaf-severity grouping, not a source-provided chronological label. See [`panama-stages/README.md`](panama-stages/README.md) for the image mapping and leaf-only scope.
+
 ## Asset Handling
 
 The selected files came from the datasets' original, non-augmented image sets. They were renamed for stable application use; no visual modifications were made.
@@ -60,9 +70,9 @@ The selected files came from the datasets' original, non-augmented image sets. T
 | --- | --- |
 | Healthy | `healthy-<number>.jpg` |
 | Dead leaf | `dead-<number>.jpg` |
-| Black Sigatoka | `black-sigatoka-<number>.jpg` |
-| Yellow Sigatoka | `yellow-sigatoka-<number>.jpg` |
+| Sigatoka leaf spot | `sigatoka-<number>.jpg` |
 | Cordana leaf spot | `cordana-<number>.jpg` |
+| Panama disease leaf stage | `panama-stages/<stage-folder>/panama-leaf-stage-<number>.jpg` |
 
 ## Student Checklist
 

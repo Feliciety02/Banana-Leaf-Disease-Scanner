@@ -109,6 +109,7 @@ Set `DEV_ADMIN_EMAIL`, `DEV_ADMIN_PASSWORD`, and optionally `DEV_ADMIN_NAME` to 
 | --- | --- |
 | `APP_URL` | Public application URL used for signed links |
 | `PRIVACY_CONTACT_EMAIL` | Contact shown on privacy and deletion pages |
+| `RESEARCH_CONSENT_VERSION` | Version recorded when a farmer opts to contribute an image for future research |
 | `DEV_USER_PASSWORD` | Local seeded-account password |
 | `AI_MODE` | Visible inference mode, currently simulated/development |
 | `AI_LABEL_MAP_PATH` | Path to the deployed model's matching label map |

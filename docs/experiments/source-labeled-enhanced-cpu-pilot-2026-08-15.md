@@ -1,5 +1,10 @@
 # Source-labeled enhanced CPU pilot — 2026-08-15
 
+> [!IMPORTANT]
+> Legacy experiment: this report intentionally preserves the retired separate
+> Black/Yellow Sigatoka labels. Its artifacts are incompatible with the current
+> `sigatoka` / `panama-disease` contract and must not be deployed.
+
 ## Decision
 
 The baseline is the current leader in this exploratory comparison. On the exact same 69-image held-out split, the baseline reached 91.30% accuracy and 90.40% macro F1; the enhanced student reached 76.81% accuracy and 70.66% macro F1.

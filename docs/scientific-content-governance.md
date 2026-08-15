@@ -2,9 +2,20 @@
 
 ## Current content gate
 
-The working dataset now follows the five-class contract `healthy`, `dead`, `black-sigatoka`, `yellow-sigatoka`, and `cordana-leaf-spot`. Generic Sigatoka images without subtype provenance remain outside the training root pending expert review. A final trained `label_map.json` is still required before model-runtime readiness can be claimed.
+The working dataset now follows the five-class contract `healthy`, `dead`,
+`sigatoka`, `panama-disease`, and `cordana-leaf-spot`. The `sigatoka` class
+combines Black- and Yellow-source presentations and does not claim subtype
+identification. Generic Sigatoka images without sufficient provenance remain
+outside the training root pending expert review. The Panama training folder has
+42 readable source-labeled leaf candidates, but agricultural-expert review and
+scientific content verification remain outstanding. Existing artifacts stay
+blocked until both models are retrained under the new contract.
 
-Place the trained artifact's exact five-entry JSON label map at the configured `AI_LABEL_MAP_PATH`. The API accepts only keys `0` through `4`, five non-empty unique labels, and no extra classes. Disease drafts must use one of those exact values as `model_class_key`.
+Place the retrained artifact's exact five-entry JSON label map at the configured
+`AI_LABEL_MAP_PATH`. The API accepts only keys `0` through `4` in the canonical
+order above, five non-empty unique labels, and no extra classes. A stale map
+containing `black-sigatoka` or `yellow-sigatoka` is rejected. Disease drafts
+must use one of the canonical values as `model_class_key`.
 
 ## Research dossier gate
 

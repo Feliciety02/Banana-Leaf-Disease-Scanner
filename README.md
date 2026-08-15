@@ -71,7 +71,7 @@ Use `docker compose up --build` instead when source code, dependencies, environm
 
 - [New student? Begin here](#new-student-begin-here)
 - [Next time you open the project](#next-time-you-open-the-project)
-- [Current research result](#current-research-result)
+- [Archived research result](#archived-research-result)
 - [Architecture](#architecture)
 - [Repository guide](#repository-guide)
 - [Quick start with Docker](#quick-start-with-docker)
@@ -81,19 +81,26 @@ Use `docker compose up --build` instead when source code, dependencies, environm
 - [Quality checks](#quality-checks)
 - [Documentation](#documentation)
 
-## Current Research Result
+## Archived Research Result
 
-Both models were evaluated on the same untouched 69-image test partition.
+These models were evaluated on the same untouched 69-image test partition
+under the retired Black/Yellow Sigatoka class contract.
 
 | Model | Test accuracy | Macro F1 | Correct predictions |
 | --- | ---: | ---: | ---: |
 | Standard MobileNetV3-Small baseline | 91.30% | 90.40% | 63 / 69 |
 | Proposed CA-MobileNetV3-Small | **95.65%** | **96.05%** | **66 / 69** |
 
-The proposed Coordinate Attention–enhanced MobileNetV3-Small (CA-MobileNetV3-Small) currently leads by **4.35 percentage points in accuracy** and **5.65 percentage points in macro F1**. This is an exploratory result, not a production claim: the test set is small, and Yellow Sigatoka has only three test images from one source group pending expert label confirmation.
+The proposed Coordinate Attention–enhanced MobileNetV3-Small
+(CA-MobileNetV3-Small) led that historical experiment by **4.35 percentage
+points in accuracy** and **5.65 percentage points in macro F1**. It is an
+exploratory result, not a production claim.
 
 > [!WARNING]
-> The current trained artifact classifies `dead` leaves rather than Moko disease. These are not interchangeable labels, so this result does not yet validate the research proposal's Moko-disease target class.
+> The archived artifacts output separate Black and Yellow Sigatoka classes and
+> have no Panama disease output. They are rejected by the current runtime and
+> must be retrained after the new Panama candidates complete expert review. The `dead` class is
+> also a visible condition, not Moko disease or another causal diagnosis.
 
 See the [AI pipeline guide](ai/README.md) for reproducible training and evaluation commands.
 
@@ -300,6 +307,7 @@ These accounts are never seeded when `APP_ENV=production`.
 | Android emulator | `EXPO_PUBLIC_API_URL` | `http://10.0.2.2:8001/api` |
 | Physical phone | `EXPO_PUBLIC_API_URL` | `http://<computer-lan-ip>:8001/api` |
 | Research comparison | `AI_COMPARISON_URL` | `http://127.0.0.1:8100/compare` |
+| Research image consent | `RESEARCH_CONSENT_VERSION` | `research-image-consent-v1` |
 
 The optional comparison service is research-only. It runs both models side by side and does not save its output as a farmer diagnosis.
 
@@ -311,6 +319,7 @@ The optional comparison service is research-only. It runs both models side by si
 4. Pending mobile records are sent to `POST /api/mobile/sync` when connectivity returns.
 5. Diagnosis UUIDs make retries idempotent and prevent duplicate server records.
 6. Agricultural reviews are stored separately and never overwrite the original model output.
+7. Farmer photos enter the research-candidate queue only after explicit, versioned consent, image upload, agricultural review, and a separate expert nomination.
 
 ## Quality Checks
 
@@ -359,7 +368,8 @@ npm run release:status
 ## Scientific Boundaries
 
 - `dead` means a visibly dried or necrotic leaf. It is not evidence of Moko disease or any specific pathogen.
-- Black and Yellow Sigatoka must not be assigned from lesion color alone when provenance or expert review is uncertain.
+- `sigatoka` combines Black- and Yellow-source presentations; the model does not claim to distinguish the subtypes.
+- Panama disease leaf symptoms require expert/provenance support and do not replace field or laboratory confirmation.
 - Original predictions, model versions, uncertainty flags, and reviewer decisions remain separate for auditability.
 - Disease guidance requires traceable evidence and agricultural review. Chemical directions are withheld unless current Philippine regulatory evidence supports them.
 - The `healthy` class is not proof that a plant is disease-free.

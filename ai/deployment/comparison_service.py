@@ -12,7 +12,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from dotenv import load_dotenv
 
-from ai.deployment.compare_tflite import compare_models
+from ai.deployment.compare_tflite import _read_label_map, compare_models
 
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -41,6 +41,13 @@ def _required_artifacts() -> tuple[Path, Path, Path]:
     absent = [str(path) for path in paths if not path.is_file()]
     if absent:
         raise HTTPException(status_code=503, detail=f"Configured research artifacts were not found: {', '.join(absent)}")
+    try:
+        _read_label_map(paths[2])
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Configured research artifacts use an obsolete or invalid class-label contract; retraining is required",
+        ) from error
     return paths  # type: ignore[return-value]
 
 

@@ -25,8 +25,11 @@ class ClassLabelRegistry
         }
 
         $labels = array_values($decoded);
+        $expectedLabels = config('banana.class_labels', []);
 
-        return count(array_unique($labels)) === 5 && collect($labels)->every(fn ($label) => is_string($label) && trim($label) !== '')
+        return count(array_unique($labels)) === 5
+            && collect($labels)->every(fn ($label) => is_string($label) && trim($label) !== '')
+            && $labels === $expectedLabels
             ? $labels
             : [];
     }

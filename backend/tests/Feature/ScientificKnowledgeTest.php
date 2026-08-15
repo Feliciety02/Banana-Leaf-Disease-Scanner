@@ -21,7 +21,7 @@ class ScientificKnowledgeTest extends TestCase
     public function test_verified_only_publication_and_edit_re_review_lifecycle(): void
     {
         $disease = $this->postJson('/api/admin/diseases', [
-            'slug' => 'fixture-class-0', 'model_class_key' => 'fixture-class-0', 'name' => 'Test fixture disease',
+            'slug' => 'sigatoka', 'model_class_key' => 'sigatoka', 'name' => 'Test fixture disease',
             'causal_agent' => 'Test fixture organism', 'pathogen_type' => 'other',
             'farmer_summary' => 'Test-only farmer content.', 'curative_status' => 'unclear_evidence', 'evidence_level' => 'high',
             'image_only_limitations' => 'Test-only limitation.', 'professional_referral' => 'Test-only referral.',
@@ -63,7 +63,7 @@ class ScientificKnowledgeTest extends TestCase
 
         Sanctum::actingAs(User::factory()->admin()->create());
         $this->putJson("/api/admin/diseases/{$disease['id']}", [
-            'slug' => 'fixture-class-0', 'model_class_key' => 'fixture-class-0', 'name' => 'Edited test fixture disease',
+            'slug' => 'sigatoka', 'model_class_key' => 'sigatoka', 'name' => 'Edited test fixture disease',
             'causal_agent' => 'Test fixture organism', 'pathogen_type' => 'other',
             'farmer_summary' => 'Edited test-only content.', 'curative_status' => 'unclear_evidence', 'evidence_level' => 'high',
         ])->assertOk()->assertJsonPath('data.verification_status', 'researched')->assertJsonPath('data.is_verified', false);
@@ -73,7 +73,7 @@ class ScientificKnowledgeTest extends TestCase
     public function test_chemical_guidance_requires_regulatory_flag_and_farmer_cannot_manage_sources(): void
     {
         $disease = $this->postJson('/api/admin/diseases', [
-            'slug' => 'fixture-class-2', 'model_class_key' => 'fixture-class-2', 'name' => 'Chemical-rule fixture',
+            'slug' => 'sigatoka', 'model_class_key' => 'sigatoka', 'name' => 'Chemical-rule fixture',
             'curative_status' => 'unclear_evidence', 'evidence_level' => 'limited',
         ])->assertCreated()->json('data');
 

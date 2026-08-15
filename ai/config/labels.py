@@ -8,15 +8,15 @@ from __future__ import annotations
 CLASS_LABELS: tuple[str, ...] = (
     "healthy",
     "dead",
-    "black-sigatoka",
-    "yellow-sigatoka",
+    "sigatoka",
+    "panama-disease",
     "cordana-leaf-spot",
 )
 
 CLASS_DISPLAY_NAMES: dict[str, str] = {
     "healthy": "Healthy",
     "dead": "Dead leaf",
-    "black-sigatoka": "Black Sigatoka",
-    "yellow-sigatoka": "Yellow Sigatoka",
+    "sigatoka": "Sigatoka leaf spot",
+    "panama-disease": "Panama disease",
     "cordana-leaf-spot": "Cordana leaf spot",
 }

@@ -15,7 +15,7 @@ Choose what you want to do:
 
 | Goal | Go to |
 | --- | --- |
-| See the current accuracy | [Current result](#current-result) |
+| See the archived accuracy | [Archived result](#archived-result) |
 | Prepare Python for the first time | [One-time setup](#one-time-setup) |
 | Train both models yourself | [Train both models](#train-both-models) |
 | Read and compare the scores | [View the accuracy](#view-the-accuracy) |
@@ -23,20 +23,23 @@ Choose what you want to do:
 | Export a phone-ready model | [Advanced: TensorFlow Lite](#advanced-tensorflow-lite) |
 | Fix a training problem | [Common problems](#common-problems) |
 
-## Current Result
+## Archived Result
 
-Both models were tested on the same 69 held-out images.
+Both models were tested on the same 69 held-out images under the retired
+Black/Yellow Sigatoka contract.
 
 | Model | Test accuracy | Macro F1 | Correct images |
 | --- | ---: | ---: | ---: |
 | Baseline MobileNetV3-Small | 91.30% | 90.40% | 63 / 69 |
 | **Proposed CA-MobileNetV3-Small** | **95.65%** | **96.05%** | **66 / 69** |
 
-The **proposed CA-MobileNetV3-Small is the current winner** on this fixed test split.
+The **proposed CA-MobileNetV3-Small won that historical fixed-split run**.
 
 > [!CAUTION]
-> This is a thesis experiment, not guaranteed field accuracy. The test set is small, and Yellow Sigatoka has only three test images whose source labels still require expert confirmation.
-> The current artifact uses a `dead`-leaf class, not Moko disease; those labels must not be treated as equivalent.
+> These artifacts are incompatible with the current `sigatoka` and
+> `panama-disease` contract and are rejected by the runtime. Formal retraining
+> remains gated on expert review of the new Panama candidates. The `dead`-leaf
+> class is also not Moko disease or another causal diagnosis.
 
 ## What Are We Comparing?
 
@@ -125,11 +128,18 @@ The five classes and their fixed output order are:
 | ---: | --- | --- |
 | 0 | `healthy` | Healthy |
 | 1 | `dead` | Dead leaf |
-| 2 | `black-sigatoka` | Black Sigatoka |
-| 3 | `yellow-sigatoka` | Yellow Sigatoka |
+| 2 | `sigatoka` | Sigatoka leaf spot |
+| 3 | `panama-disease` | Panama disease |
 | 4 | `cordana-leaf-spot` | Cordana leaf spot |
 
-`dead` describes a visibly dried or necrotic leaf. It does not mean that Moko or another specific pathogen caused the condition.
+`dead` describes a visibly dried or necrotic leaf. It does not mean that Moko
+or another specific pathogen caused the condition. `sigatoka` combines the
+former Black- and Yellow-source classes; it does not predict the subtype.
+
+The Panama directory currently contains 42 readable, source-labeled leaf
+images. They are suitable only for exploratory work until agricultural-expert
+review is recorded; do not represent a successful structural validation as
+biological approval.
 
 Validate the files before every formal experiment:
 
