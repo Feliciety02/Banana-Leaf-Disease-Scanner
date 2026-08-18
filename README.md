@@ -1,77 +1,34 @@
 # DahonMD
 
-**Banana Leaf Screening and Field Diagnosis System** — A shared Laravel API with web and mobile clients, offline field history, agricultural review, and a reproducible five-class AI research pipeline.
+**Banana Leaf Screening and Field Diagnosis System** — a mobile and web platform that assists farmers in identifying supported banana leaf diseases through image-based analysis.
 
 **Course:** CCE 106L – Applications Development and Emerging Technologies
 
 **Group Members:**
-- Fe Anne Malasarte 
-- Jay Mark Burlado 
-- Joevan Capote 
-- John Benedict Bongcac 
+- Fe Anne Malasarte
+- Jay Mark Burlado
+- Joevan Capote
+- John Benedict Bongcac
 
 ---
 
-<div align="center">
+## About the Project
 
-# DahonMD
+DahonMD is an end-to-end banana leaf disease screening system built for field use. A farmer captures or uploads a leaf photo, and the system runs it through a machine learning model that classifies it into one of five conditions — healthy, sigatoka, cordana leaf spot, panama disease, or dead/necrotic tissue — then presents a plain-language result with a disease guide, evidence-based management information, and the option to request an agricultural review.
 
-### Banana Leaf Screening and Field Diagnosis System
+The platform consists of:
 
-A shared Laravel API with web and mobile clients, offline field history, agricultural review, and a reproducible five-class AI research pipeline.
-
-![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?logo=laravel&logoColor=white)
-![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=0B1F2A)
-![Expo](https://img.shields.io/badge/Expo-SDK_54-000020?logo=expo&logoColor=white)
-![TensorFlow](https://img.shields.io/badge/TensorFlow-2.20-FF6F00?logo=tensorflow&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-Local_%2B_Central-003B57?logo=sqlite&logoColor=white)
-
-</div>
+- **Mobile application** (Expo / React Native) with offline field history and retry-safe synchronization
+- **Web application** (React / Vite) for farmers, reviewers, and administrators
+- **Backend API** (Laravel) serving all clients and the central database
+- **AI research pipeline** (Python / TensorFlow) for reproducible model training, evaluation, and on-device deployment
 
 > [!IMPORTANT]
 > DahonMD is a screening and research system, not laboratory confirmation. Model confidence is not the biological probability that a plant has a disease.
 
-## New Student? Begin Here
+---
 
-You do not need to understand the whole repository before running it. Follow the path that matches your assignment:
-
-| If you are working on... | Read this first | Your usual command |
-| --- | --- | --- |
-| A quick web + API preview | This README | `docker compose up --build` |
-| AI training and accuracy | [AI student guide](ai/README.md) | `.venv\Scripts\python.exe ...` |
-| Dataset preparation | [Dataset guide](datasets/README.md) | `ai.data.validate_dataset` |
-| Laravel or database work | [Backend guide](backend/README.md) | `php artisan serve` |
-| Browser interface | [Web guide](web-frontend/README.md) | `npm run dev` |
-| Android or iOS app | [Mobile guide](mobile-frontend/README.md) | `npm start` |
-
-For the easiest web and API preview, use Docker. For the mobile app or local AI comparison service, use the native-development workflow.
-
-## Next Time You Open the Project
-
-After Docker and the project dependencies have already been downloaded, open PowerShell in the main `DahonMD` folder and run:
-
-```powershell
-docker compose up
-```
-
-Then open:
-
-```text
-http://127.0.0.1:4173
-```
-
-Keep the PowerShell window open while using DahonMD. When you are finished, press `Ctrl+C`, then run:
-
-```powershell
-docker compose down
-```
-
-Use `docker compose up --build` instead when source code, dependencies, environment defaults, or Docker files have changed.
-
-> [!IMPORTANT]
-> Do not also run `php artisan serve` or `npm run dev` while using this Docker workflow. They can compete for ports `8001` and `4173`.
-
-## At a Glance
+## Features
 
 | Area | What it provides |
 | --- | --- |
@@ -81,42 +38,7 @@ Use `docker compose up --build` instead when source code, dependencies, environm
 | Administration | User management, disease content, analytics, system settings, and model comparison |
 | AI research | Controlled MobileNetV3 baseline and Coordinate Attention enhanced model on one fixed split |
 
-## Contents
-
-- [New student? Begin here](#new-student-begin-here)
-- [Next time you open the project](#next-time-you-open-the-project)
-- [Archived research result](#archived-research-result)
-- [Architecture](#architecture)
-- [Repository guide](#repository-guide)
-- [Quick start with Docker](#quick-start-with-docker)
-- [Native development](#native-development)
-- [Development accounts](#development-accounts)
-- [Configuration](#configuration)
-- [Quality checks](#quality-checks)
-- [Documentation](#documentation)
-
-## Archived Research Result
-
-These models were evaluated on the same untouched 69-image test partition
-under the retired Black/Yellow Sigatoka class contract.
-
-| Model | Test accuracy | Macro F1 | Correct predictions |
-| --- | ---: | ---: | ---: |
-| Standard MobileNetV3-Small baseline | 91.30% | 90.40% | 63 / 69 |
-| Proposed CA-MobileNetV3-Small | **95.65%** | **96.05%** | **66 / 69** |
-
-The proposed Coordinate Attention–enhanced MobileNetV3-Small
-(CA-MobileNetV3-Small) led that historical experiment by **4.35 percentage
-points in accuracy** and **5.65 percentage points in macro F1**. It is an
-exploratory result, not a production claim.
-
-> [!WARNING]
-> The archived artifacts output separate Black and Yellow Sigatoka classes and
-> have no Panama disease output. They are rejected by the current runtime and
-> must be retrained after the new Panama candidates complete expert review. The `dead` class is
-> also a visible condition, not Moko disease or another causal diagnosis.
-
-See the [AI pipeline guide](ai/README.md) for reproducible training and evaluation commands.
+---
 
 ## Architecture
 
@@ -138,6 +60,18 @@ flowchart LR
 
 The Laravel application in `backend/` is the only runtime backend. Mobile SQLite is a private device cache and synchronization queue; it is not a second server database.
 
+### Shared Data Flow
+
+1. A farmer signs in through either client using the same account.
+2. Web diagnoses are saved directly through the central API.
+3. Mobile diagnoses are saved first to the farmer's private on-device history.
+4. Pending mobile records are sent to `POST /api/mobile/sync` when connectivity returns.
+5. Diagnosis UUIDs make retries idempotent and prevent duplicate server records.
+6. Agricultural reviews are stored separately and never overwrite the original model output.
+7. Farmer photos enter the research-candidate queue only after explicit, versioned consent, image upload, agricultural review, and a separate expert nomination.
+
+---
+
 ## Repository Guide
 
 | Path | Purpose | Guide |
@@ -148,6 +82,8 @@ The Laravel application in `backend/` is the only runtime backend. Mobile SQLite
 | `ai/` | Training, evaluation, comparison, and TFLite tooling | [AI README](ai/README.md) |
 | `datasets/` | Five-class dataset and label-review workspace | [Dataset README](datasets/README.md) |
 | `docs/` | Architecture, governance, experiments, and team checklists | [Documentation](#documentation) |
+
+---
 
 ## Quick Start with Docker
 
@@ -167,8 +103,6 @@ docker compose up --build
 
 Open the web app at <http://localhost:4173>. The shared API is available at <http://localhost:8001/api>.
 
-You know it worked when the Docker terminal shows both services running and the DahonMD sign-in page opens in your browser.
-
 The Docker stack does not start Expo or the optional Python comparison service. Use the native workflow below when working on those components.
 
 Stop the stack with:
@@ -182,6 +116,8 @@ Docker preserves application data in the `dahonmd_backend_data` volume. Only use
 > [!TIP]
 > Set `$env:DEV_USER_PASSWORD = "your-local-password"` before the first startup to change the seeded development password.
 
+---
+
 ## Native Development
 
 This guide assumes Windows PowerShell. Install PHP 8.2+, Composer, Node.js, and npm. Expo Go or Android Studio is also required for mobile development.
@@ -193,7 +129,7 @@ docker compose down
 ```
 
 > [!TIP]
-> A command that starts a server keeps running and may look “stuck.” That is normal. Leave that terminal open and use a new terminal for the next component.
+> A command that starts a server keeps running and may look "stuck." That is normal. Leave that terminal open and use a new terminal for the next component.
 
 ### 1. Start the API
 
@@ -307,6 +243,8 @@ npm start
 
 Run the live viewer beside any training command (`train_teacher`, `train_student`, `train_baseline`). It redraws the metric curves and current batch progress every few seconds and never writes to the output directory. See [Watch training live](ai/README.md#watch-training-live) in the [AI guide](ai/README.md) for details.
 
+---
+
 ## Development Accounts
 
 `php artisan migrate --seed` creates one local account for each role. The default password is `DahonMD@2026` unless `DEV_USER_PASSWORD` is set.
@@ -318,6 +256,8 @@ Run the live viewer beside any training command (`train_teacher`, `train_student
 | `maria.santos@dahonmd.test` | Farmer |
 
 These accounts are never seeded when `APP_ENV=production`.
+
+---
 
 ## Configuration
 
@@ -333,15 +273,23 @@ These accounts are never seeded when `APP_ENV=production`.
 
 The optional comparison service is research-only. It runs both models side by side and does not save its output as a farmer diagnosis.
 
-## Shared Data Flow
+---
 
-1. A farmer signs in through either client using the same account.
-2. Web diagnoses are saved directly through the central API.
-3. Mobile diagnoses are saved first to the farmer's private on-device history.
-4. Pending mobile records are sent to `POST /api/mobile/sync` when connectivity returns.
-5. Diagnosis UUIDs make retries idempotent and prevent duplicate server records.
-6. Agricultural reviews are stored separately and never overwrite the original model output.
-7. Farmer photos enter the research-candidate queue only after explicit, versioned consent, image upload, agricultural review, and a separate expert nomination.
+## AI Research Summary
+
+The AI pipeline trains and evaluates two models on one fixed, leakage-free five-class split:
+
+| Model | Description |
+| --- | --- |
+| MobileNetV3-Small baseline | Plain supervised control model |
+| CA-MobileNetV3-Small (proposed) | Coordinate Attention–enhanced model distilled from a self-supervised ResNet-101 teacher |
+
+> [!WARNING]
+> Earlier archived artifacts output separate Black and Yellow Sigatoka classes and have no Panama disease output. They are rejected by the current runtime and must be retrained after the new Panama candidates complete expert review. The `dead` class is also a visible condition, not Moko disease or another causal diagnosis.
+
+See the [AI pipeline guide](ai/README.md) for reproducible training and evaluation commands.
+
+---
 
 ## Quality Checks
 
@@ -373,6 +321,8 @@ npm run release:status
 .venv\Scripts\python.exe -m unittest discover -s ai\tests -v
 ```
 
+---
+
 ## Common Problems
 
 | Problem | Resolution |
@@ -387,6 +337,8 @@ npm run release:status
 | A phone cannot reach the API | Use the computer's LAN IP, the same Wi-Fi, and Laravel host `0.0.0.0`. |
 | Expo ignores an `.env` change | Stop Expo, run `npm start` again, and reopen the app. |
 
+---
+
 ## Scientific Boundaries
 
 - `dead` means a visibly dried or necrotic leaf. It is not evidence of Moko disease or any specific pathogen.
@@ -395,6 +347,8 @@ npm run release:status
 - Original predictions, model versions, uncertainty flags, and reviewer decisions remain separate for auditability.
 - Disease guidance requires traceable evidence and agricultural review. Chemical directions are withheld unless current Philippine regulatory evidence supports them.
 - The `healthy` class is not proof that a plant is disease-free.
+
+---
 
 ## Documentation
 
