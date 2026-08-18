@@ -33,23 +33,23 @@ sorted alphabetically or changed independently in another client.
 
 | Output | Model key | Display name | Working images |
 | ---: | --- | --- | ---: |
-| 0 | `healthy` | Healthy | 298 |
+| 0 | `healthy` | Healthy | 4,478 |
 | 1 | `dead` | Dead leaf | 55 |
-| 2 | `sigatoka` | Sigatoka leaf spot | 251 |
-| 3 | `panama-disease` | Panama disease | 42 |
-| 4 | `cordana-leaf-spot` | Cordana leaf spot | 231 |
-|  |  | **Total** | **877** |
+| 2 | `sigatoka` | Sigatoka leaf spot | 5,815 |
+| 3 | `panama-disease` | Panama disease | 4,059 |
+| 4 | `cordana-leaf-spot` | Cordana leaf spot | 598 |
+|  |  | **Total** | **15,005** |
 
 > [!WARNING]
-> The 42 Panama images are readable, source-labeled leaf candidates, not
-> laboratory confirmation. Structural validation can pass, but formal training
-> and deployment remain gated on agricultural-expert review and biological/source
+> All images are readable, source-labeled leaf candidates, not laboratory
+> confirmation. Structural validation can pass, but formal training and
+> deployment remain gated on agricultural-expert review and biological/source
 > grouping. Existing model artifacts use the obsolete Black/Yellow contract and
 > are not compatible with this dataset.
 
-All 877 active files are validator-readable and byte-unique. Source labels and
-biological grouping still require the review gates described below, so this is
-not a claim of laboratory-confirmed ground truth.
+All 15,005 active files are validator-readable and byte-unique. Source labels
+and biological grouping still require the review gates described below, so this
+is not a claim of laboratory-confirmed ground truth.
 
 ### Kaggle original-image expansion
 
@@ -66,7 +66,117 @@ license, mapping, and selection details.
 A repository-wide rescan then found 428 exact Healthy copies in four repeated
 107-image batches. They were moved to
 `label-review/exact-duplicates/healthy-incoming-2026-08-16/`; one clean
-`fresh1.jpg` through `fresh107.jpg` set remains active.
+`fresh1.jpg` through `fresh107.jpg` set remains active. (The quarantined copies
+were removed from the working tree later that day and remain recoverable from
+git history.)
+
+### August 16, 2026 quantity expansion
+
+To balance class quantity against the Panama class, the dataset was expanded
+again on August 16, 2026. All class folders were flattened (images live directly
+under each class key; the loader's `rglob` already supports this). Oversized
+Zenodo photographs (3480 × 3496 px) were downscaled to a maximum dimension of
+1024 px to keep storage and decode time practical for the 224 × 224 training
+pipeline (12.35 GB → 0.46 GB before the expansion additions).
+
+New sources admitted, after exact-hash and perceptual near-duplicate screening
+against the entire active dataset:
+
+| Class | Before | Added | Now |
+| --- | ---: | ---: | ---: |
+| `healthy` | 298 | +4,206 | 4,504 |
+| `sigatoka` | 251 | +5,567 | 5,818 |
+| `panama-disease` | 4,088 | — | 4,088 |
+| `cordana-leaf-spot` | 231 | +203 | 434 |
+| `dead` | 55 | — | 55 |
+Additions by source:
+
+- **Zenodo Banana Leaves Imagery Dataset** (Tanzania, DOI
+  [`10.5281/zenodo.7670326`](https://doi.org/10.5281/zenodo.7670326), CC BY 4.0):
+  3,218 Healthy images (`healthy-zenodo-*`) and 3,496 Black Sigatoka images
+  (`sigatoka-zenodo-*`). Archive MD5 checksums were verified before admission.
+- **`rayhanarlistya/banana-leaf-disease-dataset-v4`** (Kaggle, license recorded
+  as Unknown): 1,001 Healthy (`healthy-v4-*`), 2,497 Sigatoka
+  (`sigatoka-v4-*`), and 342 Cordana (`cordana-v4-*`) originals. 167 Cordana and
+  a small number of Healthy/Sigatoka files were rejected as perceptual
+  near-duplicates of already-active images. **Caution:** this compilation
+  dataset lists its license as Unknown; it was added at the project owner's
+  explicit request. Prefer the individually licensed upstream sources for
+  publication.
+- **BananaLSD** (Kaggle, CC BY-SA 4.0): 30 additional Cordana originals
+  (`cordana-bananalsd-*`) not already active.
+
+A full-dataset sweep after admission found 0 exact and 0 perceptual
+near-duplicates (Hamming distance ≤ 6) across all 14,899 files. The validator
+regenerates a leakage-safe split manifest on a fresh output directory.
+
+### Ecuador Cordana expansion (August 16, 2026)
+
+To further balance `cordana-leaf-spot` against `panama-disease`, 266 original
+field captures from *Deep Learning Banana Diseases* (Ecuador,
+`NixonJimenez02/deep-learning-banana-diseases` → `Data-Tesis/Cordana`) were
+admitted as `cordana-ecuador-*`, bringing the class from 434 to 700. The
+repository's 9,003 source-provided augmented images were not admitted. Screening
+rejected 28 files byte-identical to already-active images and 6 files matching
+existing cordana originals at dHash distance 0 (the source originals of
+re-encoded v4 copies). All admitted images are ≤ 1024 px on the longest side.
+The repository declares no LICENSE file; the companion MDPI AgriEngineering
+article is CC BY 4.0 and states the data are openly available. See
+[`banana_leaf_5class/SOURCES.md`](banana_leaf_5class/SOURCES.md).
+
+### Flip-aware duplicate sweep (August 16, 2026)
+
+After the Ecuador expansion, every class was rescanned against horizontal and
+vertical flips and 180° rotations (dHash is defeated by H/V flips because the
+gradient direction inverts, so flipped copies score far instead of near). The
+sweep ran in two passes:
+
+**Pass 1 — identical-hash pairs (Hamming distance 0 in any orientation):**
+
+| Class | dist=0 pairs | Files removed |
+| --- | ---: | ---: |
+| `cordana-leaf-spot` | 88 | 79 |
+| `healthy` | 29 | 24 |
+| `panama-disease` | 14 | 11 |
+| `sigatoka` | 3 | 3 |
+| `dead` | 0 | 0 |
+| **Total** | 134 | **117** |
+
+**Pass 2 — fine-verified pairs:** every remaining pair at 64-bit distance ≤ 2
+was re-checked with a finer 256-bit dHash across all orientations. Only pairs
+whose 256-bit distance stayed ≤ 16/256 (6.25%) were treated as re-encoded
+duplicates and removed. This confirmed the same v4/pfsd re-encode pattern that
+pass 1 missed by 1-2 bits of re-encode noise:
+
+| Class | Verified pairs | Files removed |
+| --- | ---: | ---: |
+| `cordana-leaf-spot` | 24 | 23 |
+| `healthy` | 2 | 2 |
+| `panama-disease` | 21 | 18 |
+| `sigatoka` | 0 | 0 |
+| **Total** | 47 | **43** |
+
+In every cluster the source-original copy was kept (BananaLSD, legacy imports,
+Zenodo) and the v4-derived or lower-numbered duplicate was removed. After both
+passes the dataset contains **15,005** active images. The earlier "0 exact /
+0 near-duplicates" sweep was not flip-aware; these passes close that gap at the
+strictest thresholds (dist=0 + 256-bit confirmation).
+
+### Flattened layout
+
+```text
+datasets/banana_leaf_5class/
+├── healthy/            # *.jpg (mostly zenodo, v4, nutrient, original)
+├── dead/
+├── sigatoka/
+├── panama-disease/
+└── cordana-leaf-spot/
+```
+
+Images are flat (no source subfolders). Filename prefixes record provenance:
+`healthy-zenodo-*`, `healthy-v4-*`, `healthy-nutrient-*`, `sigatoka-zenodo-*`,
+`sigatoka-v4-*`, `cordana-v4-*`, `cordana-bananalsd-*`, `cordana-ecuador-*`,
+`panama-*`.
 
 ### Legacy research snapshot
 
@@ -244,9 +354,9 @@ For an unsplit dataset, the loader creates a deterministic, class-stratified spl
 
 | Partition | Share | Current count |
 | --- | ---: | ---: |
-| Training | 70% | 322 |
-| Validation | 15% | 68 |
-| Test | 15% | 69 |
+| Training | 70% | 10,503 |
+| Validation | 15% | 2,251 |
+| Test | 15% | 2,251 |
 
 Follow these rules:
 
@@ -299,7 +409,7 @@ Do not ignore a warning simply because training still starts. Fix or formally do
 | Problem | What to do |
 | --- | --- |
 | A class folder is rejected | Match the exact lowercase model key from the label table. |
-| An image is unreadable | Move it to `label-review/malformed/` and retain the audit note. |
+| An image is unreadable | Move it to `label-review/malformed/` (or, if the folder is empty, record the exclusion in `label-review/` and rely on git history) and retain the audit note. |
 | A duplicate appears in two classes | Remove it from training and resolve the label conflict. |
 | Related photos appear in different splits | Add their paths to one group in `group_manifest.json`. |
 | Yellow and Cordana look similar | Do not guess; keep the record pending qualified review. |

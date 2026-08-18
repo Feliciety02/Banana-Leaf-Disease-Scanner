@@ -1,3 +1,17 @@
+# DahonMD
+
+**Banana Leaf Screening and Field Diagnosis System** — A shared Laravel API with web and mobile clients, offline field history, agricultural review, and a reproducible five-class AI research pipeline.
+
+**Course:** CCE 106L – Applications Development and Emerging Technologies
+
+**Group Members:**
+- Fe Anne Malasarte 
+- Jay Mark Burlado 
+- Joevan Capote 
+- John Benedict Bongcac 
+
+---
+
 <div align="center">
 
 # DahonMD
