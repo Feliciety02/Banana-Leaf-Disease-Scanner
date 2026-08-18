@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🍌 DahonMD
+#  DahonMD
 
 **Banana Leaf Screening and Field Diagnosis System**
 
