@@ -18,6 +18,7 @@ Choose what you want to do:
 | See the archived accuracy | [Archived result](#archived-result) |
 | Prepare Python for the first time | [One-time setup](#one-time-setup) |
 | Train both models yourself | [Train both models](#train-both-models) |
+| Watch training with live graphs | [Watch training live](#watch-training-live) |
 | Read and compare the scores | [View the accuracy](#view-the-accuracy) |
 | Understand the generated files | [Where are my results?](#where-are-my-results) |
 | Export a phone-ready model | [Advanced: TensorFlow Lite](#advanced-tensorflow-lite) |
@@ -165,8 +166,8 @@ $warmupOut = "ai/artifacts/runs/$run/enhanced-warmup"
 $enhancedOut = "ai/artifacts/runs/$run/enhanced"
 
 New-Item -ItemType Directory -Force $baselineOut, $warmupOut, $enhancedOut
-Copy-Item "ai/artifacts/source_labeled_baseline/split_manifest.json" "$warmupOut/split_manifest.json"
-Copy-Item "ai/artifacts/source_labeled_baseline/split_manifest.json" "$enhancedOut/split_manifest.json"
+Copy-Item "ai/artifacts/dataset-validation-current-contract/split_manifest.json" "$warmupOut/split_manifest.json"
+Copy-Item "ai/artifacts/dataset-validation-current-contract/split_manifest.json" "$enhancedOut/split_manifest.json"
 ```
 
 The `$run` variable gives the experiment a unique date and time. The other variables remember where each model should be saved.
@@ -181,7 +182,7 @@ The `$run` variable gives the experiment a unique date and time. The other varia
   --dataset-dir datasets\banana_leaf_5class `
   --config ai\config\source_labeled_baseline.json `
   --output-dir $baselineOut `
-  --split-manifest ai\artifacts\source_labeled_baseline\split_manifest.json
+  --split-manifest ai\artifacts\dataset-validation-current-contract\split_manifest.json
 ```
 
 Wait until PowerShell prints `Best baseline saved to ...`.
@@ -193,7 +194,7 @@ Wait until PowerShell prints `Best baseline saved to ...`.
   --dataset-dir datasets\banana_leaf_5class `
   --config ai\config\source_labeled_baseline.json `
   --output-dir $baselineOut `
-  --split-manifest ai\artifacts\source_labeled_baseline\split_manifest.json `
+  --split-manifest ai\artifacts\dataset-validation-current-contract\split_manifest.json `
   --baseline-model "$baselineOut/best_baseline.keras"
 ```
 
@@ -239,7 +240,7 @@ Fine-tuning uses a small learning rate and keeps transferred Batch Normalization
   --dataset-dir datasets\banana_leaf_5class `
   --config ai\config\source_labeled_enhanced_transfer_finetune.json `
   --output-dir $enhancedOut `
-  --split-manifest ai\artifacts\source_labeled_baseline\split_manifest.json `
+  --split-manifest ai\artifacts\dataset-validation-current-contract\split_manifest.json `
   --student-model "$enhancedOut/best_student.keras"
 ```
 
@@ -327,17 +328,62 @@ A model can have high accuracy while performing poorly on a small class. This is
 
 Only do this if `best_teacher.keras` is missing or if your research plan specifically requires a new teacher run. ResNet-101 training is much slower than training the two MobileNetV3 models.
 
+Teacher training has two phases that run in one command:
+
+1. **Self-supervised pretraining (SSL)** — BYOL, contrastive, and masked-image-modeling on the unlabeled leaves. This saves `resnet101_ssl_pretrained.keras` when it finishes.
+2. **Supervised fine-tuning** — the frozen representations plus a new classifier are trained on the labeled images. The best validation checkpoint is saved as `best_teacher.keras`.
+
+Train the teacher from scratch:
+
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_teacher `
   --dataset-dir datasets\banana_leaf_5class `
   --config ai\config\source_labeled_enhanced_cpu_pilot.json
 ```
 
-The expected checkpoint is:
+### Resume from the SSL checkpoint
+
+If `resnet101_ssl_pretrained.keras` already exists but `best_teacher.keras` is missing (for example, the fine-tuning phase was interrupted), add `--resume-ssl` to skip the slow SSL phase and jump straight into fine-tuning:
+
+```powershell
+.venv\Scripts\python.exe -m ai.training.train_teacher `
+  --resume-ssl `
+  --dataset-dir datasets\banana_leaf_5class `
+  --config ai\config\source_labeled_enhanced_cpu_pilot.json
+```
+
+The expected checkpoints, in order:
 
 ```text
-ai/artifacts/source_labeled_enhanced_cpu_pilot/best_teacher.keras
+ai/artifacts/source_labeled_enhanced_cpu_pilot/resnet101_ssl_pretrained.keras   # after SSL
+ai/artifacts/source_labeled_enhanced_cpu_pilot/best_teacher.keras               # after fine-tuning
 ```
+
+> [!TIP]
+> CPU training is memory-hungry. The teacher script already disables the fused oneDNN/MKL convolution path and stores the image cache on disk instead of in RAM. If training still runs out of memory, close other programs and lower `data.batch_size` in a copied config.
+
+## Watch Training Live
+
+The real-time viewer draws the training graphs as epochs complete. Open a **second PowerShell terminal** from the main `DahonMD` folder and point it at the same output directory that training is writing to:
+
+```powershell
+.venv\Scripts\python.exe -m ai.visualization.live_history `
+  --output-dir ai\artifacts\source_labeled_enhanced_cpu_pilot
+```
+
+What it shows:
+
+- A **live progress bar** with the current epoch, batch, learning rate, and running metrics, read from `teacher_live.json` and redrawn every few seconds.
+- **Metric curves** (`loss`, `accuracy`, `contrastive`, `byol`, `mim`) per epoch, redrawn whenever a `*history*.json` file is updated.
+
+Options:
+
+| Flag | Meaning | Default |
+| --- | --- | --- |
+| `--output-dir` | Artifact directory holding `*history*.json` files | required |
+| `--refresh` | How many seconds between redraws | `2.0` |
+
+Press `Ctrl+C` in the viewer terminal to stop. The viewer never writes to the output directory, so it is safe to run beside any training script (`train_teacher`, `train_student`, `train_baseline`).
 
 ## Common Problems
 
@@ -378,7 +424,7 @@ You do not need this section to compare Keras model accuracy. Use it only after 
   --dataset-dir datasets\banana_leaf_5class `
   --config ai\config\source_labeled_baseline.json `
   --output-dir $baselineOut `
-  --split-manifest ai\artifacts\source_labeled_baseline\split_manifest.json `
+  --split-manifest ai\artifacts\dataset-validation-current-contract\split_manifest.json `
   --baseline-model "$baselineOut/best_baseline.keras"
 ```
 

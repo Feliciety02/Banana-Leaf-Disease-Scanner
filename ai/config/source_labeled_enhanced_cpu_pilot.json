@@ -14,6 +14,7 @@
   "runtime": {
     "output_dir": "ai/artifacts/source_labeled_enhanced_cpu_pilot",
     "early_stopping_patience": 8,
-    "reduce_lr_patience": 4
+    "reduce_lr_patience": 4,
+    "num_parallel_calls": 6
   }
 }
