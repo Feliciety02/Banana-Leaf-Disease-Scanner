@@ -1,28 +1,52 @@
-# Five-Class Dataset Source Additions
+# Five-Class Dataset Sources
 
-This record covers the August 16, 2026 Kaggle expansion of the active five-class banana-leaf dataset. Only leaf images were admitted. Fruit, pseudostems, stems, rhizomes, internal cross-sections, whole-plant views, and source-provided augmentations were excluded.
+This record documents the active sources, licenses, admission checks, and
+flattening for the five-class banana-leaf dataset as of August 16, 2026.
 
-## Active Kaggle coverage
+## Current composition
 
-| Model class | Kaggle source coverage |
-| --- | --- |
-| `healthy` | Nutrient Deficient Banana Plant Leaves; BananaLSD and Banana Disease Recognition images already present from earlier imports |
-| `dead` | Banana Disease Recognition Dataset originals previously imported under the visual Dead leaf label |
-| `sigatoka` | BananaLSD originals plus earlier Banana Disease Recognition originals |
-| `panama-disease` | Banana Disease Recognition Dataset originals; see `panama-disease/README.md` |
-| `cordana-leaf-spot` | BananaLSD originals |
+| Model class | Working images | Primary sources |
+| --- | ---: | --- |
+| `healthy` | 4,478 | Zenodo Tanzania; v4 compilation (Healthy); Nutrient Deficient Banana Plant Leaves; earlier original imports |
+| `dead` | 55 | Banana Disease Recognition Dataset originals previously imported under the visual Dead leaf label (renamed from Moko Disease) |
+| `sigatoka` | 5,815 | Zenodo Tanzania (Black Sigatoka); v4 compilation (Yellow and Black Sigatoka); BananaLSD; earlier Banana Disease Recognition originals |
+| `panama-disease` | 4,059 | Zenodo Tanzania (Fusarium Wilt); Banana Disease Recognition Dataset originals; see `panama-disease/PROVENANCE.md` |
+| `cordana-leaf-spot` | 598 | BananaLSD originals; v4 compilation (Cordana); Ecuador Cordana field originals |
+| **Total** | **15,005** | |
 
-## Newly admitted files
+## Filename prefixes and provenance
 
-| Local folder | Added | Source class | Selection |
-| --- | ---: | --- | --- |
-| `healthy/kaggle-nutrient-healthy-original` | 100 | Healthy | Evenly sampled from 948 byte-unique candidates after duplicate screening |
-| `sigatoka/kaggle-bananalsd-original` | 97 active | Sigatoka | 100 sampled; 3 malformed/truncated-MPO files quarantined after strict warning review |
-| `cordana-leaf-spot/kaggle-bananalsd-original` | 100 | Cordana | Evenly sampled from 130 candidates not already present by exact hash |
+The class folders are flat. Filename prefixes identify the source batch:
 
-The local numeric suffix preserves the original source number. For example, `healthy-nutrient-0001.jpg` maps to `h_1.jpg`, while `sigatoka-bananalsd-0236.jpeg` maps to BananaLSD `OriginalSet/sigatoka/236.jpeg`.
+| Prefix | Source | Class |
+| --- | --- | --- |
+| `healthy-zenodo-*` | Zenodo HEALTHY-1/2/3 | healthy |
+| `healthy-v4-*` | v4 compilation `Healthy` | healthy |
+| `healthy-nutrient-*` | Nutrient Deficient Banana Plant Leaves `healthy` | healthy |
+| `sigatoka-zenodo-*` | Zenodo BLACK SIGATOKA-1/2/3 | sigatoka |
+| `sigatoka-v4-*` | v4 compilation `Yellow and Black Sigatoka` | sigatoka |
+| `cordana-v4-*` | v4 compilation `Cordana` | cordana-leaf-spot |
+| `cordana-bananalsd-*` | BananaLSD `OriginalSet/cordana` | cordana-leaf-spot |
+| `cordana-ecuador-*` | Deep Learning Banana Diseases (Ecuador) `Data-Tesis/Cordana` | cordana-leaf-spot |
+| `panama-*` | Zenodo Fusarium Wilt + Banana Disease Recognition Panama | panama-disease |
+
+The numeric suffix preserves ordering only; it does not necessarily map to the
+original source filename.
 
 ## Sources and licenses
+
+### Zenodo Banana Leaves Imagery Dataset (Tanzania)
+
+- **Zenodo:** <https://doi.org/10.5281/zenodo.7670326>
+- **Authors:** Mduma, N. & Elinisa, C. (2023)
+- **License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+- **Companion article:** <https://doi.org/10.1038/s41597-025-04456-4>
+- **Used here:** HEALTHY-1/2/3, BLACK SIGATOKA-1/2/3, and FUSARIUM WILT-2/3 originals
+- **Excluded:** none from this source; all admitted files are original captures
+
+Each ZIP archive was downloaded with a resumable downloader and its MD5
+checksum verified before extraction. Images were downscaled to a maximum
+dimension of 1024 px on admission.
 
 ### Banana Leaf Spot Diseases (BananaLSD) Dataset
 
@@ -33,8 +57,6 @@ The local numeric suffix preserves the original source number. For example, `hea
 - **Labeling:** the source reports expert plant-pathologist labeling
 - **Used here:** original Healthy, Sigatoka, and Cordana folders only
 - **Excluded:** all 1,600 source-provided augmented images and the non-contract Pestalotiopsis class
-
-The 129 BananaLSD Healthy files were already represented in the active Healthy class, so none were copied again. The source folder contained 91 unique hashes and 38 exact duplicate files.
 
 ### Nutrient Deficient Banana Plant Leaves
 
@@ -56,15 +78,58 @@ The 129 BananaLSD Healthy files were already represented in the active Healthy c
 - **Used here:** earlier original-image imports supporting Healthy, Dead leaf, Sigatoka, and Panama disease
 - **Excluded:** source-provided augmented derivatives
 
-## Admission checks
+### Banana Leaf Disease Dataset v4 (compilation)
 
-- Every active newly copied image passes decoder verification without a recovery warning. Files `0179`, `0183`, and `0452` were moved to `label-review/malformed/sigatoka-incoming-2026-08-16/`.
+- **Kaggle:** <https://www.kaggle.com/datasets/rayhanarlistya/banana-leaf-disease-dataset-v4>
+- **Uploader:** Rayhan Arlistya
+- **Version:** 1
+- **License:** recorded as **Unknown**
+- **Contents:** a compilation of Harvard Dataverse NM-AIST Bananas (2021 season),
+  BananaLSD, Banana Disease Recognition, and Roboflow exports
+- **Used here:** `Healthy`, `Yellow and Black Sigatoka`, and `Cordana` folders
+- **Excluded:** none from those folders except files rejected by duplicate screening
+
+> [!CAUTION]
+> This dataset's license is recorded as **Unknown**. It was admitted at the
+> project owner's explicit request to increase class quantity. For any
+> publication or redistribution, prefer the individually licensed upstream
+> sources listed above.
+
+### Deep Learning Banana Diseases (Ecuador Cordana originals)
+
+- **GitHub:** <https://github.com/NixonJimenez02/deep-learning-banana-diseases>
+- **Authors:** Jiménez, N. et al.
+- **Companion article:** Detection of Banana Leaf Diseases using Deep Learning
+  (MDPI, AgriEngineering 2025); the paper states the data are openly available
+  at the linked repository
+- **License:** the GitHub repository declares **no LICENSE file**; the
+  companion MDPI article is CC BY 4.0
+- **Used here:** original `Data-Tesis/Cordana` captures (300 files, none
+  augmented)
+- **Excluded:** all 9,003 source-provided augmented images under
+  `Imagenes-aumentadas/`; 28 files byte-identical to existing active images;
+  6 files matching existing cordana originals at dHash distance 0
+
+> [!CAUTION]
+> The repository itself carries no license, so reuse terms rest on the
+> companion CC BY 4.0 article statement. It was admitted at the project
+> owner's explicit request to balance the cordana class. For any publication
+> or redistribution, verify current upstream terms.
+
+## Admission checks (August 16, 2026)
+
+- Every admitted image passes decoder verification.
 - Exact SHA-256 duplicates within the active dataset were rejected.
-- No new cross-class exact-hash conflicts were admitted.
-- A 64-bit difference-hash screen found no strong near match at Hamming distance 6 or lower among the admitted candidate pools and their target classes.
-- Source labels remain pending project-specific agricultural-expert review; source provenance is not laboratory confirmation.
-
-After admission, a repository-wide scan also found 428 exact copies in older
-repeated Healthy filename batches. Those copies were moved to
-`datasets/label-review/exact-duplicates/healthy-incoming-2026-08-16/`; the
-active five-class root now has 877 images and 877 distinct SHA-256 hashes.
+- No cross-class exact-hash conflicts were admitted.
+- A 64-bit difference-hash screen found no near match at Hamming distance 6 or
+  lower among admitted candidate pools and their target classes.
+- A final full-dataset sweep found 0 exact and 0 near duplicates across all
+  15,165 active files.
+- A subsequent flip-aware sweep (comparing each image against horizontal,
+  vertical, and 180° rotations of every other image) removed 117 v4-derived
+  flipped or re-encoded duplicates at Hamming distance 0, then 43 more confirmed
+  by a finer 256-bit dHash (distance ≤ 16/256), leaving 15,005 active files.
+  See `datasets/README.md` → "Flip-aware duplicate sweep".
+- Oversized images were downscaled to a maximum dimension of 1024 px.
+- Source labels remain pending project-specific agricultural-expert review;
+  source provenance is not laboratory confirmation.

@@ -22,14 +22,19 @@ If evidence is insufficient, leave the image here. Exclusion is safer than creat
 
 ## Folder Guide
 
+The quarantined image files (`sigatoka-unverified/`, `exact-duplicates/`,
+`malformed/`) were removed from the working tree on August 16, 2026 to slim the
+repository. They remain recoverable from git history. What survives here is the
+audit record:
+
 | Path | Contents | Training status |
 | --- | --- | --- |
-| `sigatoka-unverified/` | 473 generic Sigatoka images without sufficient provenance | Excluded |
-| `exact-duplicates/` | 38 earlier Healthy copies, 428 incoming Healthy copies, and 1 legacy Yellow-source Sigatoka copy | Excluded as duplicate samples |
-| `malformed/` | Earlier malformed Sigatoka `452.jpeg` plus 3 warning-producing incoming Sigatoka JPEGs | Excluded |
 | `sigatoka-legacy-yellow-review.csv` | Original source label, review status, and grouping for 23 Yellow-source images now trained as `sigatoka` | Pending expert review |
+| `healthy-duplicate-cleanup-2026-08-16.md` | Record of removed duplicate Healthy copies | Historical |
+| `taxonomy-migration-2026-08-16.md` | Record of the Black/Yellow → `sigatoka` + `panama-disease` taxonomy change | Historical |
 
-These folders remain outside `banana_leaf_5class`, so the training loader cannot silently treat them as ground truth.
+These records remain outside `banana_leaf_5class`, so the training loader cannot
+silently treat them as ground truth.
 
 ## Sigatoka and Panama Review Rule
 
@@ -76,10 +81,14 @@ Do not use a model prediction as the authority for relabeling that model's own t
 
 ## Known Findings
 
-- Sixty-two generic Sigatoka files are exact duplicates of files already retained under `banana_leaf_5class/sigatoka`. Keep only one training copy of each image.
-- The legacy Yellow-source review sheet records conservative biological grouping and visible Cordana-like overlap.
-- `banana_leaf_5class/panama-disease` contains 42 source-labeled candidates; agricultural-expert review and biological/source grouping are still pending.
-- The malformed JPEG produced both a truncated-read warning and malformed MPO interpretation in Pillow; keeping it here preserves recoverability without weakening reproducibility.
+- Sixty-two generic Sigatoka files were exact duplicates of files retained under
+  `banana_leaf_5class/sigatoka`. Only one training copy of each was kept.
+- The legacy Yellow-source review sheet records conservative biological grouping
+  and visible Cordana-like overlap.
+- `banana_leaf_5class/panama-disease` contains 42 source-labeled candidates;
+  agricultural-expert review and biological/source grouping are still pending.
+- The malformed JPEG produced both a truncated-read warning and malformed MPO
+  interpretation in Pillow; its audit copy is recoverable from git history.
 
 ## Before Moving an Image
 
