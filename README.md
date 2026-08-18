@@ -1,46 +1,72 @@
-# DahonMD
+<div align="center">
 
-**Banana Leaf Screening and Field Diagnosis System** — a mobile and web platform that assists farmers in identifying supported banana leaf diseases through image-based analysis.
+# 🍌 DahonMD
+
+**Banana Leaf Screening and Field Diagnosis System**
+
+An end-to-end platform that helps farmers identify supported banana leaf diseases through image-based analysis.
 
 **Course:** CCE 106L – Applications Development and Emerging Technologies
 
 **Group Members:**
-- Fe Anne Malasarte
-- Jay Mark Burlado
-- Joevan Capote
-- John Benedict Bongcac
+| Member | Role |
+| --- | --- |
+| Fe Anne Malasarte | Student |
+| Jay Mark Burlado | Student |
+| Joevan Capote | Student |
+| John Benedict Bongcac | Student |
 
----
+![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?logo=laravel&logoColor=white)
+![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=0B1F2A)
+![Expo](https://img.shields.io/badge/Expo-SDK_54-000020?logo=expo&logoColor=white)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-2.20-FF6F00?logo=tensorflow&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-Local_%2B_Central-003B57?logo=sqlite&logoColor=white)
 
-## About the Project
-
-DahonMD is an end-to-end banana leaf disease screening system built for field use. A farmer captures or uploads a leaf photo, and the system runs it through a machine learning model that classifies it into one of five conditions — healthy, sigatoka, cordana leaf spot, panama disease, or dead/necrotic tissue — then presents a plain-language result with a disease guide, evidence-based management information, and the option to request an agricultural review.
-
-The platform consists of:
-
-- **Mobile application** (Expo / React Native) with offline field history and retry-safe synchronization
-- **Web application** (React / Vite) for farmers, reviewers, and administrators
-- **Backend API** (Laravel) serving all clients and the central database
-- **AI research pipeline** (Python / TensorFlow) for reproducible model training, evaluation, and on-device deployment
+</div>
 
 > [!IMPORTANT]
 > DahonMD is a screening and research system, not laboratory confirmation. Model confidence is not the biological probability that a plant has a disease.
 
 ---
 
-## Features
+## 📖 About the Project
 
-| Area | What it provides |
+A farmer captures or uploads a leaf photo, and the system runs it through a machine learning model that classifies it into one of five conditions:
+
+| Condition | Description |
 | --- | --- |
-| Farmer experience | Camera/gallery scans, plain-language results, disease guide, history, and review requests |
-| Field reliability | Per-farmer offline SQLite history and retry-safe synchronization |
-| Agricultural review | Prioritized queues, structured assessments, field-inspection flags, and content verification |
-| Administration | User management, disease content, analytics, system settings, and model comparison |
-| AI research | Controlled MobileNetV3 baseline and Coordinate Attention enhanced model on one fixed split |
+| 🟢 Healthy | No visible disease symptoms |
+| 🟡 Sigatoka | Black- and Yellow-source presentations |
+| 🟠 Cordana leaf spot | Fungal leaf spotting |
+| 🔴 Panama disease | Fusarium wilt symptoms |
+| ⚫ Dead / necrotic | Visibly dried or dead tissue |
+
+The result is presented as a plain-language guide with evidence-based management information and the option to request an agricultural review.
+
+### The Platform
+
+| Component | Stack | Purpose |
+| --- | --- | --- |
+| 📱 Mobile application | Expo / React Native | Offline field history + retry-safe sync |
+| 🌐 Web application | React / Vite | Farmers, reviewers, and administrators |
+| ⚙️ Backend API | Laravel | Serves all clients + central database |
+| 🤖 AI research pipeline | Python / TensorFlow | Reproducible training, evaluation, deployment |
 
 ---
 
-## Architecture
+## ✨ Features
+
+| Area | What it provides |
+| --- | --- |
+| 🧑‍🌾 Farmer experience | Camera/gallery scans, plain-language results, disease guide, history, and review requests |
+| 📡 Field reliability | Per-farmer offline SQLite history and retry-safe synchronization |
+| 🔬 Agricultural review | Prioritized queues, structured assessments, field-inspection flags, and content verification |
+| 🛠️ Administration | User management, disease content, analytics, system settings, and model comparison |
+| 🧠 AI research | Controlled MobileNetV3 baseline and Coordinate Attention enhanced model on one fixed split |
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
@@ -58,9 +84,9 @@ flowchart LR
     class Device,Central data;
 ```
 
-The Laravel application in `backend/` is the only runtime backend. Mobile SQLite is a private device cache and synchronization queue; it is not a second server database.
+The Laravel application in `backend/` is the only runtime backend. Mobile SQLite is a private device cache and synchronization queue — it is not a second server database.
 
-### Shared Data Flow
+### 🔄 Shared Data Flow
 
 1. A farmer signs in through either client using the same account.
 2. Web diagnoses are saved directly through the central API.
@@ -72,7 +98,7 @@ The Laravel application in `backend/` is the only runtime backend. Mobile SQLite
 
 ---
 
-## Repository Guide
+## 📂 Repository Guide
 
 | Path | Purpose | Guide |
 | --- | --- | --- |
@@ -81,16 +107,16 @@ The Laravel application in `backend/` is the only runtime backend. Mobile SQLite
 | `mobile-frontend/` | Expo app with offline SQLite and synchronization | [Mobile README](mobile-frontend/README.md) |
 | `ai/` | Training, evaluation, comparison, and TFLite tooling | [AI README](ai/README.md) |
 | `datasets/` | Five-class dataset and label-review workspace | [Dataset README](datasets/README.md) |
-| `docs/` | Architecture, governance, experiments, and team checklists | [Documentation](#documentation) |
+| `docs/` | Architecture, governance, experiments, and team checklists | [Documentation](#📚-documentation) |
 
 ---
 
-## Quick Start with Docker
+## 🚀 Quick Start with Docker
 
 ### Requirements
 
-- Docker Desktop
-- Git
+- 🐳 Docker Desktop
+- 📦 Git
 
 From the repository root:
 
@@ -118,9 +144,10 @@ Docker preserves application data in the `dahonmd_backend_data` volume. Only use
 
 ---
 
-## Native Development
+## 💻 Native Development
 
-This guide assumes Windows PowerShell. Install PHP 8.2+, Composer, Node.js, and npm. Expo Go or Android Studio is also required for mobile development.
+> [!NOTE]
+> This guide assumes **Windows PowerShell**. Install PHP 8.2+, Composer, Node.js, and npm. Expo Go or Android Studio is also required for mobile development.
 
 Stop Docker before starting the native services:
 
@@ -131,7 +158,7 @@ docker compose down
 > [!TIP]
 > A command that starts a server keeps running and may look "stuck." That is normal. Leave that terminal open and use a new terminal for the next component.
 
-### 1. Start the API
+### 1️⃣ Start the API
 
 For the first run, prepare the backend and create its local settings file:
 
@@ -161,7 +188,7 @@ php artisan serve --host=0.0.0.0 --port=8001
 
 Keep this terminal open. Check <http://127.0.0.1:8001/api/health>; it should report `"status": "ok"`.
 
-### 2. Start the optional AI comparison service
+### 2️⃣ Start the optional AI comparison service
 
 Open a second terminal from the repository root:
 
@@ -173,7 +200,7 @@ Open a second terminal from the repository root:
 
 Check <http://127.0.0.1:8100/health>. This service is required only for the thesis comparison panel, not for ordinary API and interface development.
 
-### 3A. Start the web client
+### 3️⃣a Start the web client
 
 Open another terminal from the repository root:
 
@@ -186,7 +213,7 @@ npm run dev -- --host 127.0.0.1 --port 4173
 
 Visit <http://127.0.0.1:4173>.
 
-### 3B. Start the mobile client
+### 3️⃣b Start the mobile client
 
 Open another terminal from the repository root:
 
@@ -245,21 +272,21 @@ Run the live viewer beside any training command (`train_teacher`, `train_student
 
 ---
 
-## Development Accounts
+## 👤 Development Accounts
 
 `php artisan migrate --seed` creates one local account for each role. The default password is `DahonMD@2026` unless `DEV_USER_PASSWORD` is set.
 
 | Email | Role |
 | --- | --- |
-| `admin@dahonmd.test` | Administrator |
-| `reviewer@dahonmd.test` | Agricultural reviewer |
-| `maria.santos@dahonmd.test` | Farmer |
+| `admin@dahonmd.test` | 🔐 Administrator |
+| `reviewer@dahonmd.test` | 🔬 Agricultural reviewer |
+| `maria.santos@dahonmd.test` | 🧑‍🌾 Farmer |
 
 These accounts are never seeded when `APP_ENV=production`.
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 | Client or service | Variable | Local value |
 | --- | --- | --- |
@@ -275,7 +302,7 @@ The optional comparison service is research-only. It runs both models side by si
 
 ---
 
-## AI Research Summary
+## 🧠 AI Research Summary
 
 The AI pipeline trains and evaluates two models on one fixed, leakage-free five-class split:
 
@@ -291,7 +318,7 @@ See the [AI pipeline guide](ai/README.md) for reproducible training and evaluati
 
 ---
 
-## Quality Checks
+## ✅ Quality Checks
 
 Run the checks for the component you changed.
 
@@ -323,7 +350,7 @@ npm run release:status
 
 ---
 
-## Common Problems
+## 🧯 Common Problems
 
 | Problem | Resolution |
 | --- | --- |
@@ -339,7 +366,7 @@ npm run release:status
 
 ---
 
-## Scientific Boundaries
+## 🧬 Scientific Boundaries
 
 - `dead` means a visibly dried or necrotic leaf. It is not evidence of Moko disease or any specific pathogen.
 - `sigatoka` combines Black- and Yellow-source presentations; the model does not claim to distinguish the subtypes.
@@ -350,7 +377,7 @@ npm run release:status
 
 ---
 
-## Documentation
+## 📚 Documentation
 
 | Document | Purpose |
 | --- | --- |
@@ -363,6 +390,6 @@ npm run release:status
 
 <div align="center">
 
-Built for careful, auditable banana-leaf screening across web, mobile, and offline field workflows.
+Built with 💚 for careful, auditable banana-leaf screening across web, mobile, and offline field workflows.
 
 </div>
