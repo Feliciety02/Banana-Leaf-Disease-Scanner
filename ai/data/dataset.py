@@ -390,7 +390,10 @@ def make_supervised_dataset(
         num_parallel_calls=_parallelism(config),
     )
     if config.data.cache_dataset:
-        dataset = dataset.cache()
+        fingerprint = hashlib.md5("\n".join(paths).encode("utf-8")).hexdigest()[:16]
+        cache_root = Path(config.runtime.output_dir) / "dataset_cache"
+        cache_root.mkdir(parents=True, exist_ok=True)
+        dataset = dataset.cache(str(cache_root / f"{'train' if training else 'val'}_{fingerprint}_decoded"))
     dataset = dataset.batch(config.data.batch_size, drop_remainder=False)
     if training:
         augmenter = build_augmentation(config.augmentation, config.runtime.seed)

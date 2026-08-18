@@ -285,6 +285,14 @@ cd mobile-frontend
 npm start
 ```
 
+```powershell
+# Optional terminal: watch AI training graphs live (see the AI guide)
+.venv\Scripts\python.exe -m ai.visualization.live_history `
+  --output-dir ai\artifacts\source_labeled_enhanced_cpu_pilot
+```
+
+Run the live viewer beside any training command (`train_teacher`, `train_student`, `train_baseline`). It redraws the metric curves and current batch progress every few seconds and never writes to the output directory. See [Watch training live](ai/README.md#watch-training-live) in the [AI guide](ai/README.md) for details.
+
 ## Development Accounts
 
 `php artisan migrate --seed` creates one local account for each role. The default password is `DahonMD@2026` unless `DEV_USER_PASSWORD` is set.
@@ -381,8 +389,6 @@ npm run release:status
 | [System architecture](docs/architecture.md) | Components, boundaries, and data flow |
 | [Scientific content governance](docs/scientific-content-governance.md) | Evidence, review, and regulatory rules |
 | [Dataset/model checklist](docs/dataset-model-trainer-todo.md) | Required experiment gates and evidence |
-| [Baseline experiment](docs/experiments/source-labeled-baseline-2026-08-14.md) | Controlled baseline results |
-| [Enhanced CPU pilot](docs/experiments/source-labeled-enhanced-cpu-pilot-2026-08-15.md) | Earlier enhanced-model pilot |
 | [Backend consolidation](docs/backend-consolidation.md) | Record of the single-backend architecture |
 
 ---
