@@ -18,7 +18,8 @@ artifacts/
 # Dataset image content is ignored by default. Only dataset documentation
 # (markdown) files are tracked; image files must never be committed.
 datasets/*
+datasets/**/*
+!datasets/**/
 !datasets/README.md
 !datasets/.gitkeep
-!datasets/**/README.md
 !datasets/**/*.md
