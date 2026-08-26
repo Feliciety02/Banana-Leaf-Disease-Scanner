@@ -1,0 +1,11 @@
+{
+  "experiment_name": "configuration_7_optional_ca_kd_non_ssl_teacher",
+  "teacher": { "ssl_enabled": false, "imagenet_weights": true },
+  "student": {
+    "backbone": "MobileNetV3SmallCoordinateAttention",
+    "coordinate_attention": true,
+    "imagenet_weights": true
+  },
+  "distillation": { "enabled": true },
+  "runtime": { "output_dir": "ai/artifacts/configuration_7_optional" }
+}

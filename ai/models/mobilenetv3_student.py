@@ -111,21 +111,33 @@ def build_student(config: ExperimentConfig, force_weights: str | None = None) ->
     x = tf.keras.layers.Conv2D(last_channels, 1, use_bias=False, name="final_conv")(x)
     x = tf.keras.layers.BatchNormalization(name="final_bn")(x)
     x = HardSwish(name="final_activation")(x)
-    pooled = tf.keras.layers.GlobalAveragePooling2D(name="student_global_pool")(x)
+    feature_map = tf.keras.layers.Activation("linear", name="student_feature_map")(x)  # [B, 7, 7, 576]
+    pooled = tf.keras.layers.GlobalAveragePooling2D(name="student_global_pool")(feature_map)
     feature_channels = _make_divisible(1024 * alpha)
     features = tf.keras.layers.Dense(feature_channels, name="student_feature_dense")(pooled)
     features = HardSwish(name="student_features")(features)  # [B, approximately 1024 * alpha]
-    if config.student.feature_distillation_enabled:
-        distill_features = tf.keras.layers.Dense(
-            config.teacher.feature_dim, use_bias=False, name="feature_projection"
-        )(features)  # [B, 2048]
-    else:
-        distill_features = features
+    aligned = tf.keras.layers.Resizing(
+        config.distillation.aligned_height,
+        config.distillation.aligned_width,
+        interpolation="bilinear",
+        name="feature_spatial_alignment",
+    )(feature_map)
+    distill_features = tf.keras.layers.Conv2D(
+        config.distillation.aligned_channels,
+        1,
+        use_bias=False,
+        name="feature_channel_alignment",
+    )(aligned)  # [B, 7, 7, 2048], training-only KD adapter
     dropped = tf.keras.layers.Dropout(config.student.dropout_rate, name="student_dropout")(features)
     logits = tf.keras.layers.Dense(config.data.num_classes, name="logits")(dropped)  # [B, 4]
     return tf.keras.Model(
         inputs,
-        {"logits": logits, "features": features, "distill_features": distill_features},
+        {
+            "logits": logits,
+            "features": features,
+            "feature_map": feature_map,
+            "distill_features": distill_features,
+        },
         name="coordinate_attention_enhanced_mobilenetv3",
     )
 

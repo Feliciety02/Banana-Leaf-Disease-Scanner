@@ -20,6 +20,29 @@ def logit_distillation_loss(
 
 
 def feature_distillation_loss(teacher_features: tf.Tensor, projected_student_features: tf.Tensor) -> tf.Tensor:
-    teacher = tf.stop_gradient(tf.math.l2_normalize(teacher_features, axis=-1))
-    student = tf.math.l2_normalize(projected_student_features, axis=-1)
-    return tf.reduce_mean(1.0 - tf.reduce_sum(teacher * student, axis=-1))
+    """MSE over explicitly aligned near-final spatial feature maps."""
+    teacher = tf.stop_gradient(teacher_features)
+    tf.debugging.assert_rank(teacher, 4, message="Teacher KD features must be [B, H, W, C]")
+    tf.debugging.assert_rank(projected_student_features, 4, message="Student KD features must be [B, H, W, C]")
+    tf.debugging.assert_equal(
+        tf.shape(teacher),
+        tf.shape(projected_student_features),
+        message="Teacher/student feature maps must match after spatial and channel alignment",
+    )
+    return tf.reduce_mean(tf.math.squared_difference(teacher, projected_student_features))
+
+
+def total_distillation_loss(
+    classification: tf.Tensor,
+    output_distillation: tf.Tensor,
+    feature_matching: tf.Tensor,
+    alpha: float,
+    beta: float,
+    gamma: float,
+) -> tf.Tensor:
+    """alpha*L_CE + beta*T^2*L_KD + gamma*L_feat.
+
+    ``output_distillation`` already contains the explicit T^2 factor applied by
+    :func:`logit_distillation_loss`.
+    """
+    return alpha * classification + beta * output_distillation + gamma * feature_matching

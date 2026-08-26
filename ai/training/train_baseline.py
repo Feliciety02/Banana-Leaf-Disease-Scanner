@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from ai.data.dataset import make_supervised_dataset, prepare_splits, write_label_map
 from ai.models.mobilenetv3_baseline import BASELINE_BACKBONE_NAME, build_baseline
-from ai.training.common import add_common_arguments, configured_experiment, save_history
+from ai.training.common import SparseMacroF1, add_common_arguments, configured_experiment, save_history
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,13 +31,13 @@ def _callbacks(
     return [
         tf.keras.callbacks.ModelCheckpoint(
             checkpoint,
-            monitor="val_accuracy",
+            monitor="val_macro_f1",
             mode="max",
             save_best_only=True,
             initial_value_threshold=initial_accuracy,
         ),
         tf.keras.callbacks.EarlyStopping(
-            monitor="val_accuracy",
+            monitor="val_macro_f1",
             mode="max",
             patience=config.runtime.early_stopping_patience,
         ),
@@ -81,7 +81,7 @@ def train(args: argparse.Namespace) -> Path:
             weight_decay=config.baseline.weight_decay,
         ),
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=["accuracy"],
+        metrics=["accuracy", SparseMacroF1(config.data.num_classes)],
     )
     best_path = output_dir / "best_baseline.keras"
     frozen_history = model.fit(
@@ -91,7 +91,7 @@ def train(args: argparse.Namespace) -> Path:
         callbacks=_callbacks(best_path, config),
     )
     rows = _history_rows(frozen_history, "frozen_backbone")
-    best_accuracy = max(frozen_history.history.get("val_accuracy", [-1.0]))
+    best_macro_f1 = max(frozen_history.history.get("val_macro_f1", [-1.0]))
 
     if not args.skip_fine_tune:
         model = tf.keras.models.load_model(best_path, compile=False)
@@ -103,13 +103,13 @@ def train(args: argparse.Namespace) -> Path:
                 weight_decay=config.baseline.weight_decay,
             ),
             loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            metrics=["accuracy"],
+            metrics=["accuracy", SparseMacroF1(config.data.num_classes)],
         )
         fine_tune_history = model.fit(
             train_dataset,
             validation_data=validation_dataset,
             epochs=config.baseline.fine_tune_epochs,
-            callbacks=_callbacks(best_path, config, initial_accuracy=best_accuracy),
+            callbacks=_callbacks(best_path, config, initial_accuracy=best_macro_f1),
         )
         rows.extend(_history_rows(fine_tune_history, "fine_tune", len(rows)))
 

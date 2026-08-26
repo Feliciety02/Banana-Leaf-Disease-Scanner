@@ -10,11 +10,12 @@ from tqdm import tqdm
 
 from ai.data.dataset import make_supervised_dataset, prepare_splits, write_label_map
 from ai.losses.classification_loss import classification_loss
-from ai.losses.distillation_loss import feature_distillation_loss, logit_distillation_loss
+from ai.losses.distillation_loss import feature_distillation_loss, logit_distillation_loss, total_distillation_loss
 from ai.models.coordinate_attention import CoordinateAttention
+from ai.models.mobilenetv3_baseline import build_distillable_baseline
 from ai.models.mobilenetv3_student import HardSwish, build_student, initialize_shared_backbone_from_mobilenetv3, shared_backbone_layer_names
 from ai.models.teacher import ResNet101Preprocessing
-from ai.training.common import add_common_arguments, configured_experiment, make_optimizer, reduce_learning_rate, save_history, validate_model_input
+from ai.training.common import add_common_arguments, configured_experiment, macro_f1_from_predictions, make_optimizer, reduce_learning_rate, save_history, validate_model_input
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,6 +33,8 @@ def dataset_batches(dataset: tf.data.Dataset) -> int:
 
 def train(args: argparse.Namespace) -> Path:
     config = configured_experiment(args, "student_experiment_config.json")
+    if not config.distillation.enabled:
+        raise ValueError("Use a supervised-only training entry point when distillation.enabled is false")
     output_dir = Path(config.runtime.output_dir)
     splits = prepare_splits(config, output_dir / "split_manifest.json")
     write_label_map(splits.class_names, output_dir / "label_map.json")
@@ -52,7 +55,7 @@ def train(args: argparse.Namespace) -> Path:
         layer.trainable = False
     teacher_distillation_view = tf.keras.Model(
         teacher.input,
-        {name: teacher.output[name] for name in ("logits", "features")},
+        {name: teacher.output[name] for name in ("logits", "feature_map")},
         name="frozen_teacher_distillation_view",
     )
     teacher_distillation_view.trainable = False
@@ -65,16 +68,25 @@ def train(args: argparse.Namespace) -> Path:
             custom_objects={"CoordinateAttention": CoordinateAttention, "HardSwish": HardSwish},
             compile=False,
         )
-        if student.name != "coordinate_attention_enhanced_mobilenetv3":
-            raise ValueError(f"Expected an enhanced student checkpoint, received '{student.name}'")
+        expected_name = (
+            "coordinate_attention_enhanced_mobilenetv3"
+            if config.student.coordinate_attention
+            else "mobilenetv3_small_stock_se_distillation_student"
+        )
+        if student.name != expected_name:
+            raise ValueError(f"Expected {expected_name}, received '{student.name}'")
         validate_model_input(student, config, "Initial student model")
     else:
-        student = build_student(config)
+        student = (
+            build_student(config)
+            if config.student.coordinate_attention
+            else build_distillable_baseline(config)
+        )
     transferred_layers: tuple[str, ...] = ()
     if args.initial_student_model and config.student.imagenet_weights:
         transferred_layers = shared_backbone_layer_names()
         print(f"Loaded validation-selected student checkpoint from {args.initial_student_model}")
-    elif config.student.imagenet_weights:
+    elif config.student.imagenet_weights and config.student.coordinate_attention:
         transferred_layers = initialize_shared_backbone_from_mobilenetv3(student, config)
         print(f"Transferred ImageNet weights into {len(transferred_layers)} shared backbone layers")
     warmup_epochs = min(config.student.pretrained_warmup_epochs, config.student.epochs) if transferred_layers and not args.initial_student_model else 0
@@ -87,8 +99,6 @@ def train(args: argparse.Namespace) -> Path:
             layer = student.get_layer(layer_name)
             layer.trainable = not isinstance(layer, tf.keras.layers.BatchNormalization)
         print("Enabled convolution fine-tuning while keeping transferred BatchNorm layers frozen")
-    alpha = config.student.distillation_alpha
-
     def make_train_step(optimizer: tf.keras.optimizers.Optimizer):
         @tf.function
         def train_step(images: tf.Tensor, labels: tf.Tensor) -> dict[str, tf.Tensor]:
@@ -98,16 +108,19 @@ def train(args: argparse.Namespace) -> Path:
                 student_output = student(images, training=True)
                 hard = classification_loss(labels, student_output["logits"])
                 soft = logit_distillation_loss(
-                    teacher_output["logits"], student_output["logits"], config.student.distillation_temperature
+                    teacher_output["logits"], student_output["logits"], config.distillation.temperature
                 )
-                features = tf.constant(0.0, tf.float32)
-                if config.student.feature_distillation_enabled:
-                    features = feature_distillation_loss(
-                        teacher_output["features"], student_output["distill_features"]
-                    )
-                total = alpha * hard + (1.0 - alpha) * soft
-                if config.student.feature_distillation_enabled:
-                    total += config.student.feature_distillation_weight * features
+                features = feature_distillation_loss(
+                    teacher_output["feature_map"], student_output["distill_features"]
+                )
+                total = total_distillation_loss(
+                    hard,
+                    soft,
+                    features,
+                    config.distillation.alpha,
+                    config.distillation.beta,
+                    config.distillation.gamma,
+                )
                 if student.losses:
                     total += tf.add_n(student.losses)
             gradients = tape.gradient(total, student.trainable_variables)
@@ -129,14 +142,17 @@ def train(args: argparse.Namespace) -> Path:
         return classification_loss(labels, logits), logits
 
     best_path = output_dir / "best_student.keras"
-    best_accuracy = -1.0
+    best_macro_f1 = -1.0
     if args.initial_student_model:
-        initial_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
+        initial_true: list[int] = []
+        initial_predicted: list[int] = []
         for images, labels in validation_dataset:
-            initial_accuracy.update_state(labels, student(images, training=False)["logits"])
-        best_accuracy = float(initial_accuracy.result())
+            logits = student(images, training=False)["logits"]
+            initial_true.extend(labels.numpy().astype(int).tolist())
+            initial_predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
+        best_macro_f1 = macro_f1_from_predictions(initial_true, initial_predicted, config.data.num_classes)
         student.save(best_path)
-        print(f"Initial checkpoint validation accuracy={best_accuracy:.5f}")
+        print(f"Initial checkpoint validation macro F1={best_macro_f1:.5f}")
     epochs_without_improvement = 0
     lr_wait = 0
     history: list[dict] = []
@@ -170,23 +186,30 @@ def train(args: argparse.Namespace) -> Path:
 
         validation_loss = tf.keras.metrics.Mean()
         validation_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
+        validation_true: list[int] = []
+        validation_predicted: list[int] = []
         for images, labels in validation_dataset:
             loss_value, logits = validation_step(images, labels)
             validation_loss.update_state(loss_value, sample_weight=tf.cast(tf.shape(labels)[0], tf.float32))
             validation_accuracy.update_state(labels, logits)
+            validation_true.extend(labels.numpy().astype(int).tolist())
+            validation_predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
         row = {
             "epoch": epoch,
             **{f"train_{name}": float(metric.result()) for name, metric in train_metrics.items()},
             "validation_loss": float(validation_loss.result()),
             "validation_accuracy": float(validation_accuracy.result()),
+            "validation_macro_f1": macro_f1_from_predictions(
+                validation_true, validation_predicted, config.data.num_classes
+            ),
             "learning_rate": float(tf.keras.backend.get_value(optimizer.learning_rate)),
         }
         history.append(row)
         print(" - ".join(f"{name}={value:.5f}" if isinstance(value, float) else f"{name}={value}" for name, value in row.items()))
 
-        current_accuracy = row["validation_accuracy"]
-        if current_accuracy > best_accuracy:
-            best_accuracy = current_accuracy
+        current_macro_f1 = row["validation_macro_f1"]
+        if current_macro_f1 > best_macro_f1:
+            best_macro_f1 = current_macro_f1
             epochs_without_improvement = 0
             lr_wait = 0
             student.save(best_path)
@@ -201,7 +224,7 @@ def train(args: argparse.Namespace) -> Path:
                 break
         save_history(history, output_dir / "student_history.json")
     save_history(history, output_dir / "student_history.json")
-    print(f"Best student saved to {best_path} (validation accuracy={best_accuracy:.5f})")
+    print(f"Best student saved to {best_path} (validation macro F1={best_macro_f1:.5f})")
     return best_path
 
 

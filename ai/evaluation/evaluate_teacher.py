@@ -27,7 +27,7 @@ def evaluate(args: argparse.Namespace) -> dict:
     model = tf.keras.models.load_model(
         args.teacher_model, custom_objects={"ResNet101Preprocessing": ResNet101Preprocessing}, compile=False
     )
-    if model.name != "resnet101_teacher":
+    if model.name not in ("resnet101_teacher", "resnet101_classifier"):
         raise ValueError(f"Expected a ResNet-101 teacher, received model '{model.name}'")
     validate_model_input(model, config, "Teacher model")
     classifier = tf.keras.Model(model.input, model.output["logits"], name="teacher_classifier")

@@ -67,6 +67,26 @@ def evaluate(args: argparse.Namespace) -> dict:
         "flops_batch_one": count_flops(deployable, config.image_size),
         "keras_latency": benchmark_keras_latency(deployable, config.image_size, runs=args.latency_runs),
     }
+    davao_records = [
+        record for record in splits.test
+        if record.field_subset.lower() == "davao" and record.label_review_status == "validated"
+    ]
+    if davao_records:
+        field_true: list[int] = []
+        field_predicted: list[int] = []
+        for images, labels in make_supervised_dataset(davao_records, config, training=False):
+            logits = deployable(images, training=False)
+            field_true.extend(labels.numpy().astype(int).tolist())
+            field_predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
+        metrics["davao_field_subset"] = classification_metrics(
+            field_true, field_predicted, splits.class_names
+        )
+        metrics["davao_field_subset"]["expert_validated_samples"] = len(davao_records)
+    else:
+        metrics["davao_field_subset"] = {
+            "status": "PENDING EXPERIMENTAL VALIDATION",
+            "reason": "No expert-validated Davao records are predefined in the held-out test manifest",
+        }
     save_json(metrics, output_dir / "student_evaluation.json")
     save_confusion_matrix(metrics["confusion_matrix"], splits.class_names, output_dir / "student_confusion_matrix.png")
     save_gradcam_examples(

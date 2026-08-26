@@ -10,7 +10,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from PIL import Image, UnidentifiedImageError
+import numpy as np
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from ai.config.config import ExperimentConfig
 
@@ -39,6 +40,12 @@ class ImageRecord:
     site_id: str = "unknown"
     session_id: str = "unknown"
     origin_type: str = "unknown"
+    capture_device: str = "unknown"
+    acquisition_date: str = "unknown"
+    field_subset: str = "none"
+    species_review_status: str = "pending"
+    visibility_quality_status: str = "pending"
+    inclusion_status: str = "pending"
     label_validator: str = "unknown"
     label_review_status: str = "pending"
 
@@ -72,6 +79,12 @@ METADATA_FIELDS: tuple[str, ...] = (
     "site_id",
     "session_id",
     "origin_type",
+    "capture_device",
+    "acquisition_date",
+    "field_subset",
+    "species_review_status",
+    "visibility_quality_status",
+    "inclusion_status",
     "label_validator",
     "label_review_status",
 )
@@ -83,6 +96,12 @@ METADATA_DEFAULTS: dict[str, str] = {
     "site_id": "unknown",
     "session_id": "unknown",
     "origin_type": "unknown",
+    "capture_device": "unknown",
+    "acquisition_date": "unknown",
+    "field_subset": "none",
+    "species_review_status": "pending",
+    "visibility_quality_status": "pending",
+    "inclusion_status": "pending",
     "label_validator": "unknown",
     "label_review_status": "pending",
 }
@@ -252,6 +271,8 @@ def validate_image_inventory(
     report_path: str | Path,
     near_duplicate_hamming_distance: int = 6,
     near_duplicate_reviews: dict[str, dict[str, str]] | None = None,
+    metadata_map: dict[str, dict[str, str]] | None = None,
+    quality_report_path: str | Path | None = None,
 ) -> ImageInventoryValidation:
     """Validate, exact-deduplicate, quarantine, and near-duplicate-screen images."""
     allowed = {extension.lower() for extension in allowed_extensions}
@@ -266,6 +287,7 @@ def validate_image_inventory(
     quarantined: list[dict] = []
     accepted_by_class = {class_name: 0 for class_name in class_names}
     rejected_by_reason: dict[str, int] = {}
+    quality_excluded: list[dict[str, str]] = []
 
     for path in candidates:
         relative = str(path.relative_to(root)).replace("\\", "/")
@@ -275,6 +297,7 @@ def validate_image_inventory(
         height: int | None = None
         source_mode: str | None = None
         perceptual_hash: int | None = None
+        metadata = {**METADATA_DEFAULTS, **(metadata_map or {}).get(relative, {})}
 
         if class_name not in valid_classes and class_name not in quarantined_classes:
             reasons.append({
@@ -284,6 +307,17 @@ def validate_image_inventory(
                     f"nor quarantined {list(quarantined_class_names)}"
                 ),
             })
+
+        quality_reason = None
+        if metadata["species_review_status"] in {"non_banana", "incorrect_species"}:
+            quality_reason = "incorrect_species"
+        elif metadata["visibility_quality_status"] in {"reject", "unusable", "severely_blurred", "obscured"}:
+            quality_reason = "visibility_or_quality"
+        elif metadata["inclusion_status"] in {"excluded", "uncertain_label"}:
+            quality_reason = "excluded_or_not_confidently_assignable"
+        if quality_reason:
+            reasons.append({"code": quality_reason, "message": "Excluded by reviewed harmonization/quality metadata"})
+            quality_excluded.append({"path": relative, "reason": quality_reason})
 
         try:
             with warnings.catch_warnings():
@@ -467,6 +501,15 @@ def validate_image_inventory(
         "unused_near_duplicate_reviews": unused_reviews,
     }
     destination.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    if quality_report_path is not None:
+        quality_destination = Path(quality_report_path)
+        quality_destination.parent.mkdir(parents=True, exist_ok=True)
+        quality_destination.write_text(json.dumps({
+            "schema_version": 1,
+            "processing_stage": "harmonization_and_quality_control_before_duplicate_screening_grouping_and_split",
+            "eligible_images_after_inventory_validation": len(hashes_by_path),
+            "excluded_images": quality_excluded,
+        }, indent=2), encoding="utf-8")
     write_near_duplicate_review_template(
         near_duplicate_pairs, destination.parent / "near_duplicate_review_template.json"
     )
@@ -582,9 +625,19 @@ def write_metadata_coverage_report(
     incomplete: list[dict[str, Any]] = []
     for relative in relative_paths:
         values = {**METADATA_DEFAULTS, **metadata_map.get(relative, {})}
-        unresolved = [field for field in METADATA_FIELDS if values[field] in {"unknown", "pending"}]
-        if values["label_review_status"] != "validated" and "label_review_status" not in unresolved:
-            unresolved.append("label_review_status")
+        # Site/plant/leaf/session/device/date are required only when the source
+        # actually provides them. Formal admission always requires affirmative
+        # species, visibility/quality, inclusion, and expert-label decisions.
+        required_decisions = {
+            "species_review_status": "banana",
+            "visibility_quality_status": "acceptable",
+            "inclusion_status": "included",
+            "label_review_status": "validated",
+        }
+        unresolved = [
+            field for field, expected in required_decisions.items()
+            if values[field] != expected
+        ]
         if unresolved:
             incomplete.append({"path": relative, "unresolved_fields": unresolved})
     unused_entries = sorted(set(metadata_map) - set(relative_paths))
@@ -593,7 +646,8 @@ def write_metadata_coverage_report(
         "dataset_root": str(root),
         "required_fields": list(METADATA_FIELDS),
         "formal_completion_rule": (
-            "Every active image must have verified non-unknown metadata and label_review_status=validated."
+            "Every active image must be reviewed as banana species, acceptable visibility/quality, "
+            "included, and expert-label validated. Acquisition identifiers remain unknown when unavailable."
         ),
         "summary": {
             "active_images": len(relative_paths),
@@ -635,10 +689,30 @@ def _records_for_classes(
             relative = str(path.relative_to(dataset_root)).replace("\\", "/")
             # A group manifest may contain only the known multi-image biological
             # groups. Unlisted records retain the safe exact-hash fallback.
-            group_id = group_map.get(relative, digest) if group_map is not None else digest
             metadata = {**METADATA_DEFAULTS, **metadata_map.get(relative, {})}
+            group_id = (
+                group_map.get(relative)
+                if group_map is not None and group_map.get(relative)
+                else _metadata_group_id(metadata, digest)
+            )
             records.append(ImageRecord(str(path), label, class_name, digest, group_id, **metadata))
     return records
+
+
+def _metadata_group_id(metadata: dict[str, str], digest: str) -> str:
+    """Conservatively derive an indivisible biological/acquisition group."""
+    source = metadata.get("source", "unknown")
+    site = metadata.get("site_id", "unknown")
+    plant = metadata.get("plant_id", "unknown")
+    leaf = metadata.get("leaf_id", "unknown")
+    session = metadata.get("session_id", "unknown")
+    if leaf != "unknown":
+        return f"leaf::{source}::{site}::{plant}::{leaf}"
+    if plant != "unknown":
+        return f"plant::{source}::{site}::{plant}"
+    if session != "unknown":
+        return f"session::{source}::{site}::{session}"
+    return digest
 
 
 def _validate_hash_labels(records: Iterable[ImageRecord]) -> None:
@@ -691,6 +765,37 @@ def _validate_class_directories(
     return expected
 
 
+def _stratified_group_assignment(
+    groups: list[list[ImageRecord]], config: ExperimentConfig, rng: random.Random
+) -> dict[str, list[list[ImageRecord]]]:
+    """Assign indivisible groups while targeting 70/15/15 image counts."""
+    names = ("train", "validation", "test")
+    fractions = {
+        "train": config.data.train_fraction,
+        "validation": config.data.validation_fraction,
+        "test": config.data.test_fraction,
+    }
+    total_images = sum(len(group) for group in groups)
+    targets = {name: total_images * fractions[name] for name in names}
+    ordered = list(groups)
+    rng.shuffle(ordered)
+    ordered.sort(key=len, reverse=True)
+    assigned: dict[str, list[list[ImageRecord]]] = {name: [] for name in names}
+    counts = {name: 0 for name in names}
+    for group in ordered:
+        destination = max(names, key=lambda name: (targets[name] - counts[name], fractions[name]))
+        assigned[destination].append(group)
+        counts[destination] += len(group)
+    for empty_name in (name for name in names if not assigned[name]):
+        donor = max(names, key=lambda name: len(assigned[name]))
+        if len(assigned[donor]) <= 1:
+            raise ValueError("At least three independent groups are required per class")
+        moved = min(assigned[donor], key=len)
+        assigned[donor].remove(moved)
+        assigned[empty_name].append(moved)
+    return assigned
+
+
 def _split_unsplit_dataset(
     root: Path,
     config: ExperimentConfig,
@@ -720,17 +825,7 @@ def _split_unsplit_dataset(
             raise ValueError(
                 f"Class '{class_name}' needs at least three unique images/groups for train, validation, and test"
             )
-        n_groups = len(grouped)
-        n_train = max(1, int(round(n_groups * config.data.train_fraction)))
-        n_validation = max(1, int(round(n_groups * config.data.validation_fraction)))
-        if n_train + n_validation >= n_groups:
-            n_train = n_groups - 2
-            n_validation = 1
-        assignments = {
-            "train": grouped[:n_train],
-            "validation": grouped[n_train : n_train + n_validation],
-            "test": grouped[n_train + n_validation :],
-        }
+        assignments = _stratified_group_assignment(grouped, config, rng)
         for split_name, split_groups in assignments.items():
             split_records[split_name].extend(record for group in split_groups for record in group)
 
@@ -948,6 +1043,11 @@ def _validate_external_overlap(
     ssl_records = _scan_external_inventory(config.data.ssl_unlabeled_dir, config, labeled=False)
     final_records = _scan_external_inventory(config.data.final_field_test_dir, config, labeled=True)
     primary_records = splits.train + splits.validation + splits.test
+    primary_split_by_path = {
+        record.path: split_name
+        for split_name in ("train", "validation", "test")
+        for record in getattr(splits, split_name)
+    }
     sources = {
         "primary": primary_records,
         "ssl_unlabeled": ssl_records,
@@ -961,11 +1061,19 @@ def _validate_external_overlap(
                 "path": record.path,
                 "class_name": record.class_name,
             })
-    exact_overlaps = [
-        {"sha256": digest, "occurrences": occurrences}
-        for digest, occurrences in exact_locations.items()
-        if len({item["source"] for item in occurrences}) > 1
-    ]
+    exact_overlaps = []
+    for digest, occurrences in exact_locations.items():
+        occurrence_sources = {item["source"] for item in occurrences}
+        if len(occurrence_sources) <= 1:
+            continue
+        primary_occurrences = [item for item in occurrences if item["source"] == "primary"]
+        ssl_training_only = (
+            occurrence_sources == {"primary", "ssl_unlabeled"}
+            and primary_occurrences
+            and all(primary_split_by_path[item["path"]] == "train" for item in primary_occurrences)
+        )
+        if not ssl_training_only:
+            exact_overlaps.append({"sha256": digest, "occurrences": occurrences})
 
     primary_hash_items: dict[int, list[ImageRecord]] = {}
     tree = _HammingBkTree()
@@ -981,10 +1089,17 @@ def _validate_external_overlap(
             value = _external_record_dhash(record)
             for matched in tree.query(value, config.data.near_duplicate_hamming_distance):
                 for primary in primary_hash_items[matched]:
+                    primary_split = primary_split_by_path[primary.path]
+                    # Labeled training images may legitimately participate in
+                    # banana-domain SSL. Validation/test biological relatives
+                    # may not. The locked field test must be independent of all.
+                    if source_name == "ssl_unlabeled" and primary_split == "train":
+                        continue
                     near_overlaps.append({
                         "external_source": source_name,
                         "external_path": record.path,
                         "primary_path": primary.path,
+                        "primary_split": primary_split,
                         "hamming_distance": (value ^ matched).bit_count(),
                         "requires_review": True,
                     })
@@ -1013,6 +1128,11 @@ def _validate_external_overlap(
     destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     if exact_overlaps:
         raise ValueError(f"External dataset exact overlap detected; see {destination.resolve()}")
+    if near_overlaps:
+        raise ValueError(
+            "External dataset near-duplicate overlap with held-out or locked field data detected; "
+            f"see {destination.resolve()}"
+        )
     splits.ssl_unlabeled = ssl_records
     splits.final_field_test = final_records
 
@@ -1021,6 +1141,7 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
     root = require_dataset_dir(config)
     manifest = Path(manifest_path) if manifest_path else Path(config.runtime.output_dir) / "split_manifest.json"
     near_duplicate_reviews = load_near_duplicate_reviews(config.data.near_duplicate_review_manifest)
+    metadata_map = load_metadata_manifest(config.data.metadata_manifest)
     validation = validate_image_inventory(
         root,
         config.data.class_names,
@@ -1029,8 +1150,9 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
         manifest.parent / "image_validation_report.json",
         config.data.near_duplicate_hamming_distance,
         near_duplicate_reviews,
+        metadata_map,
+        manifest.parent / "harmonization_quality_report.json",
     )
-    metadata_map = load_metadata_manifest(config.data.metadata_manifest)
     missing_metadata, incomplete_metadata = write_metadata_coverage_report(
         root,
         validation.hashes_by_path,
@@ -1129,8 +1251,14 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
 def decode_and_resize(path: tf.Tensor, image_size: tuple[int, int]) -> tf.Tensor:
     """Decode any supported RGB image to [H, W, 3] float32 in [0, 1]."""
     tf = _require_tensorflow()
-    encoded = tf.io.read_file(path)
-    image = tf.io.decode_image(encoded, channels=3, expand_animations=False)
+    def decode_with_orientation(path_value):
+        raw = path_value.numpy() if hasattr(path_value, "numpy") else path_value
+        filename = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+        with Image.open(filename) as source:
+            oriented = ImageOps.exif_transpose(source)
+            return np.asarray(oriented.convert("RGB"), dtype=np.uint8)
+
+    image = tf.py_function(decode_with_orientation, [path], Tout=tf.uint8)
     image.set_shape([None, None, 3])
     image = tf.image.resize(image, image_size, method="bilinear", antialias=True)
     return tf.clip_by_value(tf.cast(image, tf.float32) / 255.0, 0.0, 1.0)
@@ -1185,9 +1313,22 @@ def make_teacher_dataset(
     from ai.data.augmentation import build_augmentation
     from ai.data.masking import apply_patch_mask
 
-    base = make_supervised_dataset(records, config, training=training)
+    if not records:
+        raise ValueError("Cannot build a dataset from an empty record list")
+    paths = [record.path for record in records]
+    labels = [record.label for record in records]
+    base = tf.data.Dataset.from_tensor_slices((paths, labels))
+    options = tf.data.Options()
+    options.experimental_deterministic = True
+    base = base.with_options(options)
+    if training:
+        base = base.shuffle(len(records), seed=config.runtime.seed, reshuffle_each_iteration=True)
+    base = base.map(
+        lambda path, label: (decode_and_resize(path, config.image_size), label),
+        num_parallel_calls=_parallelism(config),
+    ).batch(config.data.batch_size, drop_remainder=False)
     if not training:
-        return base
+        return base.prefetch(tf.data.AUTOTUNE)
     view_one_augmenter = build_augmentation(config.augmentation, config.runtime.seed + 101, strong=True)
     view_two_augmenter = build_augmentation(config.augmentation, config.runtime.seed + 202, strong=True)
 
@@ -1216,3 +1357,46 @@ def write_label_map(class_names: Sequence[str], destination: str | Path) -> None
     path = Path(destination)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({str(index): name for index, name in enumerate(class_names)}, indent=2), encoding="utf-8")
+
+
+def select_stratified_representative_records(
+    training_records: Sequence[ImageRecord],
+    class_names: Sequence[str],
+    maximum_samples: int,
+    seed: int,
+) -> list[ImageRecord]:
+    """Select calibration examples exclusively and evenly from training data."""
+    if maximum_samples < len(class_names):
+        raise ValueError("Representative sample count must cover all four classes")
+    rng = random.Random(seed)
+    per_class: dict[str, list[ImageRecord]] = {name: [] for name in class_names}
+    for record in training_records:
+        if record.class_name not in per_class:
+            raise ValueError(f"Unexpected calibration class: {record.class_name}")
+        per_class[record.class_name].append(record)
+    if any(not records for records in per_class.values()):
+        missing = [name for name, records in per_class.items() if not records]
+        raise ValueError(f"Training calibration pool is missing classes: {missing}")
+    for records in per_class.values():
+        rng.shuffle(records)
+    selected: list[ImageRecord] = []
+    while len(selected) < maximum_samples and any(per_class.values()):
+        for class_name in class_names:
+            if per_class[class_name] and len(selected) < maximum_samples:
+                selected.append(per_class[class_name].pop())
+    return selected
+
+
+def build_ssl_pretraining_records(splits: DatasetSplits) -> list[ImageRecord]:
+    """Return the allowed SSL pool and fail on held-out hash/group leakage."""
+    held_out = splits.validation + splits.test + splits.final_field_test
+    held_out_hashes = {record.sha256 for record in held_out}
+    held_out_groups = {record.group_id for record in held_out}
+    pool = splits.train + splits.ssl_unlabeled
+    conflicts = [
+        record.path for record in pool
+        if record.sha256 in held_out_hashes or record.group_id in held_out_groups
+    ]
+    if conflicts:
+        raise ValueError(f"Held-out image/group entered SSL pretraining: {conflicts[:3]}")
+    return pool

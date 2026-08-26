@@ -33,6 +33,7 @@ def build_teacher(config: ExperimentConfig, force_weights: str | None = None) ->
         input_shape=(*config.image_size, 3),
     )
     feature_map = backbone(normalized)  # [B, h, w, 2048]
+    feature_map = tf.keras.layers.Activation("linear", name="teacher_feature_map")(feature_map)  # [B, 7, 7, 2048]
     features = tf.keras.layers.GlobalAveragePooling2D(name="teacher_features")(feature_map)  # [B, 2048]
     dropped = tf.keras.layers.Dropout(config.teacher.dropout_rate, name="teacher_dropout")(features)
     logits = tf.keras.layers.Dense(config.data.num_classes, name="logits")(dropped)  # [B, 4]
@@ -52,6 +53,7 @@ def build_teacher(config: ExperimentConfig, force_weights: str | None = None) ->
         {
             "logits": logits,
             "features": features,
+            "feature_map": feature_map,
             "projection": projection,
             "prediction": prediction,
             "reconstruction": reconstruction,

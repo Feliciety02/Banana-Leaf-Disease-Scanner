@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 from dotenv import load_dotenv
 
-from ai.config.labels import CLASS_LABELS, QUARANTINED_CLASS_NAMES
+from ai.config.labels import CLASS_LABELS, NUM_CLASSES, QUARANTINED_CLASS_NAMES
 
 
 AI_ROOT = Path(__file__).resolve().parents[1]
@@ -52,7 +52,11 @@ class DataConfig:
     ssl_unlabeled_dir: Optional[str] = None
     image_height: int = 224
     image_width: int = 224
-    num_classes: int = 4
+    image_channels: int = 3
+    num_classes: int = NUM_CLASSES
+    planned_labeled_per_class: int = 700
+    planned_labeled_total: int = 2800
+    planned_ssl_unlabeled_total: int = 8000
     # Fixed model output-index order. Dataset directory names must match these keys.
     class_names: tuple[str, ...] = CLASS_LABELS
     quarantined_class_names: tuple[str, ...] = QUARANTINED_CLASS_NAMES
@@ -92,8 +96,9 @@ class MaskingConfig:
 @dataclass
 class TeacherConfig:
     backbone: str = "ResNet101"
-    # False keeps the declared banana-dataset SSL phase free of supervised ImageNet initialization.
-    imagenet_weights: bool = False
+    # Thesis sequence: ImageNet initialization -> banana-domain SSL -> supervised fine-tuning.
+    imagenet_weights: bool = True
+    ssl_enabled: bool = True
     feature_dim: int = 2048  # Native ResNet-101 global-average-pooled feature width.
     projection_dim: int = 256
     projection_hidden_dim: int = 1024
@@ -107,7 +112,7 @@ class TeacherConfig:
     contrastive_temperature: float = 0.10
     byol_ema_decay: float = 0.996
     # SSL loss weights: tune these; zero disables an objective for ablation.
-    lambda_contrastive: float = 1.0
+    lambda_cl: float = 1.0
     lambda_byol: float = 1.0
     lambda_mim: float = 1.0
 
@@ -115,6 +120,7 @@ class TeacherConfig:
 @dataclass
 class StudentConfig:
     backbone: str = "MobileNetV3SmallCoordinateAttention"
+    coordinate_attention: bool = True
     # When enabled, only shape-compatible convolution and BatchNorm weights are
     # transferred from stock MobileNetV3-Small. New Coordinate Attention and
     # classifier layers remain newly initialized.
@@ -127,11 +133,21 @@ class StudentConfig:
     pretrained_warmup_epochs: int = 0
     pretrained_warmup_learning_rate: float = 1e-3
     weight_decay: float = 1e-5
-    # alpha is the hard-label weight; (1 - alpha) weights logit KD.
-    distillation_alpha: float = 0.5
-    distillation_temperature: float = 4.0
-    feature_distillation_enabled: bool = True
-    feature_distillation_weight: float = 1.0
+
+
+@dataclass
+class DistillationConfig:
+    enabled: bool = True
+    alpha: float = 0.5
+    beta: float = 0.5
+    gamma: float = 1.0
+    temperature: float = 4.0
+    feature_loss: str = "mse"
+    teacher_feature_layer: str = "conv5_block3_out"
+    student_feature_layer: str = "final_activation"
+    aligned_height: int = 7
+    aligned_width: int = 7
+    aligned_channels: int = 2048
 
 
 @dataclass
@@ -160,15 +176,26 @@ class RuntimeConfig:
 
 @dataclass
 class ExperimentConfig:
+    task: str = "banana_leaf_classification"
+    experiment_name: str = "configuration_4_ca_mobilenetv3_small_kd_ssl_teacher"
+    experimental_status: str = "candidate_configuration_pending_validation"
+    selection_metric: str = "macro_f1"
     data: DataConfig = field(default_factory=DataConfig)
     augmentation: AugmentationConfig = field(default_factory=AugmentationConfig)
     masking: MaskingConfig = field(default_factory=MaskingConfig)
     teacher: TeacherConfig = field(default_factory=TeacherConfig)
     student: StudentConfig = field(default_factory=StudentConfig)
+    distillation: DistillationConfig = field(default_factory=DistillationConfig)
     baseline: BaselineConfig = field(default_factory=BaselineConfig)
     runtime: RuntimeConfig = field(default_factory=RuntimeConfig)
 
     def validate(self) -> None:
+        if self.task != "banana_leaf_classification":
+            raise ValueError("The thesis task is fixed to banana_leaf_classification")
+        if self.selection_metric != "macro_f1":
+            raise ValueError("Teacher and student checkpoint selection must use validation macro F1")
+        if self.experimental_status != "candidate_configuration_pending_validation":
+            raise ValueError("Experiment configurations must remain marked pending until results are run")
         fractions = (
             self.data.train_fraction,
             self.data.validation_fraction,
@@ -190,18 +217,27 @@ class ExperimentConfig:
             )
         if set(self.data.class_names).intersection(self.data.quarantined_class_names):
             raise ValueError("Active and quarantined class names must be disjoint")
+        if (self.data.image_height, self.data.image_width, self.data.image_channels) != (224, 224, 3):
+            raise ValueError("Teacher, student, calibration, and mobile inference require 224x224 RGB input")
+        if self.data.planned_labeled_per_class * NUM_CLASSES != self.data.planned_labeled_total:
+            raise ValueError("Planned labeled totals must remain 700 per class / 2,800 overall")
         if not 0 <= self.data.near_duplicate_hamming_distance <= 16:
             raise ValueError("data.near_duplicate_hamming_distance must be in [0, 16]")
         if self.teacher.backbone != "ResNet101":
             raise ValueError("The finalized thesis teacher architecture is fixed to ResNet101")
         if self.teacher.feature_dim != 2048:
             raise ValueError("ResNet101 teacher feature_dim must remain 2048")
-        if self.student.backbone != "MobileNetV3SmallCoordinateAttention":
-            raise ValueError("The deployed student is fixed to Coordinate Attention-Enhanced MobileNetV3Small")
+        expected_student = (
+            "MobileNetV3SmallCoordinateAttention"
+            if self.student.coordinate_attention
+            else "MobileNetV3Small"
+        )
+        if self.student.backbone != expected_student:
+            raise ValueError(
+                "student.backbone must match the explicit Coordinate Attention ablation choice"
+            )
         if self.baseline.backbone != "MobileNetV3Small":
             raise ValueError("The research baseline must use the same MobileNetV3-Small variant as the enhanced student")
-        if self.student.feature_distillation_enabled and self.student.feature_distillation_weight <= 0:
-            raise ValueError("Enabled feature distillation requires a positive feature_distillation_weight")
         for name, value in {
             "teacher.ssl_epochs": self.teacher.ssl_epochs,
             "teacher.finetune_epochs": self.teacher.finetune_epochs,
@@ -228,29 +264,43 @@ class ExperimentConfig:
             raise ValueError("image dimensions must be divisible by masking.patch_size")
         for name, value in {
             "mask_ratio": self.masking.mask_ratio,
-            "distillation_alpha": self.student.distillation_alpha,
+            "distillation.alpha": self.distillation.alpha,
         }.items():
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1]")
-        if self.student.distillation_temperature <= 0 or self.teacher.contrastive_temperature <= 0:
-            raise ValueError("distillation and contrastive temperatures must be positive")
+        if self.distillation.temperature <= 1 or self.teacher.contrastive_temperature <= 0:
+            raise ValueError("KD temperature must exceed 1 and contrastive temperature must be positive")
         for name, value in {
-            "lambda_contrastive": self.teacher.lambda_contrastive,
+            "lambda_cl": self.teacher.lambda_cl,
             "lambda_byol": self.teacher.lambda_byol,
             "lambda_mim": self.teacher.lambda_mim,
-            "feature_distillation_weight": self.student.feature_distillation_weight,
+            "distillation.alpha": self.distillation.alpha,
+            "distillation.beta": self.distillation.beta,
+            "distillation.gamma": self.distillation.gamma,
         }.items():
             if value < 0:
                 raise ValueError(f"{name} cannot be negative")
-        if not any(
+        if self.teacher.ssl_enabled and not any(
             value > 0
             for value in (
-                self.teacher.lambda_contrastive,
+                self.teacher.lambda_cl,
                 self.teacher.lambda_byol,
                 self.teacher.lambda_mim,
             )
         ):
             raise ValueError("At least one teacher self-supervised objective must have a positive lambda")
+        if self.distillation.feature_loss != "mse":
+            raise ValueError("The thesis feature-matching loss is fixed to MSE")
+        if self.distillation.enabled and not all(
+            value > 0 for value in (self.distillation.alpha, self.distillation.beta, self.distillation.gamma)
+        ):
+            raise ValueError("Enabled KD requires positive alpha, beta, and gamma coefficients")
+        if (
+            self.distillation.aligned_height,
+            self.distillation.aligned_width,
+            self.distillation.aligned_channels,
+        ) != (7, 7, 2048):
+            raise ValueError("Feature matching is fixed to aligned [B, 7, 7, 2048] near-final maps")
 
     @property
     def image_size(self) -> tuple[int, int]:

@@ -10,10 +10,13 @@
     "epochs": 60,
     "learning_rate": 0.00001,
     "pretrained_warmup_epochs": 15,
-    "pretrained_warmup_learning_rate": 0.001,
-    "distillation_alpha": 0.95,
-    "distillation_temperature": 2.0,
-    "feature_distillation_enabled": false
+    "pretrained_warmup_learning_rate": 0.001
+  },
+  "distillation": {
+    "alpha": 0.95,
+    "beta": 0.05,
+    "gamma": 1.0,
+    "temperature": 2.0
   },
   "runtime": {
     "output_dir": "ai/artifacts/source_labeled_enhanced_transfer",

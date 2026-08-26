@@ -21,13 +21,13 @@ os.environ.setdefault("TF_NUM_INTRAOP_THREADS", "8")
 import tensorflow as tf
 from tqdm import tqdm
 
-from ai.data.dataset import make_supervised_dataset, make_teacher_dataset, prepare_splits, write_label_map
+from ai.data.dataset import build_ssl_pretraining_records, make_supervised_dataset, make_teacher_dataset, prepare_splits, write_label_map
 from ai.losses.byol_loss import byol_loss
 from ai.losses.classification_loss import classification_loss
 from ai.losses.contrastive_loss import nt_xent_loss
 from ai.losses.mim_loss import masked_reconstruction_loss
 from ai.models.teacher import build_ema_target, build_teacher, update_ema_target
-from ai.training.common import add_common_arguments, configured_experiment, make_optimizer, reduce_learning_rate, save_history
+from ai.training.common import add_common_arguments, configured_experiment, macro_f1_from_predictions, make_optimizer, reduce_learning_rate, save_history
 
 LIVE_FILE = "teacher_live.json"
 
@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
 
 def train(args: argparse.Namespace) -> Path:
     config = configured_experiment(args, "teacher_experiment_config.json")
+    if not config.teacher.ssl_enabled:
+        raise ValueError(
+            "This entry point implements ImageNet -> banana-domain SSL -> supervised fine-tuning. "
+            "Use train_supervised_ablation.py for configuration 5."
+        )
     output_dir = Path(config.runtime.output_dir)
     splits = prepare_splits(config, output_dir / "split_manifest.json")
     write_label_map(splits.class_names, output_dir / "label_map.json")
@@ -77,7 +82,7 @@ def train(args: argparse.Namespace) -> Path:
         # Leakage boundary: SSL sees the internal training partition plus only an
         # explicitly designated, overlap-screened unlabeled inventory. Validation,
         # internal test, and locked final-field-test pixels are never included.
-        ssl_records = splits.train + splits.ssl_unlabeled
+        ssl_records = build_ssl_pretraining_records(splits)
         ssl_dataset = make_teacher_dataset(ssl_records, config, training=True)
 
         online = build_teacher(config)
@@ -99,7 +104,7 @@ def train(args: argparse.Namespace) -> Path:
                 online_one = online_ssl(batch["view_one"], training=True)
                 online_two = online_ssl(batch["view_two"], training=True)
                 contrastive = tf.constant(0.0, tf.float32)
-                if config.teacher.lambda_contrastive > 0:
+                if config.teacher.lambda_cl > 0:
                     contrastive = nt_xent_loss(
                         online_one["projection"], online_two["projection"], config.teacher.contrastive_temperature
                     )
@@ -118,7 +123,7 @@ def train(args: argparse.Namespace) -> Path:
                     mim = masked_reconstruction_loss(batch["view_one"], reconstruction, batch["mask"])
 
                 total = (
-                    config.teacher.lambda_contrastive * contrastive
+                    config.teacher.lambda_cl * contrastive
                     + config.teacher.lambda_byol * bootstrap
                     + config.teacher.lambda_mim * mim
                 )
@@ -194,7 +199,11 @@ def train(args: argparse.Namespace) -> Path:
         # and the heavy MIM decoder are freed before fine-tuning backprop peaks in memory.
         classifier = tf.keras.Model(
             online.input,
-            {"logits": online.output["logits"], "features": online.output["features"]},
+            {
+                "logits": online.output["logits"],
+                "features": online.output["features"],
+                "feature_map": online.output["feature_map"],
+            },
             name="resnet101_classifier",
         )
     del online
@@ -222,17 +231,17 @@ def train(args: argparse.Namespace) -> Path:
         return classification_loss(labels, logits), logits
 
     best_path = output_dir / "best_teacher.keras"
-    best_accuracy = -1.0
+    best_macro_f1 = -1.0
     epochs_without_improvement = 0
     lr_wait = 0
     finetune_history: list[dict] = []
     history_path = output_dir / "teacher_finetune_history.json"
     if args.resume_finetune and history_path.is_file():
         finetune_history = json.loads(history_path.read_text(encoding="utf-8"))
-        best_accuracy = max(float(row["validation_accuracy"]) for row in finetune_history)
+        best_macro_f1 = max(float(row.get("validation_macro_f1", -1.0)) for row in finetune_history)
         print(
             f"Resuming fine-tuning from epoch {len(finetune_history) + 1} "
-            f"with best validation accuracy {best_accuracy:.5f}"
+            f"with best validation macro F1 {best_macro_f1:.5f}"
         )
     total_finetune_batches = dataset_batches(finetune_dataset)
     for epoch in range(1 + len(finetune_history), config.teacher.finetune_epochs + 1):
@@ -273,10 +282,14 @@ def train(args: argparse.Namespace) -> Path:
 
         validation_loss = tf.keras.metrics.Mean()
         validation_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
+        validation_true: list[int] = []
+        validation_predicted: list[int] = []
         for images, labels in validation_dataset:
             loss_value, logits = validation_step(images, labels)
             validation_loss.update_state(loss_value, sample_weight=tf.cast(tf.shape(labels)[0], tf.float32))
             validation_accuracy.update_state(labels, logits)
+            validation_true.extend(labels.numpy().astype(int).tolist())
+            validation_predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
         row = {
             "phase": "supervised_finetuning",
             "epoch": epoch,
@@ -284,14 +297,17 @@ def train(args: argparse.Namespace) -> Path:
             "train_accuracy": float(train_accuracy.result()),
             "validation_loss": float(validation_loss.result()),
             "validation_accuracy": float(validation_accuracy.result()),
+            "validation_macro_f1": macro_f1_from_predictions(
+                validation_true, validation_predicted, config.data.num_classes
+            ),
             "learning_rate": float(tf.keras.backend.get_value(finetune_optimizer.learning_rate)),
         }
         finetune_history.append(row)
         print(" - ".join(f"{name}={value:.5f}" if isinstance(value, float) else f"{name}={value}" for name, value in row.items()))
 
-        current_accuracy = row["validation_accuracy"]
-        if current_accuracy > best_accuracy:
-            best_accuracy = current_accuracy
+        current_macro_f1 = row["validation_macro_f1"]
+        if current_macro_f1 > best_macro_f1:
+            best_macro_f1 = current_macro_f1
             epochs_without_improvement = 0
             lr_wait = 0
             classifier.save(best_path)
@@ -308,7 +324,7 @@ def train(args: argparse.Namespace) -> Path:
 
     save_history(finetune_history, output_dir / "teacher_finetune_history.json")
     save_history(ssl_history + finetune_history, output_dir / "teacher_history.json")
-    print(f"Best fine-tuned ResNet-101 saved to {best_path} (validation accuracy={best_accuracy:.5f})")
+    print(f"Best fine-tuned ResNet-101 saved to {best_path} (validation macro F1={best_macro_f1:.5f})")
     return best_path
 
 
