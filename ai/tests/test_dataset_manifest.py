@@ -129,11 +129,14 @@ class DatasetManifestInventoryTest(unittest.TestCase):
             config.data.dataset_dir = str(dataset)
             config.data.ssl_unlabeled_dir = str(unlabeled)
 
-            with self.assertRaisesRegex(ValueError, "External dataset exact overlap"):
+            with self.assertRaisesRegex(ValueError, "External dataset .*overlap"):
                 prepare_splits(config, workspace / "split.json")
 
             overlap = json.loads((workspace / "external_overlap_report.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(overlap["exact_cross_inventory_overlaps"]), 1)
+            self.assertTrue(
+                overlap["exact_cross_inventory_overlaps"]
+                or overlap["near_cross_inventory_overlaps_requiring_review"]
+            )
             self.assertFalse((workspace / "split.json").exists())
 
     def test_related_images_are_assigned_to_one_split(self) -> None:

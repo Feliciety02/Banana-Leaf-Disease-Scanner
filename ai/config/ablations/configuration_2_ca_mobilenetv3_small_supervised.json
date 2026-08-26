@@ -1,0 +1,10 @@
+{
+  "experiment_name": "configuration_2_ca_mobilenetv3_small_supervised",
+  "student": {
+    "backbone": "MobileNetV3SmallCoordinateAttention",
+    "coordinate_attention": true,
+    "imagenet_weights": true
+  },
+  "distillation": { "enabled": false },
+  "runtime": { "output_dir": "ai/artifacts/configuration_2" }
+}

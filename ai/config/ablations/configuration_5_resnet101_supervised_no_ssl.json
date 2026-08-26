@@ -1,0 +1,6 @@
+{
+  "experiment_name": "configuration_5_resnet101_supervised_no_ssl",
+  "teacher": { "ssl_enabled": false, "imagenet_weights": true },
+  "distillation": { "enabled": false },
+  "runtime": { "output_dir": "ai/artifacts/configuration_5" }
+}

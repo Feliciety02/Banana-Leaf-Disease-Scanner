@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+import tracemalloc
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -84,16 +85,25 @@ def benchmark_keras_latency(model: tf.keras.Model, image_size: tuple[int, int], 
         output = output["logits"] if isinstance(output, dict) else output
         _ = output.numpy()
     timings = []
+    tracemalloc.start()
     for _ in range(runs):
         start = time.perf_counter()
         output = model(sample, training=False)
         output = output["logits"] if isinstance(output, dict) else output
         _ = output.numpy()
         timings.append((time.perf_counter() - start) * 1000.0)
+    _, peak_traced = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    mean_ms = float(np.mean(timings))
     return {
-        "mean_ms": float(np.mean(timings)),
+        "mean_ms": mean_ms,
+        "standard_deviation_ms": float(np.std(timings)),
         "median_ms": float(np.median(timings)),
         "p95_ms": float(np.percentile(timings, 95)),
+        "throughput_images_per_second": float(1000.0 / mean_ms) if mean_ms > 0 else None,
+        "peak_python_traced_memory_bytes": int(peak_traced),
+        "peak_memory_scope_note": "Python-traced allocations during warmed inference; device-native peak memory requires Android profiling",
+        "warmup_runs": warmup,
         "runs": runs,
     }
 

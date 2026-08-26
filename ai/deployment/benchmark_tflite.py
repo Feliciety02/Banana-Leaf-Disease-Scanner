@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import tracemalloc
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +32,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fp32-metrics", help="Optional matching Keras evaluation report")
     parser.add_argument("--num-threads", type=int, default=1)
     parser.add_argument("--warmup-runs", type=int, default=10)
+    parser.add_argument("--device-model")
+    parser.add_argument("--soc")
+    parser.add_argument("--installed-ram-mb", type=int)
+    parser.add_argument("--android-version")
+    parser.add_argument("--execution-backend", default="TensorFlow Lite CPU")
     return parser.parse_args()
 
 
@@ -59,6 +65,7 @@ def benchmark(args: argparse.Namespace) -> dict:
     timings: list[float] = []
     fp32_predictions: list[int] = []
     fp32_timings: list[float] = []
+    tracemalloc.start()
     for record in splits.test:
         image = decode_and_resize(record.path, config.image_size).numpy()[None, ...]
         logits, elapsed_ms = runner.predict(image)
@@ -69,6 +76,9 @@ def benchmark(args: argparse.Namespace) -> dict:
             fp32_logits, fp32_elapsed_ms = fp32_runner.predict(image)
             fp32_predictions.append(int(np.argmax(fp32_logits[0])))
             fp32_timings.append(fp32_elapsed_ms)
+    _, peak_traced = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    mean_latency = float(np.mean(timings))
     report = classification_metrics(true_labels, predicted_labels, splits.class_names)
     report["model"] = args.model_kind
     report["experiment_contract"] = experiment_contract(manifest, splits.class_names, config.image_size)
@@ -77,20 +87,41 @@ def benchmark(args: argparse.Namespace) -> dict:
         "num_threads": args.num_threads,
         "delegate_mode": runner.delegate_mode,
         "delegate_fallback_reason": runner.delegate_fallback_reason,
+        "device": {
+            "model": args.device_model or "PENDING EXPERIMENTAL VALIDATION",
+            "processor_soc": args.soc or "PENDING EXPERIMENTAL VALIDATION",
+            "installed_ram_mb": args.installed_ram_mb or "PENDING EXPERIMENTAL VALIDATION",
+            "android_version": args.android_version or "PENDING EXPERIMENTAL VALIDATION",
+            "tensorflow_lite_version": str(__import__("tensorflow").__version__),
+            "thread_count": args.num_threads,
+            "execution_backend": args.execution_backend,
+        },
         "latency": {
-            "mean_ms": float(np.mean(timings)),
+            "mean_ms": mean_latency,
+            "standard_deviation_ms": float(np.std(timings)),
             "median_ms": float(np.median(timings)),
             "p95_ms": float(np.percentile(timings, 95)),
+            "throughput_images_per_second": float(1000.0 / mean_latency) if mean_latency > 0 else None,
+            "warmup_runs": args.warmup_runs,
             "runs": len(timings),
         },
+        "peak_python_traced_memory_bytes": int(peak_traced),
+        "peak_memory_scope_note": "Python-traced inference allocations; formal peak memory must be profiled on the named Android device",
     }
     if fp32_runner is not None:
         fp32_report = classification_metrics(true_labels, fp32_predictions, splits.class_names)
         fp32_mean_latency = float(np.mean(fp32_timings))
         report["fp32_tflite_reference"] = {
             "model_file_bytes": fp32_model_path.stat().st_size,
-            "accuracy": fp32_report["accuracy"],
-            "mean_latency_ms": fp32_mean_latency,
+            "classification_metrics": fp32_report,
+            "latency": {
+                "mean_ms": fp32_mean_latency,
+                "standard_deviation_ms": float(np.std(fp32_timings)),
+                "median_ms": float(np.median(fp32_timings)),
+                "p95_ms": float(np.percentile(fp32_timings, 95)),
+                "throughput_images_per_second": float(1000.0 / fp32_mean_latency) if fp32_mean_latency > 0 else None,
+                "runs": len(fp32_timings),
+            },
             "delegate_mode": fp32_runner.delegate_mode,
             "delegate_fallback_reason": fp32_runner.delegate_fallback_reason,
         }

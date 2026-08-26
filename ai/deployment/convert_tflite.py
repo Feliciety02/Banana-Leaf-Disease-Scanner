@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import tensorflow as tf
 
-from ai.data.dataset import make_supervised_dataset, prepare_splits
+from ai.data.dataset import make_supervised_dataset, prepare_splits, select_stratified_representative_records
+from ai.deployment.quantization_audit import write_quantization_audit
 from ai.models.coordinate_attention import CoordinateAttention
 from ai.models.mobilenetv3_student import HardSwish, logits_only_model
 from ai.training.common import add_common_arguments, configured_experiment, validate_model_input
@@ -43,7 +45,24 @@ def convert(args: argparse.Namespace) -> tuple[Path, Path]:
     fp32_path = output_dir / "enhanced_mobilenetv3_fp32.tflite"
     fp32_path.write_bytes(fp32_bytes)
 
-    representative = make_supervised_dataset(splits.train, config, training=False).unbatch().batch(1)
+    selected = select_stratified_representative_records(
+        splits.train,
+        splits.class_names,
+        args.representative_samples,
+        config.runtime.seed,
+    )
+    representative = make_supervised_dataset(selected, config, training=False).unbatch().batch(1)
+    (output_dir / "quantization_calibration_manifest.json").write_text(
+        json.dumps({
+            "source_partition": "train",
+            "validation_or_test_samples": 0,
+            "records": [
+                {"path": record.path, "class_name": record.class_name, "group_id": record.group_id}
+                for record in selected
+            ],
+        }, indent=2),
+        encoding="utf-8",
+    )
 
     def representative_dataset():
         for images, _ in representative.take(args.representative_samples):
@@ -59,8 +78,10 @@ def convert(args: argparse.Namespace) -> tuple[Path, Path]:
     int8_bytes = int8_converter.convert()
     int8_path = output_dir / "enhanced_mobilenetv3_int8.tflite"
     int8_path.write_bytes(int8_bytes)
+    audit = write_quantization_audit(int8_path, output_dir / "quantization_audit.json")
     print(f"FP32 model: {fp32_path} ({fp32_path.stat().st_size} bytes)")
     print(f"INT8 model: {int8_path} ({int8_path.stat().st_size} bytes)")
+    print(f"Full-integer audit: {audit['full_integer_verified']}")
     return fp32_path, int8_path
 
 
