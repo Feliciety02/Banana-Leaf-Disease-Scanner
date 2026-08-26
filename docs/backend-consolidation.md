@@ -1,5 +1,8 @@
 # Backend Consolidation Record
 
+> Historical legacy/demo architecture only. The thesis mobile production path
+> is stateless on-device inference and does not depend on this backend.
+
 ## Decision
 
 `backend/` is the authoritative Laravel application. It contains every mobile and web requirement plus Form Requests, API Resources, diagnosis policies, role middleware, user/disease/diagnosis administration, analytics, secure uploads, and the central `diagnoses.sync_uuid` constraint. The former standalone mobile API was removed after consolidation because it duplicated authentication, profiles, diseases, diagnoses, and synchronization.

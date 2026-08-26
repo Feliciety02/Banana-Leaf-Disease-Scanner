@@ -1,43 +1,28 @@
-# Consolidated Runtime Boundary
+# Thesis runtime boundary
 
 ```text
-web-frontend/ ---------------------+
-                                   +--> backend/ --> central database
-mobile-frontend/ -> local SQLite --+
-          (offline/pending)             via /api/mobile/sync
+camera/gallery image
+  -> deterministic 224x224 RGB preparation
+  -> bundled full-integer INT8 CA-MobileNetV3-Small
+  -> class + relative model confidence
 ```
 
-`backend` is the single authoritative REST API. The same Sanctum-backed account works in React and Expo. Web diagnoses and acknowledged mobile diagnoses enter the same `diagnoses` table, so user history and administrator analytics share one source of truth.
+The thesis Android application is stateless and performs classification entirely on-device. It requires no Internet connection, API, account, role, database, saved image, scan history, or Grad-CAM output.
 
-## Central API contract
-
-- `GET /api/diseases`
-- `GET|POST /api/diagnoses`
-- `GET /api/admin/dashboard`
-- `POST /api/inference`
-- `POST /api/mobile/sync`
-
-`POST /api/mobile/sync` accepts up to 100 diagnoses and uses the mobile-generated UUID as an idempotency key. The unique `diagnoses.sync_uuid` constraint prevents duplicate central records.
-
-## Offline mobile flow
+The offline research path is:
 
 ```text
-simulated/TFLite inference -> local SQLite pending row -> connectivity -> central sync
-                                                        -> created/already_synchronized
-                                                        -> local row marked synced
+acquisition
+  -> harmonization / quality and expert-label control
+  -> exact and near-duplicate screening
+  -> biological/acquisition grouping
+  -> frozen 70/15/15 split
+  -> ImageNet ResNet-101 + training-only banana SSL (BYOL + MIM + contrastive)
+  -> four-class teacher fine-tuning selected by validation macro F1
+  -> frozen-teacher KD into CA-MobileNetV3-Small
+  -> validation-macro-F1-selected FP32 student
+  -> training-only calibration and full-integer INT8 TFLite audit
+  -> held-out FP32/INT8 and Davao field-subset evaluation
 ```
 
-## Model pipeline and deployment boundary
-
-```text
-QC + exact/near-duplicate review + biological/acquisition grouping
-  -> frozen train/validation/test manifest
-  -> training partition only: ResNet-101 self-supervised pretraining (BYOL + contrastive + MIM)
-  -> training partition: ResNet-101 four-class supervised fine-tuning
-  -> frozen ResNet-101 teacher for logit and feature distillation
-  -> MobileNetV3-Small student with Coordinate Attention replacing SE
-  -> full INT8 TensorFlow Lite conversion
-  -> React Native mobile inference
-```
-
-ResNet-101 is an offline training-time teacher and is never packaged with either client. The mobile application receives only `enhanced_mobilenetv3_int8.tflite`; its graph contains the student classifier and no teacher or self-supervised heads.
+`backend/`, `web-frontend/`, and the unused account/history/sync modules under `mobile-frontend/src/` are legacy research/demo utilities. They are not part of or dependencies of the thesis mobile production path.

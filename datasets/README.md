@@ -25,7 +25,13 @@ If you are new to the dataset, follow this order:
 > [!CAUTION]
 > Do not move an uncertain image into the class that merely looks closest. Ask a qualified reviewer or keep it excluded.
 
-## Current Class Contract (August 23, 2026)
+## Current Class Contract (August 26, 2026)
+
+The thesis plan is 700 labeled images per class (2,800 total) plus 8,000
+unlabeled banana-leaf images for SSL. Those are planned cohort sizes, not claims
+about this larger acquired inventory. Final cohort selection remains pending
+expert review and leakage-safe grouping; images must not be fabricated or
+silently discarded merely to force the planned totals.
 
 Black and Yellow Sigatoka are now one model class, `sigatoka`. The former
 Yellow output slot is now `panama-disease`. This order is fixed and must not be
@@ -34,22 +40,26 @@ sorted alphabetically or changed independently in another client.
 | Output | Model key | Display name | Working images |
 | ---: | --- | --- | ---: |
 | 0 | `healthy` | Healthy | 4,000 |
-| 1 | `sigatoka` | Sigatoka leaf spot | 4,000 |
-| 2 | `panama-disease` | Panama disease | 4,000 |
-| 3 | `cordana-leaf-spot` | Cordana leaf spot | 670 canonical (675 files) |
+| 1 | `sigatoka` | Sigatoka | 4,000 |
+| 2 | `panama-disease` | Panama Disease | 4,000 |
+| 3 | `cordana-leaf-spot` | Cordana Leaf Spot | 670 files |
 | — | `dead` | Preserved quarantine; no model index | 745 |
 |  |  | **Four-class canonical total** | **12,670** |
 
 > [!WARNING]
-> The August 23 audit found 0 unreadable images, 5 same-label exact Cordana
-> copies (reported and excluded without deletion), 1,011 perceptual pairs for
-> visual review, and only 16 explicit biological/acquisition group assignments.
+> The August 26 formal audit found 0 unreadable images, 0 exact duplicate
+> copies, 1,011 perceptual pairs requiring visual review, and only 23 images
+> with explicit biological/acquisition group assignments.
 > Formal split creation is blocked until metadata and near-duplicate review are
 > complete. Existing model artifacts are incompatible with this contract.
 
-All 13,420 files remain on disk. The validator admits 12,670 canonical active
-images, preserves 745 dead-leaf images in quarantine, and excludes five exact
-copies from splitting without deleting them.
+There are 13,415 image files on disk: 12,670 in active class folders and 745 in
+the dead-leaf quarantine. The validator determines the accepted canonical count
+after exact-copy exclusion; folder counts alone are not a formal cohort.
+
+The enforced processing order is acquisition → label harmonization and quality
+control → exact/near-duplicate screening → biological/acquisition grouping →
+dataset split → training-only augmentation.
 
 ### Kaggle original-image expansion
 
