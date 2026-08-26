@@ -16,7 +16,7 @@ class LabelContractTest(unittest.TestCase):
         self.assertEqual(config.data.num_classes, len(CLASS_LABELS))
         self.assertEqual(
             [CLASS_DISPLAY_NAMES[label] for label in CLASS_LABELS],
-            ["Healthy", "Dead leaf", "Sigatoka leaf spot", "Panama disease", "Cordana leaf spot"],
+            ["Healthy", "Sigatoka leaf spot", "Panama disease", "Cordana leaf spot"],
         )
 
     def test_configuration_cannot_override_final_classes(self) -> None:
@@ -31,9 +31,10 @@ class LabelContractTest(unittest.TestCase):
         self.assertEqual(_validate_class_directories(valid, CLASS_LABELS, Path("dataset")), list(CLASS_LABELS))
 
         invalid = dict(valid)
-        invalid.pop("dead")
-        invalid["not-dead"] = Path("not-dead")
-        with self.assertRaisesRegex(ValueError, "dead"):
+        missing_class = CLASS_LABELS[0]
+        invalid.pop(missing_class)
+        invalid["unexpected-class"] = Path("unexpected-class")
+        with self.assertRaisesRegex(ValueError, missing_class):
             _validate_class_directories(invalid, CLASS_LABELS, Path("dataset"))
 
 

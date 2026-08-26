@@ -1,12 +1,13 @@
 {
   "data": {
     "group_manifest": "datasets/group_manifest.json",
+    "metadata_manifest": "datasets/image_metadata.json",
     "batch_size": 4,
     "cache_dataset": true
   },
   "teacher": {
     "ssl_epochs": 5,
-    "finetune_epochs": 20
+    "finetune_epochs": 40
   },
   "student": {
     "epochs": 50

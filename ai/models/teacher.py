@@ -35,7 +35,7 @@ def build_teacher(config: ExperimentConfig, force_weights: str | None = None) ->
     feature_map = backbone(normalized)  # [B, h, w, 2048]
     features = tf.keras.layers.GlobalAveragePooling2D(name="teacher_features")(feature_map)  # [B, 2048]
     dropped = tf.keras.layers.Dropout(config.teacher.dropout_rate, name="teacher_dropout")(features)
-    logits = tf.keras.layers.Dense(config.data.num_classes, name="logits")(dropped)  # [B, 5]
+    logits = tf.keras.layers.Dense(config.data.num_classes, name="logits")(dropped)  # [B, 4]
     projection = projection_head(
         features,
         config.teacher.projection_hidden_dim,

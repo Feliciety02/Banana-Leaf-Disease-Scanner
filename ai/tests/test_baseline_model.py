@@ -6,7 +6,7 @@ from ai.config.config import ExperimentConfig
 
 
 class BaselineModelTest(unittest.TestCase):
-    def test_stock_small_model_uses_shared_input_and_five_logits(self) -> None:
+    def test_stock_small_model_uses_shared_input_and_four_logits(self) -> None:
         from ai.models.mobilenetv3_baseline import BASELINE_BACKBONE_NAME, BASELINE_MODEL_NAME, build_baseline
 
         config = ExperimentConfig()
@@ -16,7 +16,7 @@ class BaselineModelTest(unittest.TestCase):
         self.assertEqual(model.name, BASELINE_MODEL_NAME)
         self.assertEqual(backbone.name, BASELINE_BACKBONE_NAME)
         self.assertEqual(tuple(model.input_shape[1:]), (224, 224, 3))
-        self.assertEqual(model.output_shape, (None, 5))
+        self.assertEqual(model.output_shape, (None, 4))
         normalization = model.get_layer("baseline_input_normalization")
         self.assertEqual(float(normalization.scale), 2.0)
         self.assertEqual(float(normalization.offset), -1.0)

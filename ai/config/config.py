@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 from dotenv import load_dotenv
 
-from ai.config.labels import CLASS_LABELS
+from ai.config.labels import CLASS_LABELS, QUARANTINED_CLASS_NAMES
 
 
 AI_ROOT = Path(__file__).resolve().parents[1]
@@ -35,15 +35,30 @@ def _dataset_root_from_environment() -> Optional[str]:
 @dataclass
 class DataConfig:
     dataset_dir: Optional[str] = field(default_factory=_dataset_root_from_environment)
-    # Optional JSON object mapping known dataset-relative image paths to specimen/plant IDs.
-    # Unlisted images fall back to their SHA-256. Supply overrides whenever multiple
-    # non-identical images can originate from one leaf/plant.
+    # Optional JSON object mapping known dataset-relative paths to indivisible
+    # biological/acquisition group IDs (leaf, plant, site/session, burst, or
+    # derived-image family). Unlisted images fall back to SHA-256 only as a final
+    # exact-duplicate safeguard; that fallback does not establish independence.
     group_manifest: Optional[str] = None
+    # Optional JSON mapping every experiment-relative image path to structured
+    # provenance/review metadata. Missing fields are represented as "unknown";
+    # they must never be invented.
+    metadata_manifest: Optional[str] = None
+    near_duplicate_review_manifest: Optional[str] = None
+    # Optional external inventories. The final field test is never consumed by
+    # training or validation; SSL-unlabeled images may be used only by the SSL
+    # phase after overlap screening.
+    final_field_test_dir: Optional[str] = None
+    ssl_unlabeled_dir: Optional[str] = None
     image_height: int = 224
     image_width: int = 224
-    num_classes: int = 5
+    num_classes: int = 4
     # Fixed model output-index order. Dataset directory names must match these keys.
     class_names: tuple[str, ...] = CLASS_LABELS
+    quarantined_class_names: tuple[str, ...] = QUARANTINED_CLASS_NAMES
+    near_duplicate_hamming_distance: int = 6
+    require_near_duplicate_review: bool = True
+    require_complete_metadata: bool = True
     train_fraction: float = 0.70
     validation_fraction: float = 0.15
     test_fraction: float = 0.15
@@ -168,6 +183,15 @@ class ExperimentConfig:
                 "data.class_names and their output-index order are fixed to "
                 f"{list(CLASS_LABELS)}"
             )
+        if tuple(self.data.quarantined_class_names) != QUARANTINED_CLASS_NAMES:
+            raise ValueError(
+                "data.quarantined_class_names is fixed to "
+                f"{list(QUARANTINED_CLASS_NAMES)} so preserved dead-leaf data cannot enter the experiment"
+            )
+        if set(self.data.class_names).intersection(self.data.quarantined_class_names):
+            raise ValueError("Active and quarantined class names must be disjoint")
+        if not 0 <= self.data.near_duplicate_hamming_distance <= 16:
+            raise ValueError("data.near_duplicate_hamming_distance must be in [0, 16]")
         if self.teacher.backbone != "ResNet101":
             raise ValueError("The finalized thesis teacher architecture is fixed to ResNet101")
         if self.teacher.feature_dim != 2048:
