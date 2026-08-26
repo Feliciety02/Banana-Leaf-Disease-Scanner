@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "DahonMD Field",
+    "name": "DahonMD",
     "slug": "dahonmd-field",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -31,16 +31,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-sqlite",
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow DahonMD to select a banana leaf image for diagnosis.",
-          "cameraPermission": "Allow DahonMD to photograph banana leaves for diagnosis.",
+          "photosPermission": "Allow DahonMD to select a banana leaf image for classification.",
+          "cameraPermission": "Allow DahonMD to photograph banana leaves for classification.",
           "microphonePermission": false
         }
       ],
-      "expo-secure-store",
       "expo-asset",
       "expo-font"
     ]
