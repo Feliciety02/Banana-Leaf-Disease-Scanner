@@ -14,6 +14,14 @@ import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from ai.config.config import ExperimentConfig
+from ai.data.metadata_manifest import (
+    LEGACY_DEFAULTS,
+    LEGACY_FIELDS,
+    enrich_metadata,
+    load_manifest_payload,
+    validation_report as build_metadata_validation_report,
+    write_manifest as write_metadata_manifest,
+)
 
 
 def _require_tensorflow():
@@ -72,39 +80,8 @@ class ImageInventoryValidation:
     near_duplicate_pair_count: int
 
 
-METADATA_FIELDS: tuple[str, ...] = (
-    "source",
-    "plant_id",
-    "leaf_id",
-    "site_id",
-    "session_id",
-    "origin_type",
-    "capture_device",
-    "acquisition_date",
-    "field_subset",
-    "species_review_status",
-    "visibility_quality_status",
-    "inclusion_status",
-    "label_validator",
-    "label_review_status",
-)
-
-METADATA_DEFAULTS: dict[str, str] = {
-    "source": "unknown",
-    "plant_id": "unknown",
-    "leaf_id": "unknown",
-    "site_id": "unknown",
-    "session_id": "unknown",
-    "origin_type": "unknown",
-    "capture_device": "unknown",
-    "acquisition_date": "unknown",
-    "field_subset": "none",
-    "species_review_status": "pending",
-    "visibility_quality_status": "pending",
-    "inclusion_status": "pending",
-    "label_validator": "unknown",
-    "label_review_status": "pending",
-}
+METADATA_FIELDS = LEGACY_FIELDS
+METADATA_DEFAULTS = LEGACY_DEFAULTS
 
 
 def require_dataset_dir(config: ExperimentConfig) -> Path:
@@ -532,47 +509,9 @@ def validate_image_inventory(
     )
 
 
-def load_metadata_manifest(path: str | Path | None) -> dict[str, dict[str, str]]:
-    if path is None:
-        return {}
-    source = Path(path).expanduser().resolve()
-    if not source.is_file():
-        raise FileNotFoundError(f"Metadata manifest not found: {source}")
-    payload = json.loads(source.read_text(encoding="utf-8"))
-    images = payload.get("images", payload) if isinstance(payload, dict) else None
-    if not isinstance(images, dict):
-        raise ValueError("data.metadata_manifest must contain an object keyed by dataset-relative image path")
-    normalized: dict[str, dict[str, str]] = {}
-    for relative, metadata in images.items():
-        if not isinstance(relative, str) or not isinstance(metadata, dict):
-            raise ValueError("Metadata entries must map string paths to JSON objects")
-        unknown = set(metadata) - set(METADATA_FIELDS)
-        if unknown:
-            raise ValueError(f"Metadata for '{relative}' contains unknown fields: {sorted(unknown)}")
-        values = {**METADATA_DEFAULTS, **metadata}
-        if any(not isinstance(values[field], str) or not values[field].strip() for field in METADATA_FIELDS):
-            raise ValueError(f"Metadata for '{relative}' must use non-empty strings for every field")
-        normalized[relative.replace("\\", "/")] = values
-    return normalized
-
-
-def _infer_documented_source(relative_path: str) -> str:
-    filename = Path(relative_path).name.lower()
-    mappings = (
-        ("healthy-zenodo-", "zenodo-tanzania-7670326"),
-        ("sigatoka-zenodo-", "zenodo-tanzania-7670326"),
-        ("healthy-v4-", "banana-leaf-disease-dataset-v4"),
-        ("sigatoka-v4-", "banana-leaf-disease-dataset-v4"),
-        ("cordana-v4-", "banana-leaf-disease-dataset-v4"),
-        ("healthy-nutrient-", "nutrient-deficient-banana-plant-leaves"),
-        ("cordana-bananalsd-", "bananalsd"),
-        ("cordana-ecuador-", "deep-learning-banana-diseases-ecuador"),
-        ("panama-kaggle-", "banana-disease-recognition-dataset"),
-    )
-    for prefix, source in mappings:
-        if filename.startswith(prefix):
-            return source
-    return "unknown"
+def load_metadata_manifest(path: str | Path | None) -> dict[str, dict[str, Any]]:
+    """Load schema v1 or v2, preserving v2 evidence while exposing legacy aliases."""
+    return load_manifest_payload(path)
 
 
 def write_metadata_template(
@@ -582,88 +521,30 @@ def write_metadata_template(
     allowed_extensions: Sequence[str],
     destination: str | Path,
 ) -> Path:
-    """Write a non-destructive metadata template, preserving existing reviewed values."""
-    output = Path(destination)
-    existing = load_metadata_manifest(output) if output.is_file() else {}
-    active = set(class_names)
-    quarantined = set(quarantined_class_names)
-    images: dict[str, dict[str, str]] = {}
-    for path in _image_paths(root, allowed_extensions):
-        class_name = _candidate_class(path, root)
-        if class_name not in active and class_name not in quarantined:
-            continue
-        relative = str(path.relative_to(root)).replace("\\", "/")
-        existing_values = existing.get(relative)
-        values = {**METADATA_DEFAULTS, **(existing_values or {})}
-        if values["source"] == "unknown":
-            values["source"] = _infer_documented_source(relative)
-        if existing_values is None and values["source"] != "unknown":
-            values["origin_type"] = "public"
-        images[relative] = values
-    payload = {
-        "schema_version": 1,
-        "dataset_root": str(root),
-        "instructions": (
-            "Replace unknown/pending values only with verified provenance. "
-            "Do not invent plant, leaf, site, session, or validator identifiers."
-        ),
-        "images": images,
-    }
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return output.resolve()
+    """Write a deterministic v2 template while preserving reviewed values."""
+    payload = enrich_metadata(
+        root=root,
+        class_names=class_names,
+        quarantined_class_names=quarantined_class_names,
+        extensions=allowed_extensions,
+        existing_path=destination if Path(destination).is_file() else None,
+    )
+    return write_metadata_manifest(payload, destination)
 
 
 def write_metadata_coverage_report(
     root: Path,
     active_paths: Iterable[Path],
-    metadata_map: dict[str, dict[str, str]],
+    metadata_map: dict[str, dict[str, Any]],
     destination: str | Path,
 ) -> tuple[int, int]:
-    relative_paths = sorted(str(path.relative_to(root)).replace("\\", "/") for path in active_paths)
-    missing_entries = [relative for relative in relative_paths if relative not in metadata_map]
-    incomplete: list[dict[str, Any]] = []
-    for relative in relative_paths:
-        values = {**METADATA_DEFAULTS, **metadata_map.get(relative, {})}
-        # Site/plant/leaf/session/device/date are required only when the source
-        # actually provides them. Formal admission always requires affirmative
-        # species, visibility/quality, inclusion, and expert-label decisions.
-        required_decisions = {
-            "species_review_status": "banana",
-            "visibility_quality_status": "acceptable",
-            "inclusion_status": "included",
-            "label_review_status": "validated",
-        }
-        unresolved = [
-            field for field, expected in required_decisions.items()
-            if values[field] != expected
-        ]
-        if unresolved:
-            incomplete.append({"path": relative, "unresolved_fields": unresolved})
-    unused_entries = sorted(set(metadata_map) - set(relative_paths))
-    payload = {
-        "schema_version": 1,
-        "dataset_root": str(root),
-        "required_fields": list(METADATA_FIELDS),
-        "formal_completion_rule": (
-            "Every active image must be reviewed as banana species, acceptable visibility/quality, "
-            "included, and expert-label validated. Acquisition identifiers remain unknown when unavailable."
-        ),
-        "summary": {
-            "active_images": len(relative_paths),
-            "manifest_entries_present": len(relative_paths) - len(missing_entries),
-            "missing_entries": len(missing_entries),
-            "incomplete_entries": len(incomplete),
-            "unused_or_quarantined_entries": len(unused_entries),
-        },
-        "missing_paths": missing_entries,
-        "incomplete_images": incomplete,
-        "unused_or_quarantined_paths": unused_entries,
-    }
+    payload, missing_count, incomplete_count = build_metadata_validation_report(
+        root, active_paths, metadata_map
+    )
     output = Path(destination)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return len(missing_entries), len(incomplete)
+    return missing_count, incomplete_count
 
 
 def _records_for_classes(
@@ -672,7 +553,7 @@ def _records_for_classes(
     config: ExperimentConfig,
     dataset_root: Path,
     group_map: dict[str, str] | None,
-    metadata_map: dict[str, dict[str, str]],
+    metadata_map: dict[str, dict[str, Any]],
     hashes_by_path: dict[Path, str],
 ) -> list[ImageRecord]:
     records: list[ImageRecord] = []
@@ -690,17 +571,21 @@ def _records_for_classes(
             # A group manifest may contain only the known multi-image biological
             # groups. Unlisted records retain the safe exact-hash fallback.
             metadata = {**METADATA_DEFAULTS, **metadata_map.get(relative, {})}
-            group_id = (
-                group_map.get(relative)
-                if group_map is not None and group_map.get(relative)
-                else _metadata_group_id(metadata, digest)
-            )
-            records.append(ImageRecord(str(path), label, class_name, digest, group_id, **metadata))
+            group_id = group_map.get(relative) if group_map is not None else None
+            if not group_id:
+                group_id = _metadata_group_id(metadata, digest)
+            legacy_metadata = {
+                field: metadata.get(field, METADATA_DEFAULTS[field]) for field in METADATA_FIELDS
+            }
+            records.append(ImageRecord(str(path), label, class_name, digest, group_id, **legacy_metadata))
     return records
 
 
-def _metadata_group_id(metadata: dict[str, str], digest: str) -> str:
+def _metadata_group_id(metadata: dict[str, Any], digest: str) -> str:
     """Conservatively derive an indivisible biological/acquisition group."""
+    explicit = metadata.get("group_id", "pending")
+    if explicit not in {"unknown", "pending", "", "none"}:
+        return explicit
     source = metadata.get("source", "unknown")
     site = metadata.get("site_id", "unknown")
     plant = metadata.get("plant_id", "unknown")
