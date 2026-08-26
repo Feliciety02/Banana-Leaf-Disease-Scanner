@@ -1,7 +1,6 @@
 {
   "0": "healthy",
-  "1": "dead",
-  "2": "sigatoka",
-  "3": "panama-disease",
-  "4": "cordana-leaf-spot"
+  "1": "sigatoka",
+  "2": "panama-disease",
+  "3": "cordana-leaf-spot"
 }
