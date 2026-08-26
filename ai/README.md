@@ -46,6 +46,12 @@ integrity and duplicate screening, resolved perceptual candidates, and the
 frozen validation/test SSL exclusions. See `datasets/SSL_INGESTION.md`. The
 current external SSL-ready count is 0, not the planned target of 8,000.
 
+Davao field acquisition uses `ai.data.build_davao_field_manifest`. Farmer or
+worker labels are notes only; they do not become final labels. A photo becomes
+eligible only after documented expert validation, quality and duplicate checks,
+and leaf/plant/session grouping. Eligible Davao photos are final-test-only.
+See `datasets/DAVAO_FIELD_WORKFLOW.md`. The current validated Davao count is 0.
+
 ## Explicit ablations
 
 | Configuration | Config | Entry point |

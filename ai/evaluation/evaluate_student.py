@@ -34,7 +34,12 @@ def parse_args() -> argparse.Namespace:
 def evaluate(args: argparse.Namespace) -> dict:
     config = configured_experiment(args, "student_evaluation_config.json")
     output_dir = Path(config.runtime.output_dir)
-    manifest = Path(args.split_manifest) if args.split_manifest else output_dir / "split_manifest.json"
+    manifest = (
+        Path(args.split_manifest) if args.split_manifest
+        else Path(config.data.final_split_dir) / "split_summary.json"
+        if config.data.final_split_dir
+        else output_dir / "split_manifest.json"
+    )
     if not manifest.is_file():
         raise FileNotFoundError(f"Shared split manifest not found: {manifest}")
     splits = prepare_splits(config, manifest)
@@ -82,6 +87,7 @@ def evaluate(args: argparse.Namespace) -> dict:
             field_true, field_predicted, splits.class_names
         )
         metrics["davao_field_subset"]["expert_validated_samples"] = len(davao_records)
+        metrics["davao_field_subset"]["predefined_manifest"] = config.data.final_field_test_manifest
     else:
         metrics["davao_field_subset"] = {
             "status": "PENDING EXPERIMENTAL VALIDATION",

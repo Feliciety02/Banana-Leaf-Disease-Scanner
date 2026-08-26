@@ -6,6 +6,7 @@ import hashlib
 import json
 import random
 import warnings
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -1044,6 +1045,7 @@ def _validate_external_overlap(
 def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = None) -> DatasetSplits:
     root = require_dataset_dir(config)
     ssl_configured = bool(config.data.ssl_unlabeled_dir or config.data.ssl_manifest)
+    field_configured = bool(config.data.final_field_test_dir or config.data.final_field_test_manifest)
     if bool(config.data.ssl_unlabeled_dir) != bool(config.data.ssl_manifest):
         raise ValueError(
             "External SSL requires both data.ssl_unlabeled_dir and a versioned data.ssl_manifest; "
@@ -1052,6 +1054,15 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
     if ssl_configured and not config.data.final_split_dir:
         raise ValueError(
             "External SSL requires data.final_split_dir; validation/test identities must be frozen first"
+        )
+    if bool(config.data.final_field_test_dir) != bool(config.data.final_field_test_manifest):
+        raise ValueError(
+            "Davao field evaluation requires both data.final_field_test_dir and a versioned "
+            "data.final_field_test_manifest; folder names/preliminary labels are never admitted"
+        )
+    if field_configured and not config.data.final_split_dir:
+        raise ValueError(
+            "Davao field evaluation requires data.final_split_dir and is attached only to held-out test"
         )
     if config.data.final_split_dir:
         # Import lazily to avoid a module cycle: the final-split adapter returns
@@ -1071,6 +1082,47 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
                 config.data.ssl_unlabeled_dir,
                 Path(config.data.final_split_dir) / "ssl_exclusion_manifest.json",
             )
+        if field_configured:
+            from ai.data.build_davao_field_manifest import load_davao_test_records
+
+            field_records = load_davao_test_records(
+                config.data.final_field_test_manifest,
+                config.data.final_field_test_dir,
+                config.data.final_split_dir,
+            )
+            existing = splits.train + splits.validation + splits.test
+            existing_paths = {Path(record.path).resolve() for record in existing}
+            existing_hashes = {record.sha256 for record in existing}
+            existing_groups = {record.group_id for record in existing}
+            if any(
+                Path(record.path).resolve() in existing_paths
+                or record.sha256 in existing_hashes
+                or record.group_id in existing_groups
+                for record in field_records
+            ):
+                raise ValueError("Davao field subset overlaps a frozen labeled path/hash/group")
+            splits.test.extend(field_records)
+        if ssl_configured and field_configured:
+            field_records = [record for record in splits.test if record.field_subset == "davao"]
+            field_hashes = {record.sha256 for record in field_records}
+            field_groups = {record.group_id for record in field_records}
+            field_hash_values: dict[int, list[str]] = defaultdict(list)
+            field_tree = _HammingBkTree()
+            for record in field_records:
+                value = _external_record_dhash(record)
+                if value not in field_hash_values:
+                    field_tree.add(value)
+                field_hash_values[value].append(record.path)
+            for record in splits.ssl_unlabeled:
+                if record.sha256 in field_hashes or record.group_id in field_groups:
+                    raise ValueError(f"Davao held-out image/group entered external SSL: {record.path}")
+                value = _external_record_dhash(record)
+                matches = field_tree.query(value, config.data.near_duplicate_hamming_distance)
+                if matches:
+                    raise ValueError(
+                        "External SSL contains a perceptual relative of the Davao held-out subset: "
+                        f"{record.path}"
+                    )
         return splits
     manifest = Path(manifest_path) if manifest_path else Path(config.runtime.output_dir) / "split_manifest.json"
     near_duplicate_reviews = load_near_duplicate_reviews(config.data.near_duplicate_review_manifest)

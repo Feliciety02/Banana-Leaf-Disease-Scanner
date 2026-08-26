@@ -133,6 +133,23 @@ class DatasetManifestInventoryTest(unittest.TestCase):
                 prepare_splits(config, workspace / "split.json")
             self.assertFalse((workspace / "split.json").exists())
 
+    def test_raw_davao_folder_labels_are_never_admitted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            dataset = workspace / "dataset"
+            self._make_minimum_dataset(dataset)
+            field = workspace / "davao-field"
+            (field / "healthy").mkdir(parents=True)
+            Image.new("RGB", (64, 64), (10, 20, 30)).save(field / "healthy" / "worker-label.png")
+            config = ExperimentConfig()
+            self._allow_synthetic_exploration(config)
+            config.data.dataset_dir = str(dataset)
+            config.data.final_field_test_dir = str(field)
+
+            with self.assertRaisesRegex(ValueError, "versioned data.final_field_test_manifest"):
+                prepare_splits(config, workspace / "split.json")
+            self.assertFalse((workspace / "split.json").exists())
+
     def test_related_images_are_assigned_to_one_split(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)

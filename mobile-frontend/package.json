@@ -13,7 +13,9 @@
     "release:status": "node scripts/check-release-readiness.mjs --report",
     "release:check": "node scripts/check-release-readiness.mjs",
     "build:android:preview": "eas build --platform android --profile preview",
-    "build:android:production": "npm run release:check && eas build --platform android --profile production"
+    "build:android:production": "npm run release:check && eas build --platform android --profile production",
+    "benchmark": "node scripts/run-benchmark.mjs",
+    "benchmark:android": "cd android && ./gradlew connectedAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=expo.modules.dahonmdtflite.BenchmarkDeviceProfileTest"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

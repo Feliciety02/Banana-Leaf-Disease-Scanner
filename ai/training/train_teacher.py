@@ -28,6 +28,11 @@ from ai.losses.contrastive_loss import nt_xent_loss
 from ai.losses.mim_loss import masked_reconstruction_loss
 from ai.models.teacher import build_ema_target, build_teacher, update_ema_target
 from ai.training.common import add_common_arguments, configured_experiment, macro_f1_from_predictions, make_optimizer, reduce_learning_rate, save_history
+from ai.training.teacher_protocol import (
+    assert_teacher_partition_isolation,
+    selected_teacher_hyperparameters,
+    write_reproducibility_manifest,
+)
 
 LIVE_FILE = "teacher_live.json"
 
@@ -324,7 +329,52 @@ def train(args: argparse.Namespace) -> Path:
 
     save_history(finetune_history, output_dir / "teacher_finetune_history.json")
     save_history(ssl_history + finetune_history, output_dir / "teacher_history.json")
+
+    selected_epoch = max(
+        (row["epoch"] for row in finetune_history if row.get("validation_macro_f1", -1.0) >= best_macro_f1 - 1e-9),
+        default=len(finetune_history),
+    )
+
+    candidate_hyperparameters = selected_teacher_hyperparameters(config)
+    (output_dir / "candidate_hyperparameters.json").write_text(
+        json.dumps(candidate_hyperparameters, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    held_out_true: list[int] = []
+    held_out_predicted: list[int] = []
+    best_model = tf.keras.models.load_model(best_path)
+    best_classifier = tf.keras.Model(
+        best_model.input,
+        {name: best_model.output[name] for name in ("logits", "features", "feature_map")},
+        name="resnet101_eval_classifier",
+    )
+    del best_model
+    for images, labels in validation_dataset:
+        logits = best_classifier(images, training=False)["logits"]
+        held_out_true.extend(labels.numpy().astype(int).tolist())
+        held_out_predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
+    del best_classifier
+
+    final_macro_f1 = macro_f1_from_predictions(held_out_true, held_out_predicted, config.data.num_classes)
+    validation_metrics = {
+        "partition": "validation",
+        "metric": "macro_f1",
+        "value": final_macro_f1,
+        "selected_epoch": selected_epoch,
+        "num_samples": len(held_out_true),
+        "test_set_evaluated": False,
+    }
+    (output_dir / "validation_metrics.json").write_text(
+        json.dumps(validation_metrics, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    write_reproducibility_manifest(
+        config, splits, output_dir, selected_epoch, final_macro_f1,
+    )
+    assert_teacher_partition_isolation(splits)
+
     print(f"Best fine-tuned ResNet-101 saved to {best_path} (validation macro F1={best_macro_f1:.5f})")
+    print(f"Reproducibility manifest written to {output_dir / 'reproducibility_manifest.json'}")
     return best_path
 
 

@@ -12,6 +12,20 @@ if (!existsSync(resolve(root, 'assets/models/ca_mobilenetv3_small_int8.tflite'))
 if (!existsSync(resolve(root, 'modules/dahonmd-tflite'))) {
   problems.push('PENDING EXPERIMENTAL VALIDATION: native DahonMDTFLite module is not implemented.');
 }
+if (!existsSync(resolve(root, 'modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt'))) {
+  problems.push('PENDING EXPERIMENTAL VALIDATION: Kotlin TFLite module source is missing.');
+}
+
+const inferencePath = resolve(root, 'src/services/inference.ts');
+if (existsSync(inferencePath)) {
+  const inference = readFileSync(inferencePath, 'utf8');
+  if (inference.includes('NativeModules.DahonMDTFLite')) {
+    problems.push('inference.ts still uses raw NativeModules bridge instead of the typed module import.');
+  }
+  if (inference.includes('PENDING EXPERIMENTAL VALIDATION')) {
+    problems.push('inference.ts still contains the PENDING fallback error message.');
+  }
+}
 
 if (process.argv.includes('--report')) console.log(JSON.stringify({ ready: problems.length === 0, problems }, null, 2));
 if (problems.length) {
