@@ -122,7 +122,7 @@ def build_student(config: ExperimentConfig, force_weights: str | None = None) ->
     else:
         distill_features = features
     dropped = tf.keras.layers.Dropout(config.student.dropout_rate, name="student_dropout")(features)
-    logits = tf.keras.layers.Dense(config.data.num_classes, name="logits")(dropped)  # [B, 5]
+    logits = tf.keras.layers.Dense(config.data.num_classes, name="logits")(dropped)  # [B, 4]
     return tf.keras.Model(
         inputs,
         {"logits": logits, "features": features, "distill_features": distill_features},

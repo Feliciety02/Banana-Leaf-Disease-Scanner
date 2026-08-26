@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 import tensorflow as tf
+from tqdm import tqdm
 
 from ai.data.dataset import make_supervised_dataset, prepare_splits, write_label_map
 from ai.losses.classification_loss import classification_loss
@@ -24,6 +25,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def dataset_batches(dataset: tf.data.Dataset) -> int:
+    cardinality = int(dataset.cardinality())
+    return cardinality if cardinality > 0 else 0
+
+
 def train(args: argparse.Namespace) -> Path:
     config = configured_experiment(args, "student_experiment_config.json")
     output_dir = Path(config.runtime.output_dir)
@@ -38,7 +44,7 @@ def train(args: argparse.Namespace) -> Path:
     teacher = tf.keras.models.load_model(
         teacher_path, custom_objects={"ResNet101Preprocessing": ResNet101Preprocessing}, compile=False
     )
-    if teacher.name != "resnet101_teacher":
+    if teacher.name not in ("resnet101_teacher", "resnet101_classifier"):
         raise ValueError(f"Expected a fine-tuned ResNet-101 teacher, received model '{teacher.name}'")
     validate_model_input(teacher, config, "Teacher model")
     teacher.trainable = False
@@ -134,6 +140,7 @@ def train(args: argparse.Namespace) -> Path:
     epochs_without_improvement = 0
     lr_wait = 0
     history: list[dict] = []
+    total_batches = dataset_batches(train_dataset)
     for epoch in range(1, config.student.epochs + 1):
         if warmup_epochs and epoch == warmup_epochs + 1:
             for layer_name in transferred_layers:
@@ -145,10 +152,21 @@ def train(args: argparse.Namespace) -> Path:
             lr_wait = 0
             print(f"Unfroze shared backbone at epoch {epoch}; fine-tuning learning rate={config.student.learning_rate}")
         train_metrics = {name: tf.keras.metrics.Mean() for name in ("loss", "hard_loss", "soft_loss", "feature_loss", "accuracy")}
-        for images, labels in train_dataset:
+        train_progress = tqdm(
+            train_dataset,
+            desc=f"Epoch {epoch}/{config.student.epochs}",
+            total=total_batches or None,
+            unit="batch",
+            dynamic_ncols=True,
+        )
+        for images, labels in train_progress:
             results = train_step(images, labels)
             for name, value in results.items():
                 train_metrics[name].update_state(value)
+            train_progress.set_postfix(
+                loss=f"{float(train_metrics['loss'].result()):.4f}",
+                accuracy=f"{float(train_metrics['accuracy'].result()):.4f}",
+            )
 
         validation_loss = tf.keras.metrics.Mean()
         validation_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()

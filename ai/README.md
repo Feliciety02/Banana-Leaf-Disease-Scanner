@@ -39,8 +39,9 @@ The **proposed CA-MobileNetV3-Small won that historical fixed-split run**.
 > [!CAUTION]
 > These artifacts are incompatible with the current `sigatoka` and
 > `panama-disease` contract and are rejected by the runtime. Formal retraining
-> remains gated on expert review of the new Panama candidates. The `dead`-leaf
-> class is also not Moko disease or another causal diagnosis.
+> remains gated on expert review, structured metadata completion, and
+> near-duplicate review. Dead-leaf source images are preserved in quarantine
+> and excluded from this experiment.
 
 ## What Are We Comparing?
 
@@ -92,8 +93,8 @@ Training accuracy is not the final thesis accuracy. Use the result printed by th
 
 Check these items first:
 
-- The dataset exists at `datasets/banana_leaf_5class`.
-- The five class folders use the exact names listed below.
+- The dataset exists at `datasets/banana_leaf_thesis_4class`.
+- The four active class folders and preserved `dead` quarantine folder use the exact names listed below.
 - Python dependencies are installed in `.venv`.
 - The existing teacher checkpoint is available, or you plan to train it.
 - You have enough time: CPU training can take hours.
@@ -123,18 +124,19 @@ You do not need to activate the virtual environment because every command below 
 
 ## Check the Dataset
 
-The five classes and their fixed output order are:
+The four model classes and their fixed output order are:
 
 | Index | Folder name | Display name |
 | ---: | --- | --- |
 | 0 | `healthy` | Healthy |
-| 1 | `dead` | Dead leaf |
-| 2 | `sigatoka` | Sigatoka leaf spot |
-| 3 | `panama-disease` | Panama disease |
-| 4 | `cordana-leaf-spot` | Cordana leaf spot |
+| 1 | `sigatoka` | Sigatoka leaf spot |
+| 2 | `panama-disease` | Panama disease |
+| 3 | `cordana-leaf-spot` | Cordana leaf spot |
 
-`dead` describes a visibly dried or necrotic leaf. It does not mean that Moko
-or another specific pathogen caused the condition. `sigatoka` combines the
+The `dead/` folder is preserved and validated as quarantine inventory, but it
+never receives an output index and never enters train, validation, test, or
+SSL. It does not mean that Moko or another specific pathogen caused the
+condition. `sigatoka` combines the
 former Black- and Yellow-source classes; it does not predict the subtype.
 
 The Panama directory currently contains 42 readable, source-labeled leaf
@@ -146,10 +148,29 @@ Validate the files before every formal experiment:
 
 ```powershell
 .venv\Scripts\python.exe -m ai.data.validate_dataset `
-  --dataset-dir datasets\banana_leaf_5class
+  --dataset-dir datasets\banana_leaf_thesis_4class `
+  --group-manifest datasets\group_manifest.json `
+  --metadata-manifest datasets\image_metadata.json `
+  --formal
 ```
 
 Do not continue if the validator reports unreadable files, wrong folders, duplicate-label conflicts, or data leakage.
+
+### Freeze the split before training
+
+The formal order is: clean unreadable/unusable files, remove exact duplicates,
+review near-duplicates, record source and available leaf/plant/site/session
+metadata, assign biological/acquisition groups, and only then create the
+train/validation/test manifest. Every related view, crop, re-encode, burst frame,
+or other version of one specimen stays in one split. A SHA-256 fallback protects
+against byte-identical leakage but does not make unknown specimens independent;
+complete the group review before reporting formal test results.
+
+Augmentation happens only after splitting and only in training data pipelines.
+The ResNet-101 SSL phase also receives `splits.train` only: validation and test
+images are not used for representation learning, even without labels. Validation
+selects settings and checkpoints; test remains locked until the experiment is
+fully frozen.
 
 ## Train Both Models
 
@@ -179,7 +200,7 @@ The `$run` variable gives the experiment a unique date and time. The other varia
 
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_baseline `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_baseline.json `
   --output-dir $baselineOut `
   --split-manifest ai\artifacts\dataset-validation-current-contract\split_manifest.json
@@ -191,7 +212,7 @@ Wait until PowerShell prints `Best baseline saved to ...`.
 
 ```powershell
 .venv\Scripts\python.exe -m ai.evaluation.evaluate_baseline `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_baseline.json `
   --output-dir $baselineOut `
   --split-manifest ai\artifacts\dataset-validation-current-contract\split_manifest.json `
@@ -212,7 +233,7 @@ If PowerShell prints `True`, continue. If it prints `False`, follow [Train the t
 
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_student `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_enhanced_transfer.json `
   --output-dir $warmupOut `
   --teacher-model ai\artifacts\source_labeled_enhanced_cpu_pilot\best_teacher.keras
@@ -224,7 +245,7 @@ This stage transfers compatible ImageNet weights while the shared backbone is in
 
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_student `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_enhanced_transfer_finetune.json `
   --output-dir $enhancedOut `
   --teacher-model ai\artifacts\source_labeled_enhanced_cpu_pilot\best_teacher.keras `
@@ -237,7 +258,7 @@ Fine-tuning uses a small learning rate and keeps transferred Batch Normalization
 
 ```powershell
 .venv\Scripts\python.exe -m ai.evaluation.evaluate_student `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_enhanced_transfer_finetune.json `
   --output-dir $enhancedOut `
   --split-manifest ai\artifacts\dataset-validation-current-contract\split_manifest.json `
@@ -330,14 +351,25 @@ Only do this if `best_teacher.keras` is missing or if your research plan specifi
 
 Teacher training has two phases that run in one command:
 
-1. **Self-supervised pretraining (SSL)** — BYOL, contrastive, and masked-image-modeling on the unlabeled leaves. This saves `resnet101_ssl_pretrained.keras` when it finishes.
+1. **Self-supervised pretraining (SSL)** — BYOL, contrastive, and masked-image-modeling on training-partition leaves only. Labels are ignored, but validation and held-out test images remain excluded. This saves `resnet101_ssl_pretrained.keras` when it finishes.
 2. **Supervised fine-tuning** — the frozen representations plus a new classifier are trained on the labeled images. The best validation checkpoint is saved as `best_teacher.keras`.
 
 Train the teacher from scratch:
 
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_teacher `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
+  --config ai\config\source_labeled_enhanced_cpu_pilot.json
+```
+
+### Continue fine-tuning from a saved checkpoint
+
+If `best_teacher.keras` already exists and you want to extend the supervised fine-tuning (for example, after raising `teacher.finetune_epochs` from 20 to 30), add `--resume-finetune`. It loads the classifier, restores the best validation accuracy from `teacher_finetune_history.json`, and continues from the next epoch:
+
+```powershell
+.venv\Scripts\python.exe -m ai.training.train_teacher `
+  --resume-finetune `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_enhanced_cpu_pilot.json
 ```
 
@@ -348,7 +380,7 @@ If `resnet101_ssl_pretrained.keras` already exists but `best_teacher.keras` is m
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_teacher `
   --resume-ssl `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_enhanced_cpu_pilot.json
 ```
 
@@ -402,14 +434,16 @@ Press `Ctrl+C` in the viewer terminal to stop. The viewer never writes to the ou
 
 ## Rules for a Fair Thesis Comparison
 
-1. Use the same dataset and `split_manifest.json` for both models.
-2. Keep photographs of the same leaf or plant together in one split.
-3. Choose settings and checkpoints using validation data only.
-4. Do not repeatedly change the model after viewing test performance.
-5. Report accuracy, macro F1, per-class scores, support, and the confusion matrix.
-6. Record the seed, configuration, TensorFlow version, hardware, and dataset provenance.
-7. Test genuine farmer-phone images before claiming real-world performance.
-8. Treat uncertain labels as uncertain; do not force mixed Sigatoka images into one class.
+1. Clean, deduplicate, review near-duplicates, and assign biological/acquisition groups before splitting.
+2. Use the same frozen dataset and `split_manifest.json` for both models.
+3. Keep photographs of the same leaf, plant, site/session, or derived-image family together in one split.
+4. Restrict augmentation and teacher SSL pretraining to the training partition.
+5. Choose settings and checkpoints using validation data only.
+6. Do not repeatedly change the model after viewing test performance.
+7. Report accuracy, macro F1, per-class scores, support, and the confusion matrix.
+8. Record the seed, configuration, TensorFlow version, hardware, source dataset, and available plant/leaf/site/session provenance.
+9. Test genuine farmer-phone images before claiming real-world performance.
+10. Treat uncertain labels as uncertain; do not force mixed Sigatoka images into one class.
 
 One additional error changes the current 69-image test accuracy by about 1.45 percentage points. A larger and more realistic test set may raise or lower the reported score and will provide stronger evidence.
 
@@ -421,7 +455,7 @@ You do not need this section to compare Keras model accuracy. Use it only after 
 
 ```powershell
 .venv\Scripts\python.exe -m ai.deployment.convert_baseline_tflite `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_baseline.json `
   --output-dir $baselineOut `
   --split-manifest ai\artifacts\dataset-validation-current-contract\split_manifest.json `
@@ -432,7 +466,7 @@ You do not need this section to compare Keras model accuracy. Use it only after 
 
 ```powershell
 .venv\Scripts\python.exe -m ai.deployment.convert_tflite `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --config ai\config\source_labeled_enhanced_transfer_finetune.json `
   --output-dir $enhancedOut `
   --student-model "$enhancedOut/best_student.keras"

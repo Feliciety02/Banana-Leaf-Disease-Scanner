@@ -15,7 +15,7 @@ def build_baseline(
     config: ExperimentConfig,
     force_weights: str | None = None,
 ) -> tuple[tf.keras.Model, tf.keras.Model]:
-    """Build ordinary MobileNetV3-Small with the shared five-class head.
+    """Build ordinary MobileNetV3-Small with the shared four-class head.
 
     The shared dataset supplies RGB float32 images in [0, 1]. The explicit
     rescaling below matches the enhanced student's deployment preprocessing.

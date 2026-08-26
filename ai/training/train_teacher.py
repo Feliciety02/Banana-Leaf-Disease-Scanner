@@ -1,4 +1,4 @@
-"""Stage 2: self-supervise ResNet-101, then fine-tune it for five classes."""
+"""Stage 2: self-supervise ResNet-101, then fine-tune it for four classes."""
 
 from __future__ import annotations
 
@@ -49,6 +49,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip self-supervised pretraining and load resnet101_ssl_pretrained.keras from the output directory if present",
     )
+    parser.add_argument(
+        "--resume-finetune",
+        action="store_true",
+        help="Skip SSL and load best_teacher.keras to continue supervised fine-tuning from the saved history",
+    )
     return parser.parse_args()
 
 
@@ -59,12 +64,21 @@ def train(args: argparse.Namespace) -> Path:
     write_label_map(splits.class_names, output_dir / "label_map.json")
 
     ssl_path = output_dir / "resnet101_ssl_pretrained.keras"
-    if args.resume_ssl and ssl_path.is_file():
+    best_path = output_dir / "best_teacher.keras"
+    if args.resume_finetune and best_path.is_file():
+        online = tf.keras.models.load_model(best_path)
+        print(f"Resumed fine-tuned ResNet-101 classifier from {best_path}")
+        ssl_history: list[dict] = []
+    elif args.resume_ssl and ssl_path.is_file():
         online = tf.keras.models.load_model(ssl_path)
         print(f"Resumed ResNet-101 from self-supervised checkpoint {ssl_path}")
         ssl_history: list[dict] = []
     else:
-        ssl_dataset = make_teacher_dataset(splits.train, config, training=True)
+        # Leakage boundary: SSL sees the internal training partition plus only an
+        # explicitly designated, overlap-screened unlabeled inventory. Validation,
+        # internal test, and locked final-field-test pixels are never included.
+        ssl_records = splits.train + splits.ssl_unlabeled
+        ssl_dataset = make_teacher_dataset(ssl_records, config, training=True)
 
         online = build_teacher(config)
         target = build_ema_target(config, online)
@@ -171,14 +185,18 @@ def train(args: argparse.Namespace) -> Path:
     gc.collect()
 
     # Phase 2: all ResNet-101 encoder weights and the classifier are supervised-fine-tuned.
-    # Build a lean classifier exposing only the outputs downstream consumers need (logits and
-    # features), then drop the full multi-head teacher so the SSL projection/prediction heads
-    # and the heavy MIM decoder are freed before fine-tuning backprop peaks in memory.
-    classifier = tf.keras.Model(
-        online.input,
-        {"logits": online.output["logits"], "features": online.output["features"]},
-        name="resnet101_classifier",
-    )
+    # When resuming fine-tuning, best_teacher.keras is already the lean classifier, so reuse it.
+    if args.resume_finetune:
+        classifier = online
+    else:
+        # Build a lean classifier exposing only the outputs downstream consumers need (logits and
+        # features), then drop the full multi-head teacher so the SSL projection/prediction heads
+        # and the heavy MIM decoder are freed before fine-tuning backprop peaks in memory.
+        classifier = tf.keras.Model(
+            online.input,
+            {"logits": online.output["logits"], "features": online.output["features"]},
+            name="resnet101_classifier",
+        )
     del online
     gc.collect()
     finetune_dataset = make_supervised_dataset(splits.train, config, training=True)
@@ -208,8 +226,16 @@ def train(args: argparse.Namespace) -> Path:
     epochs_without_improvement = 0
     lr_wait = 0
     finetune_history: list[dict] = []
+    history_path = output_dir / "teacher_finetune_history.json"
+    if args.resume_finetune and history_path.is_file():
+        finetune_history = json.loads(history_path.read_text(encoding="utf-8"))
+        best_accuracy = max(float(row["validation_accuracy"]) for row in finetune_history)
+        print(
+            f"Resuming fine-tuning from epoch {len(finetune_history) + 1} "
+            f"with best validation accuracy {best_accuracy:.5f}"
+        )
     total_finetune_batches = dataset_batches(finetune_dataset)
-    for epoch in range(1, config.teacher.finetune_epochs + 1):
+    for epoch in range(1 + len(finetune_history), config.teacher.finetune_epochs + 1):
         train_loss = tf.keras.metrics.Mean()
         train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
         train_progress = tqdm(
