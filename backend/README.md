@@ -1,8 +1,11 @@
 <div align="center">
 
-# DahonMD API
+# DahonMD legacy research/demo API
 
-The authoritative Laravel 12 and Sanctum backend shared by the web and mobile applications.
+This Laravel service is outside the thesis mobile production path. The stateless
+Android classifier does not call it and does not require accounts, roles,
+history, storage, or synchronization. Retain this folder only as an isolated
+research/demo utility.
 
 </div>
 
@@ -19,7 +22,7 @@ The authoritative Laravel 12 and Sanctum backend shared by the web and mobile ap
 | Operations | Health checks, request IDs, rate limits, failure logs, and SQLite backups |
 
 > [!IMPORTANT]
-> This is the only runtime backend. The mobile SQLite database is an offline client store, not another API.
+> This is the backend for the separate legacy web/demo workflow only. It is not a thesis application dependency.
 
 ## Start Here
 

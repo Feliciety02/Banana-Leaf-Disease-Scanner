@@ -1,8 +1,9 @@
 <div align="center">
 
-# DahonMD Web Client
+# DahonMD legacy web/research client
 
-The React and Vite interface for farmers, agricultural reviewers, and administrators.
+This account/role/history interface is outside the stateless thesis Android
+application and is not required for banana leaf classification.
 
 </div>
 
