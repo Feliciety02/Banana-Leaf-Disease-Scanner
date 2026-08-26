@@ -32,6 +32,13 @@ configuration is `ai/config/cohort_labeled_v1.json`. A shortage or unresolved
 review writes a blocked diagnostic manifest, selects no paths, and exits
 nonzero; augmented or derived records can never fill the quota.
 
+The final split is then created by `ai.data.build_final_split` using
+`ai/config/final_split_v1.json`. It closes exact, adjudicated-related, explicit
+group, leaf, plant, and acquisition-session relations transitively before a
+seeded stratified assignment. It writes partition manifests only when all
+gates pass and the configured stratification tolerance is achievable without
+relaxing a group. See `datasets/FINAL_SPLIT.md` for the current blocked result.
+
 ## Explicit ablations
 
 | Configuration | Config | Entry point |
@@ -44,15 +51,17 @@ nonzero; augmented or derived records can never fill the quota.
 | 6 ResNet-101 SSL + supervised fine-tuning | `configuration_6_*` | `ai.training.train_teacher` |
 | 7 optional CA student from non-SSL teacher | `configuration_7_*` | `ai.training.train_student` |
 
-All configurations are under `ai/config/ablations/`. Use the same frozen `split_manifest.json`; never tune from held-out test results.
+All configurations are under `ai/config/ablations/`. Pass the same frozen
+`--final-split-dir` to every training, evaluation, and export command; never
+tune from held-out test results.
 
 ## Evaluation and conversion
 
 Evaluation reports accuracy, macro precision/recall/F1, per-class precision/recall/F1, and confusion matrices. Resource reports separate parameter count from file size and include FLOPs where supported, warmed repeated latency, throughput, variation, and memory scope. Expert-validated held-out records marked `field_subset=davao` receive a separate field report.
 
 ```powershell
-.venv\Scripts\python.exe -m ai.deployment.convert_tflite --student-model <best_student.keras> --dataset-dir <dataset> --output-dir <run>
-.venv\Scripts\python.exe -m ai.deployment.benchmark_tflite --tflite-model <model_int8.tflite> --dataset-dir <dataset> --output-dir <run>
+.venv\Scripts\python.exe -m ai.deployment.convert_tflite --student-model <best_student.keras> --dataset-dir <dataset> --final-split-dir <frozen-split> --output-dir <run>
+.venv\Scripts\python.exe -m ai.deployment.benchmark_tflite --tflite-model <model_int8.tflite> --dataset-dir <dataset> --final-split-dir <frozen-split> --output-dir <run>
 ```
 
 Conversion writes an FP32 model, full-integer INT8 model, training-only calibration manifest, and programmatic quantization audit. Formal Android latency/memory comparison remains pending until run on named hardware with the same FP32/INT8 configuration.

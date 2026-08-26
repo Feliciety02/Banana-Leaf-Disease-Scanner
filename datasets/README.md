@@ -70,6 +70,10 @@ blocked and selects zero files: Cordana has only 670 raw images, while metadata
 and duplicate adjudication are still incomplete. Cohort selection precedes the
 70/15/15 split.
 
+The atomic group-aware splitting procedure and current signed blocked result
+are documented in [`FINAL_SPLIT.md`](FINAL_SPLIT.md). No train, validation, or
+test manifest is emitted until the cohort and all split quality gates pass.
+
 The enforced processing order is acquisition → label harmonization and quality
 control → exact/near-duplicate screening → biological/acquisition grouping →
 dataset split → training-only augmentation.

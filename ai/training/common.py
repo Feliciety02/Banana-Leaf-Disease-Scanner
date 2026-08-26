@@ -16,6 +16,10 @@ from ai.config.config import ExperimentConfig, load_config, save_config, set_glo
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", help="Optional JSON file overriding config/config.py defaults")
     parser.add_argument("--dataset-dir", help="Dataset root; never inferred or hard-coded")
+    parser.add_argument(
+        "--final-split-dir",
+        help="Frozen, quality-gated final split directory; disables ad-hoc splitting",
+    )
     parser.add_argument("--output-dir", help="Artifact directory override")
 
 
@@ -23,6 +27,8 @@ def configured_experiment(args: argparse.Namespace, snapshot_name: str | None = 
     config = load_config(args.config)
     if getattr(args, "dataset_dir", None):
         config.data.dataset_dir = args.dataset_dir
+    if getattr(args, "final_split_dir", None):
+        config.data.final_split_dir = args.final_split_dir
     if getattr(args, "output_dir", None):
         config.runtime.output_dir = args.output_dir
     config.validate()

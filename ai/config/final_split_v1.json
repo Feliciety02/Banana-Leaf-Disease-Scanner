@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "split_version": "banana-leaf-thesis-split-v1",
+  "seed": 42,
+  "class_names": [
+    "healthy",
+    "sigatoka",
+    "panama-disease",
+    "cordana-leaf-spot"
+  ],
+  "fractions": {
+    "train": 0.7,
+    "validation": 0.15,
+    "test": 0.15
+  },
+  "grouping_hierarchy": [
+    "exact_sha256",
+    "confirmed_near_duplicate_group",
+    "leaf_id",
+    "plant_id",
+    "acquisition_session"
+  ],
+  "optimization_restarts": 32,
+  "maximum_class_fraction_deviation": 0.02,
+  "tradeoff_policy": "write_blocked_report_and_require_new_reviewed_configuration",
+  "test_policy": "held_out_once_after_all_model_and_hyperparameter_choices_are_frozen"
+}
