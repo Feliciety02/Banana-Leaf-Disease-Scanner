@@ -10,7 +10,7 @@ export type InferenceResult = {
 };
 
 // This safe placeholder is replaced only when the validated INT8 TFLite artifact
-// and its exact five-class label map are supplied together.
+// and its exact four-class label map are supplied together.
 export async function analyzeLeaf(_imageUri: string): Promise<InferenceResult> {
   return {
     diseaseId: 'development-unconfigured',
