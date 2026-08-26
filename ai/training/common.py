@@ -20,6 +20,8 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         "--final-split-dir",
         help="Frozen, quality-gated final split directory; disables ad-hoc splitting",
     )
+    parser.add_argument("--ssl-unlabeled-dir", help="Separate external SSL image root")
+    parser.add_argument("--ssl-manifest", help="Versioned, accepted external SSL manifest")
     parser.add_argument("--output-dir", help="Artifact directory override")
 
 
@@ -29,6 +31,10 @@ def configured_experiment(args: argparse.Namespace, snapshot_name: str | None = 
         config.data.dataset_dir = args.dataset_dir
     if getattr(args, "final_split_dir", None):
         config.data.final_split_dir = args.final_split_dir
+    if getattr(args, "ssl_unlabeled_dir", None):
+        config.data.ssl_unlabeled_dir = args.ssl_unlabeled_dir
+    if getattr(args, "ssl_manifest", None):
+        config.data.ssl_manifest = args.ssl_manifest
     if getattr(args, "output_dir", None):
         config.runtime.output_dir = args.output_dir
     config.validate()

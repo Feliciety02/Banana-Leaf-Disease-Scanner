@@ -23,6 +23,8 @@ def main() -> None:
     parser.add_argument("--near-duplicate-review-manifest", help="Reviewed decisions keyed by path_a||path_b")
     parser.add_argument("--write-metadata-template", action="store_true", help="Create/update the metadata manifest without inventing unknown identifiers")
     parser.add_argument("--ssl-unlabeled-dir", help="Optional images designated only for self-supervised pretraining")
+    parser.add_argument("--ssl-manifest", help="Versioned SSL admission manifest")
+    parser.add_argument("--final-split-dir", help="Frozen final split required for external SSL admission")
     parser.add_argument("--final-field-test-dir", help="Optional locked Davao field-test root with four class folders")
     parser.add_argument("--formal", action="store_true", help="Explicitly use the default thesis-ready split gates")
     parser.add_argument(
@@ -47,6 +49,10 @@ def main() -> None:
         config.data.near_duplicate_review_manifest = args.near_duplicate_review_manifest
     if args.ssl_unlabeled_dir:
         config.data.ssl_unlabeled_dir = args.ssl_unlabeled_dir
+    if args.ssl_manifest:
+        config.data.ssl_manifest = args.ssl_manifest
+    if args.final_split_dir:
+        config.data.final_split_dir = args.final_split_dir
     if args.final_field_test_dir:
         config.data.final_field_test_dir = args.final_field_test_dir
     if args.formal:

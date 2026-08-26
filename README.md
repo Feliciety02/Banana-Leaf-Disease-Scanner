@@ -23,6 +23,11 @@ The selected FP32 student is exported through full-integer INT8 TensorFlow Lite 
 
 The planned labeled dataset is 700 images per class (2,800 total), split 70%/15%/15%. The planned SSL inventory is 8,000 unlabeled images. These are research targets, not claims about acquired or validated data.
 
+External SSL ingestion is now provenance-, license-, relevance-, duplicate-,
+and held-out-leakage-gated. Its current versioned manifest reports 0 acquired
+and 0 ready images, so the 8,000-image target remains entirely outstanding. See
+[datasets/SSL_INGESTION.md](datasets/SSL_INGESTION.md).
+
 The currently present folders contain 4,000 Healthy, 4,000 Sigatoka, 4,000 Panama Disease, 670 Cordana Leaf Spot, and 745 quarantined dead-leaf files. Formal training is intentionally blocked while expert review, quality/species decisions, near-duplicate review, and biological/acquisition grouping remain incomplete. See [datasets/README.md](datasets/README.md).
 
 Processing order is fixed as acquisition → label harmonization/quality control → exact and near-duplicate screening → biological/acquisition grouping → 70/15/15 split → training-only augmentation. Validation/test groups cannot enter SSL or INT8 calibration.

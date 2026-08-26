@@ -54,6 +54,9 @@ class DataConfig:
     # phase after overlap screening.
     final_field_test_dir: Optional[str] = None
     ssl_unlabeled_dir: Optional[str] = None
+    # Fingerprinted output of ai.data.build_ssl_manifest. A raw SSL directory
+    # can never be consumed without this provenance/relevance/leakage gate.
+    ssl_manifest: Optional[str] = None
     image_height: int = 224
     image_width: int = 224
     image_channels: int = 3
@@ -227,6 +230,10 @@ class ExperimentConfig:
             raise ValueError("Planned labeled totals must remain 700 per class / 2,800 overall")
         if not 0 <= self.data.near_duplicate_hamming_distance <= 16:
             raise ValueError("data.near_duplicate_hamming_distance must be in [0, 16]")
+        if bool(self.data.ssl_unlabeled_dir) != bool(self.data.ssl_manifest):
+            raise ValueError("data.ssl_unlabeled_dir and data.ssl_manifest must be configured together")
+        if self.data.ssl_manifest and not self.data.final_split_dir:
+            raise ValueError("External SSL requires data.final_split_dir so held-out groups can be excluded")
         if self.teacher.backbone != "ResNet101":
             raise ValueError("The finalized thesis teacher architecture is fixed to ResNet101")
         if self.teacher.feature_dim != 2048:

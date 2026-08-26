@@ -74,6 +74,10 @@ The atomic group-aware splitting procedure and current signed blocked result
 are documented in [`FINAL_SPLIT.md`](FINAL_SPLIT.md). No train, validation, or
 test manifest is emitted until the cohort and all split quality gates pass.
 
+The separate public-unlabeled ingestion framework is documented in
+[`SSL_INGESTION.md`](SSL_INGESTION.md). Its current honest count is zero acquired
+and zero SSL-ready, leaving the full 8,000-image target outstanding.
+
 The enforced processing order is acquisition → label harmonization and quality
 control → exact/near-duplicate screening → biological/acquisition grouping →
 dataset split → training-only augmentation.
@@ -441,11 +445,12 @@ resolved as `not_duplicate`, `grouped`, `exclude_a`, or `exclude_b` with reviewe
 and date. Exclusion affects the experiment inventory only and does not delete
 the source image.
 
-Optional `--ssl-unlabeled-dir` and `--final-field-test-dir` inputs are governed
-by separate contracts. The former may reach only teacher SSL; the latter is a
-locked four-class Davao field partition. Exact overlap with the primary
-inventory is fatal, and perceptual overlap is written to
-`external_overlap_report.json` for review.
+External SSL requires both `--ssl-unlabeled-dir` and a fingerprinted
+`--ssl-manifest`, plus a frozen final split. Raw directories are rejected. Only
+licensed, provenance-complete, banana-leaf-confirmed records that pass exact,
+perceptual, and biological held-out screening may reach teacher SSL. The
+separate `--final-field-test-dir` remains a locked four-class Davao field
+partition.
 
 ## Provenance Checklist
 

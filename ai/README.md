@@ -39,6 +39,13 @@ seeded stratified assignment. It writes partition manifests only when all
 gates pass and the configured stratification tolerance is achievable without
 relaxing a group. See `datasets/FINAL_SPLIT.md` for the current blocked result.
 
+External unlabeled imagery is admitted only through
+`ai.data.build_ssl_manifest`; a raw directory is rejected. The versioned
+manifest requires source/license provenance, confirmed banana-leaf relevance,
+integrity and duplicate screening, resolved perceptual candidates, and the
+frozen validation/test SSL exclusions. See `datasets/SSL_INGESTION.md`. The
+current external SSL-ready count is 0, not the planned target of 8,000.
+
 ## Explicit ablations
 
 | Configuration | Config | Entry point |
