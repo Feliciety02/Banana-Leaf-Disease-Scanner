@@ -11,4 +11,4 @@ four parenthesized batches was byte-identical to one file in the simpler
 - Data removed permanently: none
 
 After the later three-file malformed Sigatoka quarantine, the complete
-five-class training root contains 877 images and 877 distinct SHA-256 hashes.
+then-current five-class training root contained 877 images and 877 distinct SHA-256 hashes.
