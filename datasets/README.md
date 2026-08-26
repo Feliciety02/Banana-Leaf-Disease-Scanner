@@ -64,6 +64,12 @@ There are 13,415 image files on disk: 12,670 in active class folders and 745 in
 the dead-leaf quarantine. The validator determines the accepted canonical count
 after exact-copy exclusion; folder counts alone are not a formal cohort.
 
+After review and grouping, use the versioned cohort procedure in
+[`COHORT_SELECTION.md`](COHORT_SELECTION.md). The current 700-per-class build is
+blocked and selects zero files: Cordana has only 670 raw images, while metadata
+and duplicate adjudication are still incomplete. Cohort selection precedes the
+70/15/15 split.
+
 The enforced processing order is acquisition → label harmonization and quality
 control → exact/near-duplicate screening → biological/acquisition grouping →
 dataset split → training-only augmentation.

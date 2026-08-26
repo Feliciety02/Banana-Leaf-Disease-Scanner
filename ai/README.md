@@ -26,6 +26,12 @@ Configuration defaults and values in `ai/config/` are candidate starting points 
 
 Formal validation fails until every admitted image has the required species, visibility/quality, inclusion, and expert label decisions and every near-duplicate pair is resolved. Acquisition identifiers are used to group leaf, plant, and session captures where available.
 
+After those gates pass, `ai.data.build_labeled_cohort` creates the exact
+versioned, group-indivisible labeled cohort before any 70/15/15 split. Its
+configuration is `ai/config/cohort_labeled_v1.json`. A shortage or unresolved
+review writes a blocked diagnostic manifest, selects no paths, and exits
+nonzero; augmented or derived records can never fill the quota.
+
 ## Explicit ablations
 
 | Configuration | Config | Entry point |
