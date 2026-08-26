@@ -48,8 +48,9 @@ sorted alphabetically or changed independently in another client.
 
 > [!WARNING]
 > The August 26 formal audit found 0 unreadable images, 0 exact duplicate
-> copies, 1,011 perceptual pairs requiring visual review, and only 23 images
-> with explicit biological/acquisition group assignments.
+> copies, 1,011 perceptual pairs requiring visual review, and only 16 active
+> images with explicit biological/acquisition group assignments. Seven stale
+> assignments were moved to `group_manifest_retired.json` without erasing them.
 > Formal split creation is blocked until metadata and near-duplicate review are
 > complete. Existing model artifacts are incompatible with this contract.
 
@@ -412,11 +413,13 @@ hash-only inventory is acceptable for exploratory runs but is **not sufficient
 evidence of an independent thesis test set**. Those relationships must be
 resolved in `datasets/group_manifest.json` before a formal experiment.
 
-`datasets/image_metadata.json` stores separate `source`, `plant_id`, `leaf_id`,
-`site_id`, `session_id`, `origin_type`, `label_validator`, and
-`label_review_status` values for every source image. Unknown values are recorded
-as `unknown`, never invented. Formal mode requires verified values and
-`label_review_status=validated`. The validator writes
+`datasets/image_metadata.json` uses the deterministic schema documented in
+[`METADATA_SCHEMA.md`](METADATA_SCHEMA.md). It records the canonical and
+original labels, source dataset/type, public/field origin, available capture
+metadata, expert decision, biological/acquisition group, QC and duplicate
+status, per-field evidence, and a content fingerprint. Unknown values are
+recorded as `unknown` or `pending`, never invented. Formal mode requires
+resolved provenance, grouping, QC, duplicates, and expert validation. The validator writes
 `near_duplicate_review_template.json`; each reported pair must be visually
 resolved as `not_duplicate`, `grouped`, `exclude_a`, or `exclude_b` with reviewer
 and date. Exclusion affects the experiment inventory only and does not delete

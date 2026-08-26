@@ -12,9 +12,9 @@ admission narratives below are retained as history.
 | `healthy` | 4,000 active | Zenodo Tanzania; v4 compilation (Healthy); Nutrient Deficient Banana Plant Leaves; earlier original imports |
 | `sigatoka` | 4,000 active | Zenodo Tanzania (Black Sigatoka); v4 compilation (Yellow and Black Sigatoka); BananaLSD; earlier Banana Disease Recognition originals |
 | `panama-disease` | 4,000 active | Zenodo Tanzania (Fusarium Wilt); Banana Disease Recognition Dataset originals |
-| `cordana-leaf-spot` | 670 canonical / 675 files | BananaLSD originals; v4 compilation (Cordana); Ecuador Cordana field originals |
+| `cordana-leaf-spot` | 670 active | BananaLSD originals; v4 compilation (Cordana); Ecuador Cordana field originals |
 | `dead` | 745 quarantined | Preserved source images; excluded from every thesis split and model output |
-| **Files on disk** | **13,420** | **12,670 canonical active; 745 quarantined; 5 exact copies excluded without deletion** |
+| **Files on disk** | **13,415** | **12,670 active; 745 quarantined** |
 
 ## Filename prefixes and provenance
 
