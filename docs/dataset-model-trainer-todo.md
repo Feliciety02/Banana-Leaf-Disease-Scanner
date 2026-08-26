@@ -6,15 +6,16 @@ evidence. Check an item only when its required evidence has been saved.
 
 ## Current status
 
-Status reviewed on 2026-08-16 against the repository and automated tests.
+Status reviewed on 2026-08-23 against the repository and automated tests.
 
 - Current count: **31 verified complete**, **232 remaining**.
 - `[x]` means the requirement is currently implemented and directly verifiable in the repository.
 - `[ ]` means it still needs real dataset work, adviser/domain approval, a completed experiment, generated artifacts, or retained evidence.
 - Completed implementation checks must be rechecked if the corresponding code or research protocol changes.
 - The virtual environment and required packages are present.
-- The current contract merges Black and Yellow Sigatoka into `sigatoka` and replaces the former Yellow output with `panama-disease`. After source expansion, exact-duplicate cleanup, and malformed-file quarantine, the active dataset has 877 byte-unique images: 298 Healthy, 55 Dead leaf, 251 Sigatoka, 42 source-labeled Panama candidates, and 231 Cordana. Structural validation passes, but formal retraining remains gated on expert review and biological/source grouping of the Panama candidates.
-- Existing baseline/enhanced artifacts and their reports use the retired five-class contract. They remain historical evidence only and are rejected by current runtime label-map validation. No current-contract model is trained or deployable.
+- The fixed thesis outputs are Healthy, Sigatoka, Panama disease, and Cordana leaf spot. The `dead` folder is preserved as a 745-image quarantine and is never assigned an output index.
+- The current 13,420-file inventory yields 12,670 canonical four-class images after five exact Cordana copies are reported and excluded without deletion. The audit found 1,011 perceptual pairs requiring review; only 16 images have explicit biological/acquisition group assignments, and all 12,670 active metadata entries remain incomplete. Formal split creation and retraining are therefore correctly blocked.
+- Existing baseline/enhanced artifacts and their reports use retired contracts. They remain historical evidence only and are rejected by current runtime label-map validation. No current-contract model is trained or deployable.
 
 The intended enhanced architecture remains Coordinate Attention-enhanced
 MobileNetV3-Small, and the research baseline remains standard supervised
@@ -23,13 +24,12 @@ Do not change either variant without an approved thesis protocol amendment.
 
 ## Fixed research contract
 
-- [ ] Confirm the five supported classes with the thesis adviser and agricultural/domain reviewer.
+- [ ] Confirm the four supported model classes and dead-leaf quarantine policy with the thesis adviser and agricultural/domain reviewer.
 - [x] Preserve the exact output-index order from `ai/config/labels.py`:
   - `0` — `healthy`
-  - `1` — `dead`
-  - `2` — `sigatoka`
-  - `3` — `panama-disease`
-  - `4` — `cordana-leaf-spot`
+  - `1` — `sigatoka`
+  - `2` — `panama-disease`
+  - `3` — `cordana-leaf-spot`
 - [x] Confirm both models use MobileNetV3-Small with the same width multiplier.
 - [x] Confirm model input is RGB, `224 x 224`, float32 `[0, 1]` before model-internal rescaling.
 - [x] Confirm the baseline contains no Coordinate Attention, teacher, SSL, knowledge distillation, or feature distillation.
@@ -74,9 +74,12 @@ Evidence required: labeling guide, review log, disagreement log, final approved 
 - [ ] Create stable group IDs for the same leaf, plant, plot, plantation, capture session, or near-duplicate sequence.
 - [ ] Populate `data.group_manifest` whenever multiple images can originate from one biological specimen or acquisition group.
 - [ ] Record available metadata without inventing missing values:
+  - source dataset, repository, or collector
+  - plant ID and leaf ID
+  - plantation/site code
+  - acquisition-session or collection-batch ID
   - capture device
   - date/time or collection batch
-  - location/site code
   - field versus curated setting
   - lighting condition
   - image format and dimensions
@@ -106,7 +109,7 @@ Evidence required: QC report, exclusion register, duplicate report, class/source
 
 ## 5. Dataset directory and environment
 
-- [ ] Place approved data under `datasets/banana_leaf_5class` or the approved external dataset path.
+- [ ] Place approved data under `datasets/banana_leaf_thesis_4class` or the approved external dataset path.
 - [ ] Use the exact class directory keys from the fixed label contract.
 - [ ] For a pre-split dataset, use `train`, `validation` or `val`, and `test` directories consistently.
 - [ ] Copy `ai/.env.example` to `ai/.env` locally.
@@ -129,6 +132,7 @@ Evidence required: environment export, hardware record, completed local `.env` w
 
 ## 6. Freeze the shared split
 
+- [ ] Complete corruption screening, exact-deduplication, near-duplicate review, provenance recording, and group assignment **before** generating any split.
 - [ ] Run dataset validation using the approved dataset version.
 - [ ] Inspect every validator warning or failure.
 - [ ] Confirm each class has enough independent groups for train, validation, and test.
@@ -139,6 +143,7 @@ Evidence required: environment export, hardware record, completed local `.env` w
 - [ ] Save `ai/artifacts/label_map.json` with the canonical order.
 - [ ] Generate SHA-256 checksums for both files.
 - [ ] Mark the test partition as locked; do not use it for model selection, tuning, threshold selection, or early stopping.
+- [ ] Use only the training partition for self-supervised pretraining; do not expose validation or test pixels to SSL even with labels removed.
 - [ ] Use this exact manifest for teacher, enhanced student, baseline, Keras evaluation, and TFLite evaluation.
 - [ ] If the dataset changes, create a new dataset/split version instead of overwriting the frozen experiment.
 
@@ -146,7 +151,11 @@ Validation command:
 
 ```powershell
 .venv\Scripts\python.exe -m ai.data.validate_dataset `
-  --dataset-dir datasets\banana_leaf_5class
+  --dataset-dir datasets\banana_leaf_thesis_4class `
+  --group-manifest datasets\group_manifest.json `
+  --metadata-manifest datasets\image_metadata.json `
+  --near-duplicate-review-manifest datasets\near_duplicate_reviews.json `
+  --formal
 ```
 
 Evidence required: validator output, split counts, `split_manifest.json`, `label_map.json`, checksums.
@@ -160,6 +169,7 @@ Evidence required: validator output, split counts, `split_manifest.json`, `label
 - [x] Confirm there is no double normalization.
 - [ ] Confirm validation, test, TFLite comparison, and mobile inference receive no random augmentation.
 - [x] Confirm augmentation is applied only to training batches.
+- [x] Confirm augmentation is constructed and applied only after the frozen split is loaded.
 - [ ] Save representative before/after augmentation examples for visual review.
 - [ ] Confirm rotations, flips, brightness, contrast, zoom, and translation do not create biologically misleading samples.
 - [x] Keep baseline and enhanced supervised training augmentation identical.
@@ -205,7 +215,7 @@ Command:
 
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_baseline `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --split-manifest ai\artifacts\split_manifest.json
 ```
 
@@ -228,14 +238,14 @@ Commands:
 
 ```powershell
 .venv\Scripts\python.exe -m ai.training.train_teacher `
-  --dataset-dir datasets\banana_leaf_5class
+  --dataset-dir datasets\banana_leaf_thesis_4class
 
 .venv\Scripts\python.exe -m ai.evaluation.evaluate_teacher `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --teacher-model ai\artifacts\best_teacher.keras
 
 .venv\Scripts\python.exe -m ai.training.train_student `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --teacher-model ai\artifacts\best_teacher.keras
 ```
 
@@ -283,12 +293,12 @@ Commands:
 
 ```powershell
 .venv\Scripts\python.exe -m ai.evaluation.evaluate_baseline `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --split-manifest ai\artifacts\split_manifest.json `
   --baseline-model ai\artifacts\best_baseline.keras
 
 .venv\Scripts\python.exe -m ai.evaluation.evaluate_student `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --split-manifest ai\artifacts\split_manifest.json `
   --student-model ai\artifacts\best_student.keras
 ```
@@ -337,12 +347,12 @@ Commands:
 
 ```powershell
 .venv\Scripts\python.exe -m ai.deployment.convert_baseline_tflite `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --split-manifest ai\artifacts\split_manifest.json `
   --baseline-model ai\artifacts\best_baseline.keras
 
 .venv\Scripts\python.exe -m ai.deployment.convert_tflite `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --student-model ai\artifacts\best_student.keras
 ```
 
@@ -364,13 +374,13 @@ Commands:
 ```powershell
 .venv\Scripts\python.exe -m ai.deployment.benchmark_tflite `
   --model-kind baseline `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --split-manifest ai\artifacts\split_manifest.json `
   --tflite-model ai\artifacts\baseline_mobilenetv3_small_int8.tflite
 
 .venv\Scripts\python.exe -m ai.deployment.benchmark_tflite `
   --model-kind enhanced `
-  --dataset-dir datasets\banana_leaf_5class `
+  --dataset-dir datasets\banana_leaf_thesis_4class `
   --split-manifest ai\artifacts\split_manifest.json `
   --tflite-model ai\artifacts\enhanced_mobilenetv3_int8.tflite
 ```

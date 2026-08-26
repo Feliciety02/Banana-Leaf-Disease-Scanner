@@ -30,9 +30,10 @@ simulated/TFLite inference -> local SQLite pending row -> connectivity -> centra
 ## Model pipeline and deployment boundary
 
 ```text
-Banana leaf dataset
-  -> ResNet-101 self-supervised pretraining (BYOL + contrastive + MIM)
-  -> ResNet-101 five-class supervised fine-tuning
+QC + exact/near-duplicate review + biological/acquisition grouping
+  -> frozen train/validation/test manifest
+  -> training partition only: ResNet-101 self-supervised pretraining (BYOL + contrastive + MIM)
+  -> training partition: ResNet-101 four-class supervised fine-tuning
   -> frozen ResNet-101 teacher for logit and feature distillation
   -> MobileNetV3-Small student with Coordinate Attention replacing SE
   -> full INT8 TensorFlow Lite conversion
