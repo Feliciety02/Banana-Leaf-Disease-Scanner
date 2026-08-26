@@ -27,6 +27,11 @@ The currently present folders contain 4,000 Healthy, 4,000 Sigatoka, 4,000 Panam
 
 Processing order is fixed as acquisition → label harmonization/quality control → exact and near-duplicate screening → biological/acquisition grouping → 70/15/15 split → training-only augmentation. Validation/test groups cannot enter SSL or INT8 calibration.
 
+The final splitter is implemented but intentionally has not emitted partition
+manifests because the reviewed cohort gate is still blocked. See
+[datasets/FINAL_SPLIT.md](datasets/FINAL_SPLIT.md) for the algorithm, leakage
+assertions, current blockers, and signed diagnostic evidence.
+
 ## Android application
 
 The production entry point is [mobile-frontend/App.tsx](mobile-frontend/App.tsx). It is a stateless camera/gallery classifier with class plus relative model confidence. It imports no authentication, database, history, synchronization, remote inference, or Grad-CAM workflow. Classification is intended to run fully on-device.

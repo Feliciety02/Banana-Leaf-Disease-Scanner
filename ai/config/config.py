@@ -35,6 +35,10 @@ def _dataset_root_from_environment() -> Optional[str]:
 @dataclass
 class DataConfig:
     dataset_dir: Optional[str] = field(default_factory=_dataset_root_from_environment)
+    # Directory containing the immutable, quality-gated final thesis manifests.
+    # When set, every training/evaluation/export entry point consumes these
+    # assignments instead of creating or accepting an ad-hoc split.
+    final_split_dir: Optional[str] = None
     # Optional JSON object mapping known dataset-relative paths to indivisible
     # biological/acquisition group IDs (leaf, plant, site/session, burst, or
     # derived-image family). Unlisted images fall back to SHA-256 only as a final

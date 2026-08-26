@@ -1043,6 +1043,16 @@ def _validate_external_overlap(
 
 def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = None) -> DatasetSplits:
     root = require_dataset_dir(config)
+    if config.data.final_split_dir:
+        # Import lazily to avoid a module cycle: the final-split adapter returns
+        # the same DatasetSplits/ImageRecord contract used by every consumer.
+        from ai.data.build_final_split import load_final_dataset_splits
+
+        return load_final_dataset_splits(
+            config.data.final_split_dir,
+            root,
+            config.data.class_names,
+        )
     manifest = Path(manifest_path) if manifest_path else Path(config.runtime.output_dir) / "split_manifest.json"
     near_duplicate_reviews = load_near_duplicate_reviews(config.data.near_duplicate_review_manifest)
     metadata_map = load_metadata_manifest(config.data.metadata_manifest)
