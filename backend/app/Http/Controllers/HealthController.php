@@ -2,30 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\HealthCheckService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
-use Throwable;
 
 class HealthController extends Controller
 {
+    public function __construct(private readonly HealthCheckService $health) {}
+
     public function __invoke(): JsonResponse
     {
-        try {
-            DB::select('select 1');
+        $result = $this->health->check();
 
-            return response()->json([
-                'service' => 'dahonmd-api',
-                'status' => 'ok',
-                'checks' => ['database' => 'ok'],
-            ]);
-        } catch (Throwable $exception) {
-            report($exception);
-
-            return response()->json([
-                'service' => 'dahonmd-api',
-                'status' => 'degraded',
-                'checks' => ['database' => 'unavailable'],
-            ], 503);
-        }
+        return response()->json($result['body'], $result['status']);
     }
 }

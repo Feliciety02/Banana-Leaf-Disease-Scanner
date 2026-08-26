@@ -5,41 +5,41 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\DiagnosisResource;
 use App\Models\Diagnosis;
+use App\Services\DiagnosisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class DiagnosisController extends Controller
 {
+    public function __construct(private readonly DiagnosisService $diagnoses) {}
+
     public function index(Request $request): JsonResponse
     {
-        $query = Diagnosis::query()->with(['user', 'disease', 'review.expert'])->latest('diagnosed_at');
-        $query->when($request->filled('user'), fn ($q) => $q->where('user_id', $request->integer('user')))
-            ->when($request->filled('class'), fn ($q) => $q->where('predicted_class', $request->string('class')))
-            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('diagnosed_at', '>=', $request->date('date_from')))
-            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('diagnosed_at', '<=', $request->date('date_to')))
-            ->when($request->filled('source'), fn ($q) => $q->where('source', $request->string('source')))
-            ->when($request->filled('confidence_min'), fn ($q) => $q->where('confidence', '>=', $request->float('confidence_min')))
-            ->when($request->filled('confidence_max'), fn ($q) => $q->where('confidence', '<=', $request->float('confidence_max')));
-        $paginator = $query->paginate(min($request->integer('per_page', 25), 100));
+        $filters = [];
+        foreach (['user', 'class', 'date_from', 'date_to', 'source', 'confidence_min', 'confidence_max'] as $filter) {
+            if ($request->filled($filter)) {
+                $key = ['user' => 'user_id', 'class' => 'predicted_class'][$filter] ?? $filter;
+                $filters[$key] = match ($filter) {
+                    'user' => $request->integer($filter),
+                    'date_from', 'date_to' => $request->date($filter),
+                    'confidence_min', 'confidence_max' => $request->float($filter),
+                    default => $request->string($filter)->toString(),
+                };
+            }
+        }
+        $paginator = $this->diagnoses->paginateAll($filters, $request->integer('per_page', 25));
 
         return response()->json(['success' => true, 'message' => 'System diagnoses retrieved.', 'data' => ['items' => DiagnosisResource::collection($paginator->getCollection()), 'pagination' => ['current_page' => $paginator->currentPage(), 'last_page' => $paginator->lastPage(), 'per_page' => $paginator->perPage(), 'total' => $paginator->total()]]]);
     }
 
     public function show(Diagnosis $diagnosis): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => 'Diagnosis retrieved.', 'data' => new DiagnosisResource($diagnosis->load(['user', 'disease', 'review.expert']))]);
+        return response()->json(['success' => true, 'message' => 'Diagnosis retrieved.', 'data' => new DiagnosisResource($this->diagnoses->details($diagnosis, true))]);
     }
 
     public function destroy(Diagnosis $diagnosis): JsonResponse
     {
-        if ($diagnosis->image_path) {
-            Storage::disk('public')->delete($diagnosis->image_path);
-        }
-        if ($diagnosis->gradcam_path) {
-            Storage::disk('public')->delete($diagnosis->gradcam_path);
-        }
-        $diagnosis->delete();
+        $this->diagnoses->delete($diagnosis);
 
         return response()->json(status: 204);
     }

@@ -2,11 +2,22 @@
 
 namespace App\Services;
 
+use App\Contracts\Repositories\DiseaseRepositoryInterface;
 use App\Models\Disease;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class DiseaseVerificationService
 {
+    public function __construct(private readonly DiseaseRepositoryInterface $diseases) {}
+
+    public function records(?string $status = null): Collection
+    {
+        return $this->diseases->forAdministration($status ? ['status' => $status] : [], true);
+    }
+
     public function assertVerifiable(Disease $disease): void
     {
         $disease->load(['evidence.source', 'symptomRecords', 'managementRecords.regulatoryChecks']);
@@ -45,5 +56,29 @@ class DiseaseVerificationService
         if ($errors) {
             throw ValidationException::withMessages($errors);
         }
+    }
+
+    public function recordReview(User $expert, Disease $disease, array $attributes): array
+    {
+        if ($attributes['status'] === 'verified') {
+            $this->assertVerifiable($disease);
+        }
+
+        return DB::transaction(function () use ($expert, $disease, $attributes) {
+            $verification = $disease->verifications()->create([
+                ...$attributes,
+                'expert_id' => $expert->id,
+                'verified_at' => $attributes['status'] === 'verified' ? now() : null,
+            ]);
+            $updatedDisease = $this->diseases->update($disease, $attributes['status'] === 'verified' ? [
+                'verification_status' => 'verified', 'is_verified' => true, 'verified_at' => now(),
+                'verified_by' => $expert->id, 'last_reviewed_at' => now(),
+            ] : [
+                'verification_status' => $attributes['status'] === 'rejected' ? 'draft' : 'researched',
+                'is_verified' => false, 'verified_at' => null, 'verified_by' => null, 'last_reviewed_at' => now(),
+            ]);
+
+            return ['verification' => $verification->load('expert:id,name'), 'disease' => $updatedDisease];
+        });
     }
 }

@@ -218,15 +218,18 @@ vendor\bin\pint --test
 
 | Path | What students usually change there |
 | --- | --- |
-| `app/Http/Controllers/` | Request handling and API responses |
+| `app/Contracts/Repositories/` | Persistence interfaces consumed through dependency injection |
+| `app/Http/Controllers/` | HTTP validation, authorization, and API responses |
 | `app/Models/` | Database entities and relationships |
-| `app/Services/` | Reusable business rules |
+| `app/Providers/RepositoryServiceProvider.php` | Repository interface-to-implementation bindings |
+| `app/Repositories/` | Eloquent queries and persistence operations |
+| `app/Services/` | Business rules and application workflows |
 | `database/migrations/` | Database structure changes |
 | `database/seeders/` | Development and scientific seed data |
 | `routes/api.php` | API route definitions |
 | `tests/Feature/` | End-to-end API behavior tests |
 
 > [!TIP]
-> When adding a feature, update the route, controller/service, validation, authorization, and tests together.
+> New backend behavior should normally flow through `Route -> Controller -> Service -> Repository -> Model`. Keep validation and authorization at the HTTP boundary, business decisions in services, and reusable Eloquent queries in repositories. Update the tests with every behavior change.
 
 Return to the [main project guide](../README.md), or read the [scientific content governance](../docs/scientific-content-governance.md).

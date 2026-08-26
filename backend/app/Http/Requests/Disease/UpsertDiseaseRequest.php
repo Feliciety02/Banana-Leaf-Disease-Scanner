@@ -43,7 +43,7 @@ class UpsertDiseaseRequest extends ApiRequest
                 return;
             }
             if (! in_array($this->string('model_class_key')->toString(), $registry->labels(), true)) {
-                $validator->errors()->add('model_class_key', 'The class key is not present in the validated five-class label map.');
+                $validator->errors()->add('model_class_key', 'The class key is not present in the validated four-class label map.');
             }
         }];
     }

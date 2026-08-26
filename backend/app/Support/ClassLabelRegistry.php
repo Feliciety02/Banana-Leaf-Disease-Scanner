@@ -14,20 +14,20 @@ class ClassLabelRegistry
         }
 
         $decoded = json_decode(File::get($path), true);
-        if (! is_array($decoded) || count($decoded) !== 5) {
+        $expectedLabels = config('banana.class_labels', []);
+        $classCount = count($expectedLabels);
+        if (! is_array($decoded) || count($decoded) !== $classCount) {
             return [];
         }
 
         ksort($decoded, SORT_NUMERIC);
-        $expected = ['0', '1', '2', '3', '4'];
+        $expected = array_map('strval', range(0, $classCount - 1));
         if (array_map('strval', array_keys($decoded)) !== $expected) {
             return [];
         }
 
         $labels = array_values($decoded);
-        $expectedLabels = config('banana.class_labels', []);
-
-        return count(array_unique($labels)) === 5
+        return count(array_unique($labels)) === $classCount
             && collect($labels)->every(fn ($label) => is_string($label) && trim($label) !== '')
             && $labels === $expectedLabels
             ? $labels
@@ -36,6 +36,8 @@ class ClassLabelRegistry
 
     public function isEstablished(): bool
     {
-        return count($this->labels()) === 5;
+        $expectedCount = count(config('banana.class_labels', []));
+
+        return $expectedCount > 0 && count($this->labels()) === $expectedCount;
     }
 }

@@ -2,18 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
+use App\Services\AccountService;
+use App\Services\AuthenticationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
 class PublicAccountController extends Controller
 {
+    public function __construct(
+        private readonly AccountService $accounts,
+        private readonly AuthenticationService $auth,
+    ) {}
+
     public function privacy(): View
     {
         return view('privacy', ['contactEmail' => config('app.privacy_contact_email')]);
@@ -30,14 +34,12 @@ class PublicAccountController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
-        $user = User::query()->where('email', Str::lower($validated['email']))->first();
-
-        if (! $user || ! Hash::check($validated['password'], $user->password)) {
+        $user = $this->accounts->credentialsMatch($validated['email'], $validated['password']);
+        if (! $user) {
             return back()->withErrors(['email' => 'The account credentials could not be verified.'])->onlyInput('email');
         }
 
-        $user->tokens()->delete();
-        $user->delete();
+        $this->accounts->delete($user);
 
         return back()->with('status', 'Your DahonMD account and associated server data were deleted.');
     }
@@ -57,15 +59,7 @@ class PublicAccountController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'confirmed', PasswordRule::min(8)],
         ]);
-        $credentials['email'] = Str::lower($credentials['email']);
-
-        $status = Password::reset($credentials, function (User $user, string $password): void {
-            $user->forceFill([
-                'password' => Hash::make($password),
-                'remember_token' => Str::random(60),
-            ])->save();
-            $user->tokens()->delete();
-        });
+        $status = $this->auth->resetPassword($credentials);
 
         return $status === Password::PASSWORD_RESET
             ? back()->with('status', __($status))
@@ -74,12 +68,7 @@ class PublicAccountController extends Controller
 
     public function verifyEmail(Request $request, int $id, string $hash): Response
     {
-        $user = User::query()->findOrFail($id);
-        abort_unless(hash_equals($hash, sha1($user->getEmailForVerification())), 403);
-
-        if (! $user->hasVerifiedEmail()) {
-            $user->markEmailAsVerified();
-        }
+        $this->accounts->verifyEmail($id, $hash);
 
         return response()->view('email-verified');
     }

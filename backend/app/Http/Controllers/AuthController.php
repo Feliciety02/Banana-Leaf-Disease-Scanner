@@ -5,35 +5,45 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
-use App\Models\User;
+use App\Services\AuthenticationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
 
 class AuthController extends Controller
 {
+    public function __construct(private readonly AuthenticationService $auth) {}
+
     public function register(RegisterRequest $request): JsonResponse
     {
-        $user = User::query()->create([...$request->validated(), 'password' => Hash::make($request->password), 'role' => 'farmer']);
-        $user->sendEmailVerificationNotification();
-        $token = $user->createToken($request->string('device_name', 'web')->toString())->plainTextToken;
+        $authentication = $this->auth->register(
+            $request->validated(),
+            $request->string('device_name', 'web')->toString(),
+        );
 
-        return response()->json(['success' => true, 'message' => 'Registration successful.', 'data' => ['user' => new UserResource($user), 'token' => $token]], 201);
+        return response()->json(['success' => true, 'message' => 'Registration successful.', 'data' => [
+            'user' => new UserResource($authentication['user']),
+            'token' => $authentication['token'],
+        ]], 201);
     }
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::query()->where('email', $request->string('email')->lower())->first();
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        $authentication = $this->auth->authenticate(
+            $request->string('email')->toString(),
+            $request->password,
+            $request->string('device_name', 'web')->toString(),
+        );
+        if (! $authentication) {
             return response()->json(['success' => false, 'message' => 'The provided credentials are incorrect.', 'errors' => ['email' => ['The provided credentials are incorrect.']]], 422);
         }
 
-        $token = $user->createToken($request->string('device_name', 'web')->toString())->plainTextToken;
-
-        return response()->json(['success' => true, 'message' => 'Login successful.', 'data' => ['user' => new UserResource($user), 'token' => $token]]);
+        return response()->json(['success' => true, 'message' => 'Login successful.', 'data' => [
+            'user' => new UserResource($authentication['user']),
+            'token' => $authentication['token'],
+        ]]);
     }
 
     public function forgotPassword(Request $request): JsonResponse
@@ -55,15 +65,7 @@ class AuthController extends Controller
             'email' => ['required', 'email'],
             'password' => ['required', 'confirmed', PasswordRule::min(8)],
         ]);
-        $credentials['email'] = Str::lower($credentials['email']);
-
-        $status = Password::reset($credentials, function (User $user, string $password): void {
-            $user->forceFill([
-                'password' => Hash::make($password),
-                'remember_token' => Str::random(60),
-            ])->save();
-            $user->tokens()->delete();
-        });
+        $status = $this->auth->resetPassword($credentials);
 
         if ($status !== Password::PASSWORD_RESET) {
             return response()->json([
@@ -78,7 +80,7 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()?->delete();
+        $this->auth->logout($request->user());
 
         return response()->json(['success' => true, 'message' => 'Logout successful.', 'data' => (object) []]);
     }
@@ -90,15 +92,11 @@ class AuthController extends Controller
 
     public function resendVerification(Request $request): JsonResponse
     {
-        if (! $request->user()->hasVerifiedEmail()) {
-            $request->user()->sendEmailVerificationNotification();
-        }
+        $sent = $this->auth->resendVerification($request->user());
 
         return response()->json([
             'success' => true,
-            'message' => $request->user()->hasVerifiedEmail()
-                ? 'Your email address is already verified.'
-                : 'A verification link has been sent.',
+            'message' => $sent ? 'A verification link has been sent.' : 'Your email address is already verified.',
             'data' => (object) [],
         ]);
     }
