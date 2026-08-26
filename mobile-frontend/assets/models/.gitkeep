@@ -1,0 +1,3 @@
+Placeholder. Replace with the trained ca_mobilenetv3_small_int8.tflite from the AI pipeline.
+
+Run: cp ai/artifacts/configuration_4/ca_mobilenetv3_small_int8.tflite mobile-frontend/assets/models/

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "field_version": "davao-field-evaluation-v1",
+  "class_names": [
+    "healthy",
+    "sigatoka",
+    "panama-disease",
+    "cordana-leaf-spot"
+  ],
+  "allowed_extensions": [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".bmp",
+    ".webp"
+  ],
+  "minimum_width": 64,
+  "minimum_height": 64,
+  "near_duplicate_hamming_distance": 6,
+  "preliminary_labels_are_supervised_targets": false,
+  "require_expert_validated_label": true,
+  "require_approved_collection_authority": true,
+  "require_frozen_final_split": true,
+  "partition_assignment": "held_out_test_only",
+  "unresolved_policy": "pending_or_excluded_without_deleting_file"
+}

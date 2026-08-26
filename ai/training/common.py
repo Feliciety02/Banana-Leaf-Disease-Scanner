@@ -22,6 +22,8 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--ssl-unlabeled-dir", help="Separate external SSL image root")
     parser.add_argument("--ssl-manifest", help="Versioned, accepted external SSL manifest")
+    parser.add_argument("--davao-field-dir", help="Separate Davao field image root")
+    parser.add_argument("--davao-field-manifest", help="Versioned, expert-reviewed Davao field manifest")
     parser.add_argument("--output-dir", help="Artifact directory override")
 
 
@@ -35,6 +37,10 @@ def configured_experiment(args: argparse.Namespace, snapshot_name: str | None = 
         config.data.ssl_unlabeled_dir = args.ssl_unlabeled_dir
     if getattr(args, "ssl_manifest", None):
         config.data.ssl_manifest = args.ssl_manifest
+    if getattr(args, "davao_field_dir", None):
+        config.data.final_field_test_dir = args.davao_field_dir
+    if getattr(args, "davao_field_manifest", None):
+        config.data.final_field_test_manifest = args.davao_field_manifest
     if getattr(args, "output_dir", None):
         config.runtime.output_dir = args.output_dir
     config.validate()

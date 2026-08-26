@@ -78,6 +78,12 @@ The separate public-unlabeled ingestion framework is documented in
 [`SSL_INGESTION.md`](SSL_INGESTION.md). Its current honest count is zero acquired
 and zero SSL-ready, leaving the full 8,000-image target outstanding.
 
+For Davao field photos, follow the student checklist in
+[`DAVAO_FIELD_WORKFLOW.md`](DAVAO_FIELD_WORKFLOW.md). It explains what metadata
+to record, how expert review works, why related photos share a group, and why
+approved images are final-test-only. The current field manifest reports zero
+acquired and zero expert-validated test-ready images.
+
 The enforced processing order is acquisition → label harmonization and quality
 control → exact/near-duplicate screening → biological/acquisition grouping →
 dataset split → training-only augmentation.
@@ -449,8 +455,8 @@ External SSL requires both `--ssl-unlabeled-dir` and a fingerprinted
 `--ssl-manifest`, plus a frozen final split. Raw directories are rejected. Only
 licensed, provenance-complete, banana-leaf-confirmed records that pass exact,
 perceptual, and biological held-out screening may reach teacher SSL. The
-separate `--final-field-test-dir` remains a locked four-class Davao field
-partition.
+The Davao field root likewise requires an expert-reviewed manifest and is
+attached only to the locked held-out test partition.
 
 ## Provenance Checklist
 

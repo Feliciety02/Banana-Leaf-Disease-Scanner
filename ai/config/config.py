@@ -53,6 +53,10 @@ class DataConfig:
     # training or validation; SSL-unlabeled images may be used only by the SSL
     # phase after overlap screening.
     final_field_test_dir: Optional[str] = None
+    # Fingerprinted output of ai.data.build_davao_field_manifest. The directory
+    # alone is never interpreted as labeled data, and preliminary labels never
+    # enter this manifest's held-out evaluation subset.
+    final_field_test_manifest: Optional[str] = None
     ssl_unlabeled_dir: Optional[str] = None
     # Fingerprinted output of ai.data.build_ssl_manifest. A raw SSL directory
     # can never be consumed without this provenance/relevance/leakage gate.
@@ -234,6 +238,12 @@ class ExperimentConfig:
             raise ValueError("data.ssl_unlabeled_dir and data.ssl_manifest must be configured together")
         if self.data.ssl_manifest and not self.data.final_split_dir:
             raise ValueError("External SSL requires data.final_split_dir so held-out groups can be excluded")
+        if bool(self.data.final_field_test_dir) != bool(self.data.final_field_test_manifest):
+            raise ValueError(
+                "data.final_field_test_dir and data.final_field_test_manifest must be configured together"
+            )
+        if self.data.final_field_test_manifest and not self.data.final_split_dir:
+            raise ValueError("Davao field evaluation requires data.final_split_dir")
         if self.teacher.backbone != "ResNet101":
             raise ValueError("The finalized thesis teacher architecture is fixed to ResNet101")
         if self.teacher.feature_dim != 2048:

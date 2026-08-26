@@ -40,7 +40,8 @@
         }
       ],
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "./modules/dahonmd-tflite/plugin"
     ]
   }
 }

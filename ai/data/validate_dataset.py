@@ -25,7 +25,8 @@ def main() -> None:
     parser.add_argument("--ssl-unlabeled-dir", help="Optional images designated only for self-supervised pretraining")
     parser.add_argument("--ssl-manifest", help="Versioned SSL admission manifest")
     parser.add_argument("--final-split-dir", help="Frozen final split required for external SSL admission")
-    parser.add_argument("--final-field-test-dir", help="Optional locked Davao field-test root with four class folders")
+    parser.add_argument("--final-field-test-dir", help="Separate locked Davao field-image root; requires --davao-field-manifest")
+    parser.add_argument("--davao-field-manifest", help="Versioned expert-reviewed Davao field manifest")
     parser.add_argument("--formal", action="store_true", help="Explicitly use the default thesis-ready split gates")
     parser.add_argument(
         "--exploratory",
@@ -55,6 +56,8 @@ def main() -> None:
         config.data.final_split_dir = args.final_split_dir
     if args.final_field_test_dir:
         config.data.final_field_test_dir = args.final_field_test_dir
+    if args.davao_field_manifest:
+        config.data.final_field_test_manifest = args.davao_field_manifest
     if args.formal:
         config.data.require_near_duplicate_review = True
         config.data.require_complete_metadata = True

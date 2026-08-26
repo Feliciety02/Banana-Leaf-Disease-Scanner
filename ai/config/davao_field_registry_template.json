@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "registry_version": "replace-with-version",
+  "collection": {
+    "collection_id": "replace-with-stable-id",
+    "project_name": "Davao banana leaf field evaluation",
+    "collecting_organization": "pending",
+    "collection_authority_status": "pending",
+    "collection_authority_reference": "pending",
+    "notes": "Do not record unnecessary personally identifying information."
+  },
+  "images": {},
+  "field_definitions": {
+    "preliminary_label": "Verbatim farmer/plantation-worker/researcher observation; never a supervised target.",
+    "expert_reviewed_label": "One canonical class only when review_status is validated; otherwise pending/unknown.",
+    "review_status": [
+      "pending",
+      "validated",
+      "conflict",
+      "excluded"
+    ],
+    "unknown_metadata": "Use unknown or pending; never invent site, plant, leaf, session, device, date, or expert evidence."
+  }
+}

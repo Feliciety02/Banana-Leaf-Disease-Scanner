@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import tensorflow as tf
@@ -143,6 +144,7 @@ def train(args: argparse.Namespace) -> Path:
 
     best_path = output_dir / "best_student.keras"
     best_macro_f1 = -1.0
+    validation_sample_count = 0
     if args.initial_student_model:
         initial_true: list[int] = []
         initial_predicted: list[int] = []
@@ -188,12 +190,15 @@ def train(args: argparse.Namespace) -> Path:
         validation_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
         validation_true: list[int] = []
         validation_predicted: list[int] = []
+        epoch_validation_count = 0
         for images, labels in validation_dataset:
             loss_value, logits = validation_step(images, labels)
             validation_loss.update_state(loss_value, sample_weight=tf.cast(tf.shape(labels)[0], tf.float32))
             validation_accuracy.update_state(labels, logits)
             validation_true.extend(labels.numpy().astype(int).tolist())
             validation_predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
+            epoch_validation_count += int(labels.shape[0])
+        validation_sample_count = epoch_validation_count
         row = {
             "epoch": epoch,
             **{f"train_{name}": float(metric.result()) for name, metric in train_metrics.items()},
@@ -224,6 +229,30 @@ def train(args: argparse.Namespace) -> Path:
                 break
         save_history(history, output_dir / "student_history.json")
     save_history(history, output_dir / "student_history.json")
+
+    selected_epoch = max(
+        (row["epoch"] for row in history if row.get("validation_macro_f1", -1.0) >= best_macro_f1 - 1e-9),
+        default=len(history),
+    )
+    validation_metrics = {
+        "partition": "validation",
+        "metric": "macro_f1",
+        "value": best_macro_f1,
+        "selected_epoch": selected_epoch,
+        "num_samples": validation_sample_count,
+        "test_set_evaluated": False,
+        "student_backbone": config.student.backbone,
+        "coordinate_attention": config.student.coordinate_attention,
+        "distillation": {
+            "alpha": config.distillation.alpha,
+            "beta": config.distillation.beta,
+            "gamma": config.distillation.gamma,
+            "temperature": config.distillation.temperature,
+        },
+    }
+    (output_dir / "student_validation_metrics.json").write_text(
+        json.dumps(validation_metrics, indent=2, sort_keys=True), encoding="utf-8"
+    )
     print(f"Best student saved to {best_path} (validation macro F1={best_macro_f1:.5f})")
     return best_path
 
