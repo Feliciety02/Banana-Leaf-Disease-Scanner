@@ -116,7 +116,7 @@ class DatasetManifestInventoryTest(unittest.TestCase):
             self.assertEqual(report["summary"]["exact_duplicate_copies_excluded"], 1)
             self.assertEqual(len(splits.train + splits.validation + splits.test), 12)
 
-    def test_designated_ssl_inventory_rejects_primary_overlap(self) -> None:
+    def test_raw_ssl_inventory_is_never_admitted_without_versioned_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
             dataset = workspace / "dataset"
@@ -129,14 +129,8 @@ class DatasetManifestInventoryTest(unittest.TestCase):
             config.data.dataset_dir = str(dataset)
             config.data.ssl_unlabeled_dir = str(unlabeled)
 
-            with self.assertRaisesRegex(ValueError, "External dataset .*overlap"):
+            with self.assertRaisesRegex(ValueError, "versioned data.ssl_manifest"):
                 prepare_splits(config, workspace / "split.json")
-
-            overlap = json.loads((workspace / "external_overlap_report.json").read_text(encoding="utf-8"))
-            self.assertTrue(
-                overlap["exact_cross_inventory_overlaps"]
-                or overlap["near_cross_inventory_overlaps_requiring_review"]
-            )
             self.assertFalse((workspace / "split.json").exists())
 
     def test_related_images_are_assigned_to_one_split(self) -> None:

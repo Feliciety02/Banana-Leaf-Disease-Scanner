@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "ssl_version": "banana-leaf-external-ssl-v1",
+  "target_count": 8000,
+  "allowed_extensions": [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".bmp",
+    ".webp"
+  ],
+  "minimum_width": 64,
+  "minimum_height": 64,
+  "near_duplicate_hamming_distance": 6,
+  "require_confirmed_banana_leaf": true,
+  "require_approved_license": true,
+  "require_frozen_heldout_exclusion": true,
+  "target_policy": "report_shortfall_without_fabrication",
+  "unresolved_review_policy": "exclude_candidate_without_deleting_file"
+}

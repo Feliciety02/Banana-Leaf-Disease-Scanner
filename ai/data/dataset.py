@@ -1043,16 +1043,35 @@ def _validate_external_overlap(
 
 def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = None) -> DatasetSplits:
     root = require_dataset_dir(config)
+    ssl_configured = bool(config.data.ssl_unlabeled_dir or config.data.ssl_manifest)
+    if bool(config.data.ssl_unlabeled_dir) != bool(config.data.ssl_manifest):
+        raise ValueError(
+            "External SSL requires both data.ssl_unlabeled_dir and a versioned data.ssl_manifest; "
+            "raw directories are never admitted"
+        )
+    if ssl_configured and not config.data.final_split_dir:
+        raise ValueError(
+            "External SSL requires data.final_split_dir; validation/test identities must be frozen first"
+        )
     if config.data.final_split_dir:
         # Import lazily to avoid a module cycle: the final-split adapter returns
         # the same DatasetSplits/ImageRecord contract used by every consumer.
         from ai.data.build_final_split import load_final_dataset_splits
 
-        return load_final_dataset_splits(
+        splits = load_final_dataset_splits(
             config.data.final_split_dir,
             root,
             config.data.class_names,
         )
+        if ssl_configured:
+            from ai.data.build_ssl_manifest import load_ssl_dataset_records
+
+            splits.ssl_unlabeled = load_ssl_dataset_records(
+                config.data.ssl_manifest,
+                config.data.ssl_unlabeled_dir,
+                Path(config.data.final_split_dir) / "ssl_exclusion_manifest.json",
+            )
+        return splits
     manifest = Path(manifest_path) if manifest_path else Path(config.runtime.output_dir) / "split_manifest.json"
     near_duplicate_reviews = load_near_duplicate_reviews(config.data.near_duplicate_review_manifest)
     metadata_map = load_metadata_manifest(config.data.metadata_manifest)

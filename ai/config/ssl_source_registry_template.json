@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "registry_version": "replace-with-version",
+  "sources": [],
+  "images": {},
+  "field_definitions": {
+    "source_license_status": [
+      "approved",
+      "pending",
+      "restricted"
+    ],
+    "banana_leaf_status": [
+      "confirmed_banana_leaf",
+      "non_banana",
+      "requires_review"
+    ],
+    "unknown_biological_metadata": "Use the literal value 'unknown'; never invent plant, leaf, session, device, date, or location values.",
+    "disease_label": "Not accepted or required for external SSL records."
+  }
+}
