@@ -205,10 +205,25 @@ def _duplicate_states(report_path: Path | None) -> tuple[dict[str, str], dict[st
     if report_path is None or not report_path.is_file():
         return states, {}
     report = json.loads(report_path.read_text(encoding="utf-8"))
+    priority = {
+        "reviewed_clear": 1,
+        "grouped_near_duplicate": 2,
+        "pending_near_duplicate_review": 3,
+    }
     for pair in report.get("near_duplicate_pairs", []):
+        review = pair.get("review") or {}
+        decision = review.get("decision")
         if pair.get("requires_review"):
-            states[_normalize_path(pair["path_a"])] = "pending_near_duplicate_review"
-            states[_normalize_path(pair["path_b"])] = "pending_near_duplicate_review"
+            state = "pending_near_duplicate_review"
+        elif decision in {"same_image", "same_leaf_or_related_capture", "grouped"}:
+            state = "grouped_near_duplicate"
+        else:
+            state = "reviewed_clear"
+        for field in ("path_a", "path_b"):
+            relative = _normalize_path(pair[field])
+            current = states.get(relative)
+            if current is None or priority[state] > priority.get(current, 0):
+                states[relative] = state
     for group in report.get("exact_duplicate_groups", []):
         states[_normalize_path(group["kept"])] = "canonical_exact_duplicate_representative"
         for relative in group.get("excluded_copies", []):

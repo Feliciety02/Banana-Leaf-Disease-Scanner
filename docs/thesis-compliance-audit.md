@@ -17,6 +17,7 @@ This file records implementation state without inventing experimental evidence.
 ## PENDING EXPERIMENTAL VALIDATION
 
 - Complete expert label, species, visibility/quality, inclusion, near-duplicate, and biological/acquisition group review. Metadata schema v2 now covers all 12,670 active files deterministically, but all remain human-review-blocked; 1,011 near-duplicate pairs affect 436 files, and only 16 surviving files have explicit reviewed group assignments. Seven stale group rows are preserved separately in `datasets/group_manifest_retired.json`.
+- The near-duplicate queue is now an enriched, fingerprinted JSON/CSV adjudication artifact with 60 transitive candidate components, 449 same-class pairs, and 562 high-priority cross-class pairs. The decision applicator refuses to write group output while any cross-label case is unresolved or confirmed-related without separate label adjudication; no labels or images are modified.
 - Decide the final 2,800-image labeled cohort from the larger acquired inventory and acquire/verify the planned 8,000-image unlabeled SSL inventory.
 - Select SSL and KD hyperparameters from training/validation only.
 - Train and validation-select all required checkpoints; run held-out and repeated-seed experiments where resources permit.

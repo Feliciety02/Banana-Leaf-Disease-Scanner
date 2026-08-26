@@ -185,9 +185,21 @@ def load_near_duplicate_reviews(path: str | Path | None) -> dict[str, dict[str, 
         raise FileNotFoundError(f"Near-duplicate review manifest not found: {source}")
     payload = json.loads(source.read_text(encoding="utf-8"))
     pairs = payload.get("pairs", payload) if isinstance(payload, dict) else None
+    if isinstance(pairs, list):
+        pairs = {pair.get("review_key"): pair for pair in pairs if isinstance(pair, dict)}
     if not isinstance(pairs, dict):
-        raise ValueError("Near-duplicate review manifest must contain an object named 'pairs'")
-    allowed_decisions = {"not_duplicate", "grouped", "exclude_a", "exclude_b"}
+        raise ValueError("Near-duplicate review manifest must contain an object or list named 'pairs'")
+    allowed_decisions = {
+        "same_image",
+        "same_leaf_or_related_capture",
+        "visually_similar_but_independent",
+        "not_duplicate",
+        "requires_review",
+        # Schema-v1 compatibility only.
+        "grouped",
+        "exclude_a",
+        "exclude_b",
+    }
     normalized: dict[str, dict[str, str]] = {}
     for key, review in pairs.items():
         if not isinstance(key, str) or "||" not in key or not isinstance(review, dict):
@@ -195,9 +207,10 @@ def load_near_duplicate_reviews(path: str | Path | None) -> dict[str, dict[str, 
         decision = review.get("decision")
         reviewer = review.get("reviewer")
         reviewed_at = review.get("reviewed_at")
-        if decision not in allowed_decisions or not all(
+        resolved = decision != "requires_review"
+        if decision not in allowed_decisions or (resolved and not all(
             isinstance(value, str) and value.strip() for value in (reviewer, reviewed_at)
-        ):
+        )):
             raise ValueError(
                 f"Near-duplicate review '{key}' needs a valid decision, reviewer, and reviewed_at"
             )
@@ -207,7 +220,7 @@ def load_near_duplicate_reviews(path: str | Path | None) -> dict[str, dict[str, 
             "decision": decision,
             "reviewer": reviewer,
             "reviewed_at": reviewed_at,
-            "notes": str(review.get("notes", "")),
+            "notes": str(review.get("evidence_note", review.get("notes", ""))),
         }
     return normalized
 
@@ -220,17 +233,23 @@ def write_near_duplicate_review_template(
         path_a, path_b = sorted((pair["path_a"], pair["path_b"]))
         key = pair.get("review_key", f"{path_a}||{path_b}")
         pairs[key] = pair.get("review") or {
-            "decision": "",
+            "decision": "requires_review",
             "reviewer": "",
             "reviewed_at": "",
-            "notes": "",
+            "evidence_note": "",
         }
     template = {
-        "schema_version": 1,
-        "allowed_decisions": ["not_duplicate", "grouped", "exclude_a", "exclude_b"],
+        "schema_version": 2,
+        "allowed_decisions": [
+            "same_image",
+            "same_leaf_or_related_capture",
+            "visually_similar_but_independent",
+            "not_duplicate",
+            "requires_review",
+        ],
         "instructions": (
-            "Visually inspect every pair. 'grouped' also requires both paths to share one explicit "
-            "group_manifest ID. Exclusion decisions remove an image from splitting, not from disk."
+            "Visually inspect every pair. Confirmed same-image or related-capture decisions require "
+            "one shared group_manifest ID. This workflow never deletes images or changes labels."
         ),
         "pairs": pairs,
     }
@@ -414,7 +433,7 @@ def validate_image_inventory(
                     "class_a": first["class_name"],
                     "class_b": second["class_name"],
                     "hamming_distance": distance,
-                    "requires_review": review is None,
+                    "requires_review": review is None or review["decision"] == "requires_review",
                     "review": review,
                 })
         if value not in items_by_perceptual_hash:
@@ -1064,7 +1083,7 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
         ):
             raise ValueError("data.group_manifest must be a JSON object mapping relative paths to non-empty group IDs")
     for review_key, review in near_duplicate_reviews.items():
-        if review["decision"] != "grouped":
+        if review["decision"] not in {"grouped", "same_image", "same_leaf_or_related_capture"}:
             continue
         path_a, path_b = review_key.split("||", 1)
         if group_map is None or group_map.get(path_a) is None or group_map.get(path_a) != group_map.get(path_b):

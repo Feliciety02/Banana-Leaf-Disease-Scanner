@@ -54,6 +54,12 @@ sorted alphabetically or changed independently in another client.
 > Formal split creation is blocked until metadata and near-duplicate review are
 > complete. Existing model artifacts are incompatible with this contract.
 
+The complete pair-review procedure, decision vocabulary, current queue counts,
+and deterministic artifact fingerprints are in
+[`NEAR_DUPLICATE_REVIEW.md`](NEAR_DUPLICATE_REVIEW.md). The generated JSON and
+CSV review artifacts remain local under `datasets/` because the repository's
+dataset ignore policy excludes non-documentation files.
+
 There are 13,415 image files on disk: 12,670 in active class folders and 745 in
 the dead-leaf quarantine. The validator determines the accepted canonical count
 after exact-copy exclusion; folder counts alone are not a formal cohort.
