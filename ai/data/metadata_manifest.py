@@ -48,6 +48,9 @@ THESIS_FIELDS: tuple[str, ...] = (
     "group_id",
     "qc_status",
     "duplicate_status",
+    "originality_status",
+    "lighting_condition",
+    "disease_appearance",
 )
 
 SUPPORT_FIELDS: tuple[str, ...] = (
@@ -101,6 +104,9 @@ THESIS_DEFAULTS: dict[str, str] = {
     "group_id": PENDING,
     "qc_status": "pending_human_review",
     "duplicate_status": PENDING,
+    "originality_status": UNKNOWN,
+    "lighting_condition": UNKNOWN,
+    "disease_appearance": UNKNOWN,
 }
 
 UNRESOLVED_VALUES = frozenset({UNKNOWN, PENDING, "", "none"})
@@ -291,6 +297,7 @@ def enrich_metadata(
                 "original_label": rule["label"],
                 "field_or_public": "public",
                 "location": rule["location"],
+                "originality_status": "original",
             }
             for field, value in inferred.items():
                 previous_value = record[field]
@@ -302,7 +309,10 @@ def enrich_metadata(
                 if previous_value in UNRESOLVED_VALUES and value not in UNRESOLVED_VALUES:
                     record[field] = value
             evidence = f"documented filename rule '{rule['prefix']}*' in datasets/banana_leaf_thesis_4class/SOURCES.md"
-            for field in ("source_dataset", "source_type", "original_label", "field_or_public"):
+            for field in (
+                "source_dataset", "source_type", "original_label", "field_or_public",
+                "originality_status",
+            ):
                 provenance.setdefault(field, evidence)
             provenance.setdefault("location", evidence if rule["location"] != UNKNOWN else "not documented for this source batch")
         else:
@@ -405,6 +415,8 @@ def formal_metadata_issues(
         "automated_clear", "reviewed_clear", "grouped_near_duplicate", "canonical_exact_duplicate_representative"
     }:
         issues.append("unresolved:duplicate_status")
+    if record["originality_status"] != "original":
+        issues.append("unresolved:originality_status")
     if record.get("species_review_status") != "banana":
         issues.append("unresolved:species_review_status")
     if record.get("visibility_quality_status") != "acceptable":
@@ -445,7 +457,10 @@ def validation_report(
         "schema_version": SCHEMA_VERSION,
         "dataset_root": str(root),
         "required_presence_fields": list(THESIS_FIELDS),
-        "optional_when_unavailable": ["plant_id", "leaf_id", "acquisition_session", "capture_device", "capture_date", "location"],
+        "optional_when_unavailable": [
+            "plant_id", "leaf_id", "acquisition_session", "capture_device", "capture_date",
+            "location", "lighting_condition", "disease_appearance",
+        ],
         "formal_gate": (
             "Every active record needs traceable provenance, resolved source/original label, expert validation, "
             "approved human QC, an explicit biological/acquisition group (or reviewed singleton), and resolved duplicate status."

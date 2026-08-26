@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "cohort_version": "banana-leaf-thesis-labeled-v1",
+  "target_per_class": 700,
+  "seed": 42,
+  "class_names": [
+    "healthy",
+    "sigatoka",
+    "panama-disease",
+    "cordana-leaf-spot"
+  ],
+  "selection_unit": "group_id",
+  "diversity_fields": [
+    "source_dataset",
+    "field_or_public",
+    "lighting_condition",
+    "disease_appearance",
+    "capture_device"
+  ],
+  "required_statuses": {
+    "expert_validated": "validated",
+    "qc_status": "approved",
+    "species_review_status": "banana",
+    "visibility_quality_status": "acceptable",
+    "inclusion_status": "included",
+    "originality_status": "original"
+  },
+  "require_resolved_source": true,
+  "require_explicit_group": true,
+  "require_all_duplicate_candidates_resolved": true,
+  "allow_augmented_or_derived": false,
+  "shortage_policy": "write_blocked_manifest_and_exit_nonzero"
+}

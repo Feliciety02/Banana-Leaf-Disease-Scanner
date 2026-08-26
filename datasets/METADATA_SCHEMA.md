@@ -25,6 +25,9 @@ and field-level evidence in `field_provenance`.
 | `group_id` | Reviewed biological/acquisition family, or reviewed singleton ID | Pending | Yes |
 | `qc_status` | `pending_human_review`, `approved`, `excluded`, or `quarantined` | Pending | Must be `approved` |
 | `duplicate_status` | Automated or reviewed duplicate-screen result | Pending | Must be resolved |
+| `originality_status` | `original`, `augmented`, `derived`, or `unknown` | Yes | Must be `original` |
+| `lighting_condition` | Verified lighting category when recorded | Yes | No when unavailable |
+| `disease_appearance` | Reviewer/source disease-stage or appearance stratum | Yes | No when unavailable |
 
 Compatibility fields preserve the more detailed species, visibility, inclusion,
 reviewer, site, and legacy experiment-manifest contract. They are not aliases
@@ -40,6 +43,11 @@ documented in `banana_leaf_thesis_4class/SOURCES.md`; source-level Tanzania or
 Ecuador location only for matching documented batches; group ID only from an
 explicit group manifest or preserved reviewed record; and duplicate status only
 from the named inventory report.
+
+The same exact documented source-batch rules may mark admitted batches as
+`original`. Unrecognized files remain `originality_status=unknown`; a filename
+that merely lacks words such as “augmented” is never treated as proof of
+originality.
 
 It never derives plant ID, leaf ID, acquisition session, capture device,
 per-image capture date, field location, expert validation, or human QC from
