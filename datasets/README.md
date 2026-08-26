@@ -2,7 +2,7 @@
 
 # DahonMD Dataset Guide
 
-Layout, provenance, label-review, leakage-prevention, and validation rules for the five-class banana-leaf dataset.
+Layout, provenance, label-review, leakage-prevention, and validation rules for the four-class banana-leaf thesis dataset and its preserved dead-leaf quarantine.
 
 </div>
 
@@ -25,7 +25,7 @@ If you are new to the dataset, follow this order:
 > [!CAUTION]
 > Do not move an uncertain image into the class that merely looks closest. Ask a qualified reviewer or keep it excluded.
 
-## Current Class Contract (August 16, 2026)
+## Current Class Contract (August 23, 2026)
 
 Black and Yellow Sigatoka are now one model class, `sigatoka`. The former
 Yellow output slot is now `panama-disease`. This order is fixed and must not be
@@ -33,23 +33,23 @@ sorted alphabetically or changed independently in another client.
 
 | Output | Model key | Display name | Working images |
 | ---: | --- | --- | ---: |
-| 0 | `healthy` | Healthy | 4,478 |
-| 1 | `dead` | Dead leaf | 55 |
-| 2 | `sigatoka` | Sigatoka leaf spot | 5,815 |
-| 3 | `panama-disease` | Panama disease | 4,059 |
-| 4 | `cordana-leaf-spot` | Cordana leaf spot | 598 |
-|  |  | **Total** | **15,005** |
+| 0 | `healthy` | Healthy | 4,000 |
+| 1 | `sigatoka` | Sigatoka leaf spot | 4,000 |
+| 2 | `panama-disease` | Panama disease | 4,000 |
+| 3 | `cordana-leaf-spot` | Cordana leaf spot | 670 canonical (675 files) |
+| — | `dead` | Preserved quarantine; no model index | 745 |
+|  |  | **Four-class canonical total** | **12,670** |
 
 > [!WARNING]
-> All images are readable, source-labeled leaf candidates, not laboratory
-> confirmation. Structural validation can pass, but formal training and
-> deployment remain gated on agricultural-expert review and biological/source
-> grouping. Existing model artifacts use the obsolete Black/Yellow contract and
-> are not compatible with this dataset.
+> The August 23 audit found 0 unreadable images, 5 same-label exact Cordana
+> copies (reported and excluded without deletion), 1,011 perceptual pairs for
+> visual review, and only 16 explicit biological/acquisition group assignments.
+> Formal split creation is blocked until metadata and near-duplicate review are
+> complete. Existing model artifacts are incompatible with this contract.
 
-All 15,005 active files are validator-readable and byte-unique. Source labels
-and biological grouping still require the review gates described below, so this
-is not a claim of laboratory-confirmed ground truth.
+All 13,420 files remain on disk. The validator admits 12,670 canonical active
+images, preserves 745 dead-leaf images in quarantine, and excludes five exact
+copies from splitting without deleting them.
 
 ### Kaggle original-image expansion
 
@@ -60,7 +60,7 @@ triggered truncated/MPO decoder-recovery warnings were subsequently
 quarantined, leaving 297 active additions. Source-provided augmentations were
 not admitted. Exact-hash, decoder, and perceptual near-duplicate checks were run
 before final admission. See
-[`banana_leaf_5class/SOURCES.md`](banana_leaf_5class/SOURCES.md) for source,
+[`banana_leaf_thesis_4class/SOURCES.md`](banana_leaf_thesis_4class/SOURCES.md) for source,
 license, mapping, and selection details.
 
 A repository-wide rescan then found 428 exact Healthy copies in four repeated
@@ -122,7 +122,7 @@ existing cordana originals at dHash distance 0 (the source originals of
 re-encoded v4 copies). All admitted images are ≤ 1024 px on the longest side.
 The repository declares no LICENSE file; the companion MDPI AgriEngineering
 article is CC BY 4.0 and states the data are openly available. See
-[`banana_leaf_5class/SOURCES.md`](banana_leaf_5class/SOURCES.md).
+[`banana_leaf_thesis_4class/SOURCES.md`](banana_leaf_thesis_4class/SOURCES.md).
 
 ### Flip-aware duplicate sweep (August 16, 2026)
 
@@ -165,7 +165,7 @@ strictest thresholds (dist=0 + 256-bit confirmation).
 ### Flattened layout
 
 ```text
-datasets/banana_leaf_5class/
+datasets/banana_leaf_thesis_4class/
 ├── healthy/            # *.jpg (mostly zenodo, v4, nutrient, original)
 ├── dead/
 ├── sigatoka/
@@ -189,7 +189,7 @@ artifacts cannot be used with the current class contract.
 
 ```text
 datasets/
-└── banana_leaf_5class/
+└── banana_leaf_thesis_4class/
     ├── healthy/
     ├── dead/
     ├── sigatoka/
@@ -202,20 +202,22 @@ JPG, JPEG, PNG, BMP, and WEBP files may be nested under each class directory.
 The loader also accepts an existing split layout:
 
 ```text
-datasets/banana_leaf_5class/
+datasets/banana_leaf_thesis_4class/
 ├── train/<each-class-key>/
 ├── validation/<each-class-key>/
 └── test/<each-class-key>/
 ```
 
-`val/` may replace `validation/`. Every split must contain the same five exact class keys.
+`val/` may replace `validation/`. Every split must contain the same four active
+class keys. A `dead/` folder may exist beside an unsplit dataset and is reported
+as quarantine; it is never accepted inside a model split.
 
 ## Meaning of Each Label
 
 | Class | Intended meaning | Important boundary |
 | --- | --- | --- |
 | Healthy | No target-class symptoms visible in the image | Not proof the entire plant is disease-free |
-| Dead leaf | Fully dried or necrotic leaf appearance | Not a Moko diagnosis or causal claim |
+| Dead leaf (quarantine only) | Fully dried or necrotic leaf appearance | Preserved for audit/history; no model index and not a Moko diagnosis |
 | Sigatoka leaf spot | Provenance- or expert-supported Black or Yellow Sigatoka presentation | The model does not distinguish Black from Yellow Sigatoka |
 | Panama disease | Provenance- or expert-supported Panama disease leaf presentation | Leaf symptoms alone cannot confirm Fusarium wilt; field or laboratory assessment may be needed |
 | Cordana leaf spot | Provenance- or expert-supported Cordana presentation | Review images with Sigatoka-like overlap |
@@ -267,7 +269,7 @@ augmented exports. A cross-class difference-hash scan found no strong
 near-duplicate match against the other active images. The five web-guide
 copies are byte-identical educational assets outside the training root and are
 not additional training samples. See
-[`panama-disease/README.md`](banana_leaf_5class/panama-disease/README.md) for the
+[`panama-disease/README.md`](banana_leaf_thesis_4class/panama-disease/README.md) for the
 source and license record.
 
 The August 14, 2026 audit made these recoverable changes:
@@ -348,9 +350,12 @@ The model receives pixels, not the filename extension. A PNG farmer capture can 
 
 Converting a WEBP image to PNG does not restore lost detail or create a new biological sample.
 
-## Split and Leakage Rules
+## Split and Leakage Protocol
 
-For an unsplit dataset, the loader creates a deterministic, class-stratified split:
+The split is created **once, before any model training or augmentation**, and is
+then frozen for the entire baseline, teacher, student, Keras, and TensorFlow Lite
+comparison. For an unsplit dataset, the loader creates a deterministic,
+class-stratified split of biological/acquisition groups:
 
 | Partition | Share | Current count |
 | --- | ---: | ---: |
@@ -358,17 +363,60 @@ For an unsplit dataset, the loader creates a deterministic, class-stratified spl
 | Validation | 15% | 2,251 |
 | Test | 15% | 2,251 |
 
-Follow these rules:
+> [!CAUTION]
+> A generated manifest is not, by itself, proof that the split is biologically
+> independent. The validator can enforce only the relationships recorded in
+> `group_manifest.json` plus exact byte matches. Until the source, near-duplicate,
+> and biological/acquisition-group audit is complete, report resulting scores as
+> preliminary rather than as evidence of field generalization.
 
-1. Put every image of the same leaf, plant, plot, or capture session in one biological group.
-2. Record known relationships in `datasets/group_manifest.json`.
-3. Keep each group entirely inside one split.
-4. Keep original and converted/cropped/augmented versions together.
-5. Do not use demo assets, screenshots, or generated images as independent test samples.
-6. Select hyperparameters from validation data, not the test set.
-7. Open the test set only after the experiment is frozen.
+The required order of operations is:
 
-Unlisted files fall back to exact SHA-256 grouping. Hashing catches byte-identical copies but cannot recognize different photos or crops of the same specimen; that relationship must be recorded manually.
+1. Inventory the original images and record the source dataset or collector for every image.
+2. Remove or quarantine corrupt, unreadable, irrelevant, and otherwise unusable images, retaining an exclusion log.
+3. Detect byte-identical files with SHA-256 and retain only the approved representative of each duplicate set.
+4. Detect and visually inspect perceptual near-duplicates, crops, re-encodes, burst frames, and different views of the same specimen. Exclude redundant copies or assign all related images one group ID.
+5. For field images, record every available `plant_id`, `leaf_id`, plantation/site, and acquisition-session identifier. Use `unknown`; never invent an identifier.
+6. Construct the train/validation/test split from the cleaned original-image inventory, using group IDs as indivisible units.
+7. Save and checksum `split_manifest.json`; all experiments must reuse it.
+8. Decode, resize, sample, and augment only after the split has been frozen. Random augmentation is applied only while reading the training partition and never creates new validation or test observations.
+
+All photographs from the same leaf, plant, plot/site, acquisition session,
+burst, or derived-image family must remain in one partition. When site- or
+source-level independence is the intended generalization claim and enough sites
+or sources exist, reserve whole sites or sources for validation/test rather than
+mixing them across partitions. Keep originals and their converted, cropped, or
+augmented versions together. Demo assets, screenshots, and generated images are
+not independent test samples.
+
+The training partition is the **only** input to self-supervised pretraining.
+Validation and test pixels are excluded even when their labels are hidden. The
+validation partition may be used for checkpoint and hyperparameter selection;
+the locked test partition is opened once only after the complete experiment is
+frozen.
+
+Unlisted files currently fall back to exact SHA-256 grouping as a last technical
+safeguard. Hashing catches byte-identical copies but cannot recognize a different
+angle, crop, re-encode, or burst frame of the same leaf. Therefore, an unreviewed
+hash-only inventory is acceptable for exploratory runs but is **not sufficient
+evidence of an independent thesis test set**. Those relationships must be
+resolved in `datasets/group_manifest.json` before a formal experiment.
+
+`datasets/image_metadata.json` stores separate `source`, `plant_id`, `leaf_id`,
+`site_id`, `session_id`, `origin_type`, `label_validator`, and
+`label_review_status` values for every source image. Unknown values are recorded
+as `unknown`, never invented. Formal mode requires verified values and
+`label_review_status=validated`. The validator writes
+`near_duplicate_review_template.json`; each reported pair must be visually
+resolved as `not_duplicate`, `grouped`, `exclude_a`, or `exclude_b` with reviewer
+and date. Exclusion affects the experiment inventory only and does not delete
+the source image.
+
+Optional `--ssl-unlabeled-dir` and `--final-field-test-dir` inputs are governed
+by separate contracts. The former may reach only teacher SSL; the latter is a
+locked four-class Davao field partition. Exact overlap with the primary
+inventory is fatal, and perceptual overlap is written to
+`external_overlap_report.json` for review.
 
 ## Provenance Checklist
 
@@ -391,16 +439,26 @@ From the repository root:
 
 ```powershell
 .venv\Scripts\python.exe -m ai.data.validate_dataset `
-  --dataset-dir datasets\banana_leaf_5class
+  --dataset-dir datasets\banana_leaf_thesis_4class `
+  --group-manifest datasets\group_manifest.json `
+  --metadata-manifest datasets\image_metadata.json `
+  --formal
 ```
 
-The validator checks class keys and order, empty classes, unreadable files, duplicate-label conflicts, group leakage, and split consistency before writing a persistent manifest.
+The validator checks the active class order, the preserved quarantine, RGB
+decodability, exact and perceptual duplicates, structured metadata, group
+leakage, external-inventory overlap, and split consistency before writing a
+persistent manifest. Formal mode refuses to create a split while review remains
+incomplete. Use `--exploratory` only for a clearly preliminary engineering run.
 
 Class imbalance must be reported rather than hidden. Record any weighting, sampling, or augmentation strategy in the experiment configuration and thesis report.
 
 ### What success looks like
 
-The validator should confirm the five exact classes, readable images, and a leakage-free split. It then writes a split manifest that training can reuse.
+The validator should confirm four exact model classes, the preserved dead-leaf
+quarantine, readable RGB conversion, completed review gates, and leakage-free
+inventories. It writes a reusable split manifest only when the selected gate
+mode allows it.
 
 Do not ignore a warning simply because training still starts. Fix or formally document the data issue first.
 
