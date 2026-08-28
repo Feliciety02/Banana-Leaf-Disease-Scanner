@@ -64,16 +64,16 @@ chooses or changes a class label.
 
 ```powershell
 .venv\Scripts\python.exe -m ai.data.near_duplicate_adjudication import-csv `
-  --adjudication-manifest datasets\near_duplicate_adjudication.json `
-  --reviewed-csv datasets\near_duplicate_adjudication.csv `
-  --output-json datasets\near_duplicate_adjudication.reviewed.json
+  --adjudication-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.json `
+  --reviewed-csv datasets\reviews\near-duplicates\near_duplicate_adjudication.csv `
+  --output-json datasets\reviews\near-duplicates\near_duplicate_adjudication.reviewed.json
 
 .venv\Scripts\python.exe -m ai.data.near_duplicate_adjudication apply `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --adjudication-manifest datasets\near_duplicate_adjudication.reviewed.json `
-  --group-manifest datasets\group_manifest.json `
-  --output-group-manifest datasets\group_manifest.reviewed.json `
-  --output-summary datasets\near_duplicate_application_summary.json
+  --adjudication-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.reviewed.json `
+  --group-manifest datasets\metadata\group_manifest.json `
+  --output-group-manifest datasets\metadata\group_manifest.reviewed.json `
+  --output-summary datasets\reviews\near-duplicates\near_duplicate_application_summary.json
 ```
 
 Do not overwrite the active group manifest until the reviewed output and its

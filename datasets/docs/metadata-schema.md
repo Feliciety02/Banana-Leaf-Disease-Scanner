@@ -1,6 +1,6 @@
 # Thesis Metadata Schema v2
 
-`datasets/image_metadata.json` is the authoritative, path-keyed metadata
+`datasets/metadata/image_metadata.json` is the authoritative, path-keyed metadata
 inventory. It is generated deterministically and contains no generation
 timestamp. Every record carries a SHA-256 fingerprint over its thesis fields
 and field-level evidence in `field_provenance`.
@@ -60,8 +60,8 @@ Enrich metadata without creating a split:
 ```powershell
 .venv\Scripts\python.exe -m ai.data.enrich_metadata `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --metadata-manifest datasets\image_metadata.json `
-  --group-manifest datasets\group_manifest.json `
+  --metadata-manifest datasets\metadata\image_metadata.json `
+  --group-manifest datasets\metadata\group_manifest.json `
   --inventory-report ai\artifacts\thesis-compliance-audit-20260826\image_validation_report.json
 ```
 
@@ -70,7 +70,7 @@ Write a review report while pending work is expected:
 ```powershell
 .venv\Scripts\python.exe -m ai.data.validate_metadata `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --metadata-manifest datasets\image_metadata.json `
+  --metadata-manifest datasets\metadata\image_metadata.json `
   --output ai\artifacts\metadata-validation-current.json `
   --allow-pending
 ```

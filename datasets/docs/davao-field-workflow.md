@@ -17,7 +17,7 @@ model tuning, or INT8 calibration.
 
 The project does not claim that Davao images or expert-validated field results
 already exist. The current manifest is
-`datasets/davao-field-workflow/manifests/davao-field-evaluation-v1.json` and
+`datasets/workflows/davao-field/manifests/davao-field-evaluation-v1.json` and
 has status `empty`.
 
 Work is currently blocked by three honest limitations:
@@ -31,7 +31,7 @@ Work is currently blocked by three honest limitations:
 - Put original photos in `datasets/davao-field/`. Never delete or overwrite
   the originals.
 - Add collection and image details to
-  `datasets/davao-field-workflow/field_registry.json`.
+  `datasets/workflows/davao-field/field_registry.json`.
 - Follow the example format in
   `ai/config/davao_field_registry_template.json`.
 - Keep supporting permission and expert-review evidence with the research
@@ -126,12 +126,12 @@ Run this only after the main split has passed its quality gates:
 ```powershell
 .venv\Scripts\python.exe -m ai.data.build_davao_field_manifest `
   --field-root datasets\davao-field `
-  --registry datasets\davao-field-workflow\field_registry.json `
+  --registry datasets\workflows\davao-field\field_registry.json `
   --labeled-dataset-root datasets\banana_leaf_thesis_4class `
-  --final-split-dir datasets\splits\banana-leaf-thesis-split-v1 `
-  --near-reviews datasets\davao-field-workflow\near_duplicate_reviews.json `
+  --final-split-dir datasets\outputs\splits\banana-leaf-thesis-split-v1 `
+  --near-reviews datasets\workflows\davao-field\near_duplicate_reviews.json `
   --config ai\config\davao_field_ingestion_v1.json `
-  --output datasets\davao-field-workflow\manifests\davao-field-evaluation-v1.json
+  --output datasets\workflows\davao-field\manifests\davao-field-evaluation-v1.json
 ```
 
 The command is expected to fail while required reviews or the frozen split are
@@ -143,5 +143,5 @@ missing. That failure protects the thesis from using unverified field data.
 - Ingestion policy: `ai/config/davao_field_ingestion_v1.json`
 - Registry example: `ai/config/davao_field_registry_template.json`
 - Near-duplicate decisions:
-  `datasets/davao-field-workflow/near_duplicate_reviews.json`
+  `datasets/workflows/davao-field/near_duplicate_reviews.json`
 - Automated tests: `ai/tests/test_davao_field_ingestion.py`

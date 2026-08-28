@@ -1,7 +1,7 @@
 {
   "data": {
-    "group_manifest": "datasets/group_manifest.json",
-    "metadata_manifest": "datasets/image_metadata.json"
+    "group_manifest": "datasets/metadata/group_manifest.json",
+    "metadata_manifest": "datasets/metadata/image_metadata.json"
   },
   "runtime": {
     "output_dir": "ai/artifacts/source_labeled_baseline"

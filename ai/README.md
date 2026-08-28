@@ -38,8 +38,8 @@ throughout training, evaluation, models, and tests.
 ```powershell
 .venv\Scripts\python.exe -m ai.data.validate_dataset `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --group-manifest datasets\group_manifest.json `
-  --metadata-manifest datasets\image_metadata.json `
+  --group-manifest datasets\metadata\group_manifest.json `
+  --metadata-manifest datasets\metadata\image_metadata.json `
   --formal
 ```
 
@@ -56,20 +56,20 @@ The final split is then created by `ai.data.build_final_split` using
 group, leaf, plant, and acquisition-session relations transitively before a
 seeded stratified assignment. It writes partition manifests only when all
 gates pass and the configured stratification tolerance is achievable without
-relaxing a group. See `datasets/FINAL_SPLIT.md` for the current blocked result.
+relaxing a group. See `datasets/docs/final-split.md` for the current blocked result.
 
 External unlabeled imagery is admitted only through
 `ai.data.build_ssl_manifest`; a raw directory is rejected. The versioned
 manifest requires source/license provenance, confirmed banana-leaf relevance,
 integrity and duplicate screening, resolved perceptual candidates, and the
-frozen validation/test SSL exclusions. See `datasets/SSL_INGESTION.md`. The
+frozen validation/test SSL exclusions. See `datasets/docs/ssl-ingestion.md`. The
 current external SSL-ready count is 0, not the planned target of 8,000.
 
 Davao field acquisition uses `ai.data.build_davao_field_manifest`. Farmer or
 worker labels are notes only; they do not become final labels. A photo becomes
 eligible only after documented expert validation, quality and duplicate checks,
 and leaf/plant/session grouping. Eligible Davao photos are final-test-only.
-See `datasets/DAVAO_FIELD_WORKFLOW.md`. The current validated Davao count is 0.
+See `datasets/docs/davao-field-workflow.md`. The current validated Davao count is 0.
 
 ## Explicit ablations
 

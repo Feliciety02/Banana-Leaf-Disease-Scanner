@@ -152,9 +152,9 @@ Validation command:
 ```powershell
 .venv\Scripts\python.exe -m ai.data.validate_dataset `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --group-manifest datasets\group_manifest.json `
-  --metadata-manifest datasets\image_metadata.json `
-  --near-duplicate-review-manifest datasets\near_duplicate_reviews.json `
+  --group-manifest datasets\metadata\group_manifest.json `
+  --metadata-manifest datasets\metadata\image_metadata.json `
+  --near-duplicate-review-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.reviewed.json `
   --formal
 ```
 

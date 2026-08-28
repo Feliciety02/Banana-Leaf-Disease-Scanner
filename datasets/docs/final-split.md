@@ -80,18 +80,18 @@ Run this only after the upstream cohort has `status=ready`:
 ```powershell
 .venv\Scripts\python.exe -m ai.data.build_final_split `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --cohort-manifest datasets\cohorts\banana-leaf-thesis-labeled-v1.json `
-  --metadata-manifest datasets\image_metadata.json `
-  --adjudication-manifest datasets\near_duplicate_adjudication.json `
+  --cohort-manifest datasets\outputs\cohorts\banana-leaf-thesis-labeled-v1.json `
+  --metadata-manifest datasets\metadata\image_metadata.json `
+  --adjudication-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.json `
   --split-config ai\config\final_split_v1.json `
-  --output-dir datasets\splits\banana-leaf-thesis-split-v1
+  --output-dir datasets\outputs\splits\banana-leaf-thesis-split-v1
 ```
 
 Training, evaluation, and export commands must then use:
 
 ```powershell
 --dataset-dir datasets\banana_leaf_thesis_4class `
---final-split-dir datasets\splits\banana-leaf-thesis-split-v1
+--final-split-dir datasets\outputs\splits\banana-leaf-thesis-split-v1
 ```
 
 When `final_split_dir` is configured, `prepare_splits` bypasses all legacy

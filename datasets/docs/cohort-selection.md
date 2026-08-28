@@ -85,12 +85,12 @@ reasons rather than manufacturing a balanced cohort.
 ```powershell
 .venv\Scripts\python.exe -m ai.data.build_labeled_cohort `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --metadata-manifest datasets\image_metadata.json `
-  --group-manifest datasets\group_manifest.json `
-  --adjudication-manifest datasets\near_duplicate_adjudication.json `
+  --metadata-manifest datasets\metadata\image_metadata.json `
+  --group-manifest datasets\metadata\group_manifest.json `
+  --adjudication-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.json `
   --inventory-report ai\artifacts\thesis-compliance-audit-20260826\image_validation_report.json `
   --cohort-config ai\config\cohort_labeled_v1.json `
-  --output datasets\cohorts\banana-leaf-thesis-labeled-v1.blocked.json
+  --output datasets\outputs\cohorts\banana-leaf-thesis-labeled-v1.blocked.json
 ```
 
 Blocked builds write a complete diagnostic manifest and exit nonzero. No images
