@@ -1,0 +1,35 @@
+{
+  "experiment_name": "configuration_8_resnet101_thesis_teacher_cpu",
+  "teacher": {
+    "backbone": "ResNet101",
+    "imagenet_weights": true,
+    "ssl_enabled": true,
+    "feature_dim": 2048,
+    "projection_dim": 256,
+    "projection_hidden_dim": 1024,
+    "predictor_hidden_dim": 512,
+    "dropout_rate": 0.30,
+    "ssl_epochs": 8,
+    "finetune_epochs": 12,
+    "ssl_learning_rate": 3e-4,
+    "finetune_learning_rate": 1e-4,
+    "weight_decay": 1e-5,
+    "contrastive_temperature": 0.10,
+    "byol_ema_decay": 0.996,
+    "lambda_byol": 1.0,
+    "lambda_mim": 1.0,
+    "lambda_cl": 1.0
+  },
+  "distillation": {
+    "enabled": false
+  },
+  "data": {
+    "batch_size": 32
+  },
+  "runtime": {
+    "output_dir": "ai/artifacts/configuration_8",
+    "early_stopping_patience": 4,
+    "reduce_lr_patience": 2,
+    "min_learning_rate": 1e-7
+  }
+}
