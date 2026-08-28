@@ -195,14 +195,16 @@ The `2026_08_12_000005_rename_user_role_to_farmer` migration converts the legacy
 ## Checks
 
 ```powershell
-php artisan test
-vendor\bin\pint --test
+composer test:unit
+composer test:feature
+composer quality
 ```
 
 | Command | What success looks like |
 | --- | --- |
-| `php artisan test` | All automated tests pass |
-| `vendor\bin\pint --test` | No PHP formatting changes are required |
+| `composer test:unit` | Isolated business-rule tests pass without a database |
+| `composer test:feature` | API, authorization, and in-memory persistence tests pass |
+| `composer quality` | Both suites and the PHP formatting check pass |
 
 ## Common Problems
 
@@ -230,6 +232,7 @@ vendor\bin\pint --test
 | `database/migrations/` | Database structure changes |
 | `database/seeders/` | Development and scientific seed data |
 | `routes/api.php` | API route definitions |
+| `tests/Unit/` | Isolated business-rule tests with no database |
 | `tests/Feature/` | End-to-end API behavior tests |
 
 > [!TIP]

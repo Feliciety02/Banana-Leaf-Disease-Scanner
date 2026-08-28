@@ -2,9 +2,9 @@
 
 #  DahonMD
 
-**Banana Leaf Screening and Field Diagnosis System**
+**Stateless On-Device Banana Leaf Classification System**
 
-An end-to-end platform that helps farmers identify supported banana leaf diseases through image-based analysis.
+A thesis mobile application that classifies supported banana leaf conditions locally, plus archived web/backend research utilities.
 
 **Course:** CCE 106L – Applications Development and Emerging Technologies
 
@@ -31,25 +31,24 @@ An end-to-end platform that helps farmers identify supported banana leaf disease
 
 ## 📖 About the Project
 
-A farmer captures or uploads a leaf photo, and the system runs it through a machine learning model that classifies it into one of five conditions:
+A user captures or chooses a leaf photo, and the Android application runs the bundled INT8 model locally to classify exactly one of four conditions:
 
 | Condition | Description |
 | --- | --- |
 | 🟢 Healthy | No visible disease symptoms |
 | 🟡 Sigatoka | Black- and Yellow-source presentations |
-| 🟠 Cordana leaf spot | Fungal leaf spotting |
 | 🔴 Panama disease | Fusarium wilt symptoms |
-| ⚫ Dead / necrotic | Visibly dried or dead tissue |
+| 🟠 Cordana leaf spot | Fungal leaf spotting |
 
-The result is presented as a plain-language guide with evidence-based management information and the option to request an agricultural review.
+The production thesis path does not upload the image, call an API, require an account, or save scan history. Model confidence is displayed locally.
 
 ### The Platform
 
 | Component | Stack | Purpose |
 | --- | --- | --- |
-| 📱 Mobile application | Expo / React Native | Offline field history + retry-safe sync |
-| 🌐 Web application | React / Vite | Farmers, reviewers, and administrators |
-| ⚙️ Backend API | Laravel | Serves all clients + central database |
+| 📱 Mobile application | Expo / React Native + native TFLite | **Active thesis client:** stateless offline classification |
+| 🌐 Web application | React / Vite | Legacy/demo client; outside thesis production scope |
+| ⚙️ Backend API | Laravel + Eloquent + SQLite | Legacy/demo server and relational store; outside thesis production scope |
 | 🤖 AI research pipeline | Python / TensorFlow | Reproducible training, evaluation, deployment |
 
 ---
@@ -58,43 +57,39 @@ The result is presented as a plain-language guide with evidence-based management
 
 | Area | What it provides |
 | --- | --- |
-| 🧑‍🌾 Farmer experience | Camera/gallery scans, plain-language results, disease guide, history, and review requests |
-| 📡 Field reliability | Per-farmer offline SQLite history and retry-safe synchronization |
-| 🔬 Agricultural review | Prioritized queues, structured assessments, field-inspection flags, and content verification |
-| 🛠️ Administration | User management, disease content, analytics, system settings, and model comparison |
+| 🧑‍🌾 Thesis mobile experience | Camera/gallery input, 224 × 224 RGB preparation, four-class prediction, and confidence |
+| 📡 Field reliability | Classification without Internet, backend, account, database, upload, or persistence |
+| 🔬 Legacy research/demo | Optional accounts, reviews, synchronization, and content administration; not a thesis dependency |
 | 🧠 AI research | Controlled MobileNetV3 baseline and Coordinate Attention enhanced model on one fixed split |
 
 ---
 
 ## 🏗️ Architecture
 
+### Flow A — thesis classification (production)
+
 ```mermaid
 flowchart LR
-    Web[React web client] -->|REST API| API[Laravel API]
-    Mobile[Expo mobile client] --> Device[(Device SQLite)]
-    Device -->|Pending UUID sync| API
-    API --> Central[(Central database)]
-    API -. optional research call .-> Models[Baseline + enhanced models]
-
-    classDef client fill:#FFF8DC,stroke:#C99718,color:#332600;
-    classDef service fill:#E8F5E9,stroke:#2E7D32,color:#173A19;
-    classDef data fill:#E3F2FD,stroke:#1565C0,color:#102A43;
-    class Web,Mobile client;
-    class API,Models service;
-    class Device,Central data;
+    User --> Mobile[Android mobile client]
+    Mobile --> Input[Camera or gallery]
+    Input --> Prep[224 x 224 RGB preparation]
+    Prep --> Model[Bundled INT8 CA-MobileNetV3-Small]
+    Model --> Result[Four-class result + confidence]
 ```
 
-The Laravel application in `backend/` is the only runtime backend. Mobile SQLite is a private device cache and synchronization queue — it is not a second server database.
+This flow is fully local and stateless. The mobile production entry point does not use the legacy SQLite, authentication, HTTP, synchronization, or comparison modules.
 
-### 🔄 Shared Data Flow
+### Flow B — optional legacy/demo functionality
 
-1. A farmer signs in through either client using the same account.
-2. Web diagnoses are saved directly through the central API.
-3. Mobile diagnoses are saved first to the farmer's private on-device history.
-4. Pending mobile records are sent to `POST /api/mobile/sync` when connectivity returns.
-5. Diagnosis UUIDs make retries idempotent and prevent duplicate server records.
-6. Agricultural reviews are stored separately and never overwrite the original model output.
-7. Farmer photos enter the research-candidate queue only after explicit, versioned consent, image upload, agricultural review, and a separate expert nomination.
+```mermaid
+flowchart LR
+    Web[React web client] -->|HTTP request| API[Laravel API]
+    API -->|Eloquent / SQL| DB[(SQLite relational database)]
+    DB --> API
+    API -->|HTTP response| Web
+```
+
+Flow B demonstrates client–server–database separation but is not required by, and must not be inserted into, Flow A. See [the architecture document](docs/architecture.md) and [the dated audit](docs/architecture-audit-2026-08-28.md).
 
 ---
 
@@ -102,16 +97,18 @@ The Laravel application in `backend/` is the only runtime backend. Mobile SQLite
 
 | Path | Purpose | Guide |
 | --- | --- | --- |
-| `backend/` | Laravel REST API, authentication, central data, reviews, and analytics | [Backend README](backend/README.md) |
-| `web-frontend/` | React/Vite browser client | [Web README](web-frontend/README.md) |
-| `mobile-frontend/` | Expo app with offline SQLite and synchronization | [Mobile README](mobile-frontend/README.md) |
+| `backend/` | Legacy/demo Laravel API and relational persistence | [Backend README](backend/README.md) |
+| `web-frontend/` | Legacy/demo React browser client | [Web README](web-frontend/README.md) |
+| `mobile-frontend/` | Active stateless thesis app; unused legacy modules remain archived under `src/` | [Mobile README](mobile-frontend/README.md) |
 | `ai/` | Training, evaluation, comparison, and TFLite tooling | [AI README](ai/README.md) |
-| `datasets/` | Five-class dataset and label-review workspace | [Dataset README](datasets/README.md) |
+| `datasets/` | Four-class dataset and label-review workspace | [Dataset README](datasets/README.md) |
 | `docs/` | Architecture, governance, experiments, and team checklists | [Documentation](#📚-documentation) |
 
 ---
 
-## 🚀 Quick Start with Docker
+## 🚀 Optional Legacy/Demo Stack with Docker
+
+This stack starts Flow B only. It is not needed to build, launch, or use the thesis classifier.
 
 ### Requirements
 
@@ -147,9 +144,9 @@ Docker preserves application data in the `dahonmd_backend_data` volume. Only use
 ## 💻 Native Development
 
 > [!NOTE]
-> This guide assumes **Windows PowerShell**. Install PHP 8.2+, Composer, Node.js, and npm. Expo Go or Android Studio is also required for mobile development.
+> This guide assumes **Windows PowerShell**. Install PHP 8.2+, Composer, Node.js, npm, and Android Studio. The thesis classifier uses a local native module and therefore does not run in Expo Go.
 
-Stop Docker before starting the native services:
+Stop Docker before starting the optional legacy API/web services:
 
 ```powershell
 docker compose down
@@ -213,30 +210,28 @@ npm run dev -- --host 127.0.0.1 --port 4173
 
 Visit <http://127.0.0.1:4173>.
 
-### 3️⃣b Start the mobile client
+### 3️⃣b Build the thesis mobile client
 
 Open another terminal from the repository root:
 
 ```powershell
 cd mobile-frontend
 npm install
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-npm start
+npm run release:status
 ```
 
-Press `a` for an Android emulator, or scan the QR code with Expo Go. The phone and computer must use the same local network.
+The release status remains blocked until the final validated model is copied to `assets/models/ca_mobilenetv3_small_int8.tflite`. After that artifact is present, create and run the native Android project:
 
-For a physical phone, replace the API URL in `mobile-frontend/.env` with the computer's LAN address:
-
-```dotenv
-EXPO_PUBLIC_API_URL=http://<computer-lan-ip>:8001/api
+```powershell
+npx expo prebuild --platform android
+npx expo run:android
 ```
 
-Replace `<computer-lan-ip>` with the IPv4 address shown by `ipconfig`, then restart Expo. If a phone cannot reach the health endpoint, allow PHP through Windows Firewall and disable the VPN or enable its local-network-access setting.
+No `.env`, API URL, LAN connection, backend process, or Internet connection is required for classification.
 
 ### Later runs
 
-After the first setup, you normally need only these server commands in separate terminals:
+For the optional legacy/demo stack, run these server commands in separate terminals:
 
 ```powershell
 # Terminal 1
@@ -251,16 +246,12 @@ php artisan serve --host=0.0.0.0 --port=8001
 ```
 
 ```powershell
-# Terminal 2 or 3: choose web or mobile
+# Terminal 2 or 3: legacy web
 cd web-frontend
 npm run dev -- --host 127.0.0.1 --port 4173
 ```
 
-```powershell
-# Another terminal: mobile
-cd mobile-frontend
-npm start
-```
+The thesis mobile build remains independent of all of those processes.
 
 ```powershell
 # Optional terminal: watch AI training graphs live (see the AI guide)
@@ -272,7 +263,7 @@ Run the live viewer beside any training command (`train_teacher`, `train_student
 
 ---
 
-## 👤 Development Accounts
+## 👤 Legacy/Demo Development Accounts
 
 `php artisan migrate --seed` creates one local account for each role. The default password is `DahonMD@2026` unless `DEV_USER_PASSWORD` is set.
 
@@ -293,8 +284,7 @@ These accounts are never seeded when `APP_ENV=production`.
 | Laravel | `APP_URL` | `http://127.0.0.1:8001` |
 | Laravel CORS | `WEB_FRONTEND_ORIGINS` | `http://127.0.0.1:4173,http://localhost:4173,http://localhost:5173` |
 | Web | `VITE_WEB_API_URL` | `/api` (Vite/Nginx proxies it to Laravel) |
-| Android emulator | `EXPO_PUBLIC_API_URL` | `http://10.0.2.2:8001/api` |
-| Physical phone | `EXPO_PUBLIC_API_URL` | `http://<computer-lan-ip>:8001/api` |
+| Thesis mobile | None | Bundled model and local native runtime only |
 | Research comparison | `AI_COMPARISON_URL` | `http://127.0.0.1:8100/compare` |
 | Research image consent | `RESEARCH_CONSENT_VERSION` | `research-image-consent-v1` |
 
@@ -304,7 +294,7 @@ The optional comparison service is research-only. It runs both models side by si
 
 ## 🧠 AI Research Summary
 
-The AI pipeline trains and evaluates two models on one fixed, leakage-free five-class split:
+The AI pipeline trains and evaluates two models on one fixed, leakage-free four-class split:
 
 | Model | Description |
 | --- | --- |
@@ -312,7 +302,7 @@ The AI pipeline trains and evaluates two models on one fixed, leakage-free five-
 | CA-MobileNetV3-Small (proposed) | Coordinate Attention–enhanced model distilled from a self-supervised ResNet-101 teacher |
 
 > [!WARNING]
-> Earlier archived artifacts output separate Black and Yellow Sigatoka classes and have no Panama disease output. They are rejected by the current runtime and must be retrained after the new Panama candidates complete expert review. The `dead` class is also a visible condition, not Moko disease or another causal diagnosis.
+> Earlier archived artifacts output separate Black and Yellow Sigatoka classes and have no Panama disease output. They are rejected by the current runtime and must be retrained after the new Panama candidates complete expert review. The historical `dead` label is quarantined and excluded from the four-class thesis model.
 
 See the [AI pipeline guide](ai/README.md) for reproducible training and evaluation commands.
 
@@ -361,14 +351,13 @@ npm run release:status
 | The browser says `Failed to fetch` | Confirm the API health URL works, the browser origin appears in `WEB_FRONTEND_ORIGINS`, and Docker is not running beside native Laravel. |
 | Docker and native servers are both running | Press `Ctrl+C` in the native server terminal or run `docker compose down`, then keep only one workflow active. |
 | The web client cannot load data | Confirm both the Laravel and Vite terminals are running. |
-| A phone cannot reach the API | Use the computer's LAN IP, the same Wi-Fi, and Laravel host `0.0.0.0`. |
-| Expo ignores an `.env` change | Stop Expo, run `npm start` again, and reopen the app. |
+| Mobile release status reports a missing model | Produce and audit the final four-class INT8 artifact, then copy it to `mobile-frontend/assets/models/ca_mobilenetv3_small_int8.tflite`. Do not substitute a simulated model. |
 
 ---
 
 ## 🧬 Scientific Boundaries
 
-- `dead` means a visibly dried or necrotic leaf. It is not evidence of Moko disease or any specific pathogen.
+- The historical `dead` label means visibly dried or necrotic tissue, not Moko disease; it is quarantined and excluded from the production four-class model.
 - `sigatoka` combines Black- and Yellow-source presentations; the model does not claim to distinguish the subtypes.
 - Panama disease leaf symptoms require expert/provenance support and do not replace field or laboratory confirmation.
 - Original predictions, model versions, uncertainty flags, and reviewer decisions remain separate for auditability.
@@ -382,6 +371,7 @@ npm run release:status
 | Document | Purpose |
 | --- | --- |
 | [System architecture](docs/architecture.md) | Components, boundaries, and data flow |
+| [Engineering quality attributes](docs/quality-attributes.md) | Maintainability, tests, security boundaries, and concurrent module work |
 | [Scientific content governance](docs/scientific-content-governance.md) | Evidence, review, and regulatory rules |
 | [Dataset/model checklist](docs/dataset-model-trainer-todo.md) | Required experiment gates and evidence |
 | [Backend consolidation](docs/backend-consolidation.md) | Record of the single-backend architecture |
