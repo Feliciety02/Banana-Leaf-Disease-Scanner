@@ -14,6 +14,25 @@ The `ai` package implements four-class banana leaf disease classification with a
 
 Configuration defaults and values in `ai/config/` are candidate starting points pending validation, not claimed optimal settings.
 
+## Code Map
+
+| Path | Responsibility |
+| --- | --- |
+| `config/` | Serializable experiment contracts, validation, and versioned candidate configurations |
+| `data/records.py` | Shared dataset record and split types |
+| `data/image_fingerprints.py` | Public exact/perceptual fingerprint primitives used by ingestion and adjudication |
+| `data/dataset.py` | Dataset validation and split orchestration plus TensorFlow input pipelines |
+| `data/build_*.py` | Explicit cohort, split, SSL, and Davao manifest builders |
+| `models/` and `losses/` | Teacher/student architectures and thesis loss functions |
+| `training/` | Training entry points and experiment orchestration |
+| `evaluation/` | Metrics, comparisons, Grad-CAM, and final evaluation reports |
+| `deployment/` | TFLite conversion, quantization audit, inference, and benchmark tooling |
+| `tests/` | Source-contract, model, dataset, and deployment protocol checks |
+
+`config/config.py` remains one compatibility module because its schema,
+validation, JSON loading/saving, and determinism functions are imported together
+throughout training, evaluation, models, and tests.
+
 ## Dataset validation
 
 ```powershell

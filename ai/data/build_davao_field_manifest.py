@@ -17,7 +17,7 @@ from ai.data.build_ssl_manifest import (
     _normalize,
     _verify_fingerprint,
 )
-from ai.data.dataset import _HammingBkTree, _sha256
+from ai.data.image_fingerprints import HammingBkTree, sha256_file
 from ai.data.metadata_manifest import UNRESOLVED_VALUES
 
 
@@ -305,7 +305,7 @@ def build_davao_field_manifest(
     near_pairs: list[dict[str, Any]] = []
     near_paths: set[str] = set()
     primary_values: dict[int, list[str]] = defaultdict(list)
-    primary_tree = _HammingBkTree()
+    primary_tree = HammingBkTree()
     for relative, inspection in primary.items():
         value = inspection["_dhash_int"]
         if value not in primary_values:
@@ -337,7 +337,7 @@ def build_davao_field_manifest(
                     rows[field_path]["reason_codes"].append("near_duplicate:related_to_labeled")
 
     field_values: dict[int, list[str]] = defaultdict(list)
-    field_tree = _HammingBkTree()
+    field_tree = HammingBkTree()
     for field_path, inspection in sorted(valid.items()):
         value = inspection["_dhash_int"]
         for matched in field_tree.query(value, threshold):
@@ -610,7 +610,7 @@ def load_davao_test_records(
             path.relative_to(root)
         except ValueError as error:
             raise ValueError(f"Davao manifest path escapes field root: {row['image_path']}") from error
-        if not path.is_file() or _sha256(path) != row["sha256"]:
+        if not path.is_file() or sha256_file(path) != row["sha256"]:
             raise ValueError(f"Davao field image changed after manifest creation: {path}")
         records.append(ImageRecord(
             path=str(path), label=row["class_index"], class_name=row["canonical_class"],

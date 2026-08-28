@@ -10,7 +10,7 @@
  *   2. Capture a test image or use a gallery image URI
  *   3. Call the benchmark API from the app or a test harness
  *
- * The benchmark service at src/services/benchmark/ exports:
+ * The benchmark service at src/features/classification/benchmark/ exports:
  *   - runFullBenchmark(config) — runs warmup + measured inference on INT8 and FP32
  *   - reportToCSV(report)      — thesis-ready CSV output
  *   - reportToJSON(report)     — thesis-ready JSON output

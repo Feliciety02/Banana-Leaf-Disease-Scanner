@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from ai.config.labels import CLASS_LABELS
-from ai.data.dataset import DatasetSplits, ImageRecord, METADATA_DEFAULTS, METADATA_FIELDS, _sha256
+from ai.data.image_fingerprints import sha256_file
+from ai.data.records import DatasetSplits, ImageRecord, METADATA_DEFAULTS, METADATA_FIELDS
 from ai.data.metadata_manifest import UNRESOLVED_VALUES, load_manifest_payload
 from ai.data.near_duplicate_adjudication import GROUPING_DECISIONS, load_and_validate_adjudication
 
@@ -404,7 +405,7 @@ def build_final_split(
         relative = record["image_path"]
         if relative not in metadata:
             raise ValueError(f"Selected path has no metadata record: {relative}")
-        if _sha256(root / relative) != record["sha256"]:
+        if sha256_file(root / relative) != record["sha256"]:
             raise ValueError(f"Selected image changed after cohort creation: {relative}")
 
     unresolved_pairs = [pair for pair in adjudication["pairs"] if pair["decision"] == "requires_review"]
@@ -624,7 +625,7 @@ def load_final_dataset_splits(
             expected_index = list(expected_class_names).index(item["canonical_class"])
             if item["class_index"] != expected_index:
                 raise ValueError(f"Frozen split class index mismatch: {item['image_path']}")
-            if _sha256(image_path) != item["sha256"]:
+            if sha256_file(image_path) != item["sha256"]:
                 raise ValueError(f"Frozen split image changed: {image_path}")
             metadata_values = {
                 "source": item.get("source_dataset", "unknown"),

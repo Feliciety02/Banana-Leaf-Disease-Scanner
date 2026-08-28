@@ -25,6 +25,37 @@ If you are new to the dataset, follow this order:
 > [!CAUTION]
 > Do not move an uncertain image into the class that merely looks closest. Ask a qualified reviewer or keep it excluded.
 
+## Workspace Map
+
+The current paths are retained because AI configuration, tests, manifests, and
+historical evidence refer to them directly. Dataset image and generated JSON/CSV
+content is intentionally ignored by Git, so moving those files would not have a
+Git recovery path.
+
+| Path | Role | Current use |
+| --- | --- | --- |
+| `banana_leaf_thesis_4class/` | **SOURCE INPUT** | Original working image inventory. The four model-class folders are active inputs; `dead/` is quarantine and is not a fifth class. Do not modify images in place. |
+| `davao-field/` | **SOURCE INPUT** | Original Davao field acquisitions. Keep originals immutable. |
+| `ssl-unlabeled/` | **SOURCE INPUT** | Original external unlabeled banana-leaf candidates. Keep originals immutable. |
+| `image_metadata.json` | **CURRENT METADATA** | Authoritative metadata manifest documented by `METADATA_SCHEMA.md`. |
+| `group_manifest.json` | **CURRENT METADATA** | Active grouping input referenced by AI configurations and validation. |
+| `group_manifest.reviewed.json` | **MANUAL REVIEW OUTPUT** | Proposed reviewed grouping output; do not replace the active manifest without the documented checks. |
+| `group_manifest_retired.json` | **ARCHIVED METADATA** | Historical assignments for paths absent from the current inventory. |
+| `near_duplicate_adjudication.json` and matching `.csv` | **MANUAL REVIEW** | Authoritative review queue and spreadsheet view documented by `NEAR_DUPLICATE_REVIEW.md`. |
+| `near_duplicate_adjudication.reviewed.json` | **MANUAL REVIEW OUTPUT** | Imported review decisions; apply only through the documented validation command. |
+| `near_duplicate_application_summary.json` | **GENERATED OUTPUT** | Reproducible application report; it does not change labels or images. |
+| Other `near_duplicate_*.csv` working copies | **UNKNOWN / WORKING COPY** | Not referenced by tracked code or current documentation. Preserve until their owner confirms whether they are historical evidence. |
+| `cohorts/` | **COHORT** | Versioned cohort output and blocked diagnostic output. A file named as the final cohort can still contain `status: blocked`; inspect its status before use. |
+| `splits/` | **SPLIT** | Generated frozen-split workspace. No completed split summary is currently present. |
+| `label-review/` | **MANUAL REVIEW / ARCHIVE** | Label decisions and dated migration evidence. |
+| `ssl/` | **CURRENT METADATA + GENERATED OUTPUT** | SSL source registry and review decisions are inputs; `ssl/manifests/` contains generated manifests. |
+| `davao-field-workflow/` | **CURRENT METADATA + GENERATED OUTPUT** | Field registry and review decisions are inputs; `manifests/` contains generated manifests. |
+
+Physical migration to `source/`, `metadata/current/`, `metadata/archive/`, and
+`reviews/` is deferred until the ignored working files have an external backup
+and their current-versus-historical status is confirmed. This avoids silently
+rewriting provenance paths or losing research evidence.
+
 ## Current Class Contract (August 26, 2026)
 
 The thesis plan is 700 labeled images per class (2,800 total) plus 8,000
@@ -305,9 +336,9 @@ The source audit excluded 4 pseudostem-containing originals and all 287
 augmented exports. A cross-class difference-hash scan found no strong
 near-duplicate match against the other active images. The five web-guide
 copies are byte-identical educational assets outside the training root and are
-not additional training samples. See
-[`panama-disease/README.md`](banana_leaf_thesis_4class/panama-disease/README.md) for the
-source and license record.
+not additional training samples. See the
+[`SOURCES.md` catalog](banana_leaf_thesis_4class/SOURCES.md) for the source and
+license record.
 
 The August 14, 2026 audit made these recoverable changes:
 
@@ -526,4 +557,4 @@ Before giving the dataset to the model trainer, provide:
 - validator output and split-manifest fingerprint; and
 - a note describing every dataset change since the previous run.
 
-Continue with the [AI pipeline guide](../ai/README.md) or the [dataset/model trainer checklist](../docs/dataset-model-trainer-todo.md).
+Continue with the [AI pipeline guide](../ai/README.md) or the [dataset/model trainer checklist](../docs/research/dataset-model-trainer-checklist.md).

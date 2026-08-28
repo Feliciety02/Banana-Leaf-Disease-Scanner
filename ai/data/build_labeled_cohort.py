@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from ai.config.labels import CLASS_LABELS
-from ai.data.dataset import _sha256
+from ai.data.image_fingerprints import sha256_file
 from ai.data.metadata_manifest import (
     UNRESOLVED_VALUES,
     formal_metadata_issues,
@@ -343,7 +343,7 @@ def build_cohort(
     selected_hashes: set[str] = set()
     for class_name, records in selected_by_class.items():
         for record in records:
-            digest = _sha256(root / record["image_path"])
+            digest = sha256_file(root / record["image_path"])
             if digest in selected_hashes:
                 raise ValueError(f"Selected cohort repeats identical image bytes: {record['image_path']}")
             selected_hashes.add(digest)

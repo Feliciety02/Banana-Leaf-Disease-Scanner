@@ -2,8 +2,8 @@ import {
   benchmarkModel,
   getDeviceInfo,
   preprocessImage,
-} from '../../../modules/dahonmd-tflite';
-import type { DeviceInfo, BenchmarkResult } from '../../../modules/dahonmd-tflite';
+} from '../../../../modules/dahonmd-tflite';
+import type { DeviceInfo, BenchmarkResult } from '../../../../modules/dahonmd-tflite';
 import type {
   BenchmarkConfig,
   FullBenchmarkReport,

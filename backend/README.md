@@ -238,4 +238,4 @@ composer quality
 > [!TIP]
 > New backend behavior should normally flow through `Route -> Controller -> Service -> Repository -> Model`. Keep validation and authorization at the HTTP boundary, business decisions in services, and reusable Eloquent queries in repositories. Update the tests with every behavior change.
 
-Return to the [main project guide](../README.md), or read the [scientific content governance](../docs/scientific-content-governance.md).
+Return to the [main project guide](../README.md), or read the [scientific content governance](../docs/research/scientific-content-governance.md).

@@ -17,9 +17,9 @@ The production dependency path is:
 
 ```text
 mobile-frontend/index.ts
-  -> App.tsx
-  -> src/services/inference.ts
-  -> src/services/preprocessing.ts
+  -> src/app/App.tsx
+  -> src/features/classification/inference.ts
+  -> src/features/classification/preprocessing.ts
   -> modules/dahonmd-tflite
   -> bundled assets/models/ca_mobilenetv3_small_int8.tflite
 ```
@@ -56,7 +56,7 @@ React web client
   -> React state and UI
 ```
 
-`backend/`, `web-frontend/`, and the unused account/history/sync modules under `mobile-frontend/src/` are legacy research/demo utilities. They are not part of or dependencies of the thesis mobile production path. Authentication and authorization apply only to this legacy stack.
+`backend/` and `web-frontend/` are legacy research/demo utilities. They are not part of or dependencies of the thesis mobile production path. Authentication and authorization apply only to this legacy stack. Obsolete mobile account, database, history, HTTP, and synchronization source was removed from the active application tree during repository organization.
 
 ### Database implementation
 
@@ -66,6 +66,4 @@ React web client
 - Connection configuration: server environment variables through `backend/config/database.php` and `backend/.env.example`
 - Client isolation: browser and production mobile sources contain no central database connection strings, credentials, or raw SQL
 
-The legacy mobile `src/services/database.ts` opens a private on-device SQLite cache. It is unreachable from the production entry point and is not a connection to the server database.
-
-See `docs/architecture-audit-2026-08-28.md` for the evidence table, workflow trace, limitations, and test record.
+See `docs/archive/audits/architecture-audit-2026-08-28.md` for the historical evidence table, workflow trace, limitations, and test record.

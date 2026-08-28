@@ -3,7 +3,7 @@ import type {
   DeviceInfo,
   LatencyStats,
   PreprocessResult,
-} from '../../../modules/dahonmd-tflite';
+} from '../../../../modules/dahonmd-tflite';
 
 export type ModelVariant = 'int8' | 'fp32';
 

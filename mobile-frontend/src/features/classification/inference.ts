@@ -1,6 +1,6 @@
-import { classifyImage as nativeClassify, type ClassifyResult } from '../../modules/dahonmd-tflite';
-import { CLASS_KEYS } from '../data';
-import { ClassKey } from '../types';
+import { classifyImage as nativeClassify, type ClassifyResult } from '../../../modules/dahonmd-tflite';
+import { CLASS_KEYS } from './disease-data';
+import { ClassKey } from './types';
 import { MODEL_INPUT, prepareImageForInference } from './preprocessing';
 
 export type InferenceResult = { classKey: ClassKey; confidence: number; latencyMs: number; modelVersion: string };

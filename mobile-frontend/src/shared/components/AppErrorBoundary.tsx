@@ -17,7 +17,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { faile
     return <SafeAreaView style={styles.page}>
       <Ionicons name="warning-outline" size={48} color="#b6cb56" />
       <Text style={styles.title}>Something went wrong</Text>
-      <Text style={styles.copy}>This screen could not be displayed. Your saved scans were not removed.</Text>
+      <Text style={styles.copy}>This screen could not be displayed. Try again to return to the classifier.</Text>
       <Pressable accessibilityRole="button" style={styles.button} onPress={() => this.setState({ failed: false })}>
         <Text style={styles.buttonText}>Try again</Text>
       </Pressable>

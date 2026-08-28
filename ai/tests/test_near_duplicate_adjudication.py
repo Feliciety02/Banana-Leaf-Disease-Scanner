@@ -9,7 +9,8 @@ from PIL import Image
 
 from ai.config.config import ExperimentConfig
 from ai.config.labels import CLASS_LABELS
-from ai.data.dataset import _flip_aware_difference_hash, prepare_splits
+from ai.data.dataset import prepare_splits
+from ai.data.image_fingerprints import flip_aware_difference_hash
 from ai.data.metadata_manifest import enrich_metadata, write_manifest
 from ai.data.near_duplicate_adjudication import apply_decisions, generate_manifest
 
@@ -43,8 +44,8 @@ class NearDuplicateAdjudicationTest(unittest.TestCase):
         rows = []
         for left, right in pairs:
             with Image.open(root / left) as image_a, Image.open(root / right) as image_b:
-                hash_a = _flip_aware_difference_hash(image_a.convert("RGB"))
-                hash_b = _flip_aware_difference_hash(image_b.convert("RGB"))
+                hash_a = flip_aware_difference_hash(image_a.convert("RGB"))
+                hash_b = flip_aware_difference_hash(image_b.convert("RGB"))
             rows.append({
                 "review_key": "||".join(sorted((left, right))),
                 "path_a": left,

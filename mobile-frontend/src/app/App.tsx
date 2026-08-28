@@ -4,8 +4,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 
-import { CLASS_DISPLAY_NAMES, getDisease } from './src/data';
-import { analyzeLeaf, InferenceResult } from './src/services/inference';
+import { CLASS_DISPLAY_NAMES, getDisease } from '../features/classification/disease-data';
+import { analyzeLeaf, InferenceResult } from '../features/classification/inference';
 
 const colors = { background: '#f4f7f2', card: '#fff', green: '#174d3a', lime: '#d8ef78', ink: '#17231f', muted: '#5e6d67', border: '#dce5df', warning: '#785b17' };
 

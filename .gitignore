@@ -26,3 +26,4 @@ datasets/**/*
 .vscode/
 dahonmd_colab_code.zip
 **/.gradle/
+**/build/
