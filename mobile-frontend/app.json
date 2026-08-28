@@ -39,7 +39,14 @@
           "microphonePermission": false
         }
       ],
-      "expo-asset",
+      [
+        "expo-asset",
+        {
+          "assets": [
+            "./assets/models/ca_mobilenetv3_small_int8.tflite"
+          ]
+        }
+      ],
       "expo-font",
       "./modules/dahonmd-tflite/plugin"
     ]

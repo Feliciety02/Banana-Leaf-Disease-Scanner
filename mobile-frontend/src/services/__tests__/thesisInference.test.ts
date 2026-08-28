@@ -295,4 +295,36 @@ describe('offline operation', () => {
     expect(source).not.toContain('services/apiConfig');
     expect(source).not.toContain('modelComparison');
   });
+
+  it('native model loading fails closed unless the tensor contract is full INT8', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const nativePath = path.resolve(
+      __dirname,
+      '../../../modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
+    );
+    const source = fs.readFileSync(nativePath, 'utf8');
+    expect(source).toContain('inputDetails.dataType() == DataType.INT8');
+    expect(source).toContain('outputDetails.dataType() == DataType.INT8');
+    expect(source).toContain('intArrayOf(1, MODEL_HEIGHT, MODEL_WIDTH, CHANNELS)');
+    expect(source).toContain('intArrayOf(1, NUM_CLASSES)');
+  });
+
+  it('links the production model into the Android asset root used by the native module', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const appConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../app.json'), 'utf8'));
+    const assetPlugin = appConfig.expo.plugins.find(
+      (plugin: unknown) => Array.isArray(plugin) && plugin[0] === 'expo-asset',
+    );
+    expect(assetPlugin?.[1]?.assets).toContain('./assets/models/ca_mobilenetv3_small_int8.tflite');
+
+    const nativePath = path.resolve(
+      __dirname,
+      '../../../modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
+    );
+    const source = fs.readFileSync(nativePath, 'utf8');
+    expect(source).toContain('INT8_MODEL_ASSET = "ca_mobilenetv3_small_int8.tflite"');
+    expect(source).not.toContain('models/ca_mobilenetv3_small_int8.tflite');
+  });
 });

@@ -10,6 +10,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -62,7 +63,7 @@ class BenchmarkDeviceProfileTest {
     @Test
     fun testRamIsReadable() {
         val activityManager = context.getSystemService(ActivityManager::class.java)
-        val memInfo = ActivityManager.MemoryMemInfo()
+        val memInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memInfo)
         val totalRam = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             memInfo.totalMem
@@ -90,13 +91,8 @@ class BenchmarkDeviceProfileTest {
 
     @Test
     fun testInt8ModelLoadsAndInfers() {
-        val assetPath = "models/ca_mobilenetv3_small_int8.tflite"
-        val fd = try {
-            context.assets.openFd(assetPath)
-        } catch (e: Exception) {
-            println("SKIP: $assetPath not found in test assets")
-            return
-        }
+        val assetPath = "ca_mobilenetv3_small_int8.tflite"
+        val fd = context.assets.openFd(assetPath)
 
         val modelBytes = ByteArray(fd.length.toInt())
         FileInputStream(fd.fileDescriptor).use { it.read(modelBytes) }
@@ -106,6 +102,16 @@ class BenchmarkDeviceProfileTest {
 
         val inputDetails = interpreter.getInputTensor(0)
         val outputDetails = interpreter.getOutputTensor(0)
+        assertEquals("INT8 input dtype", DataType.INT8, inputDetails.dataType())
+        assertEquals("INT8 output dtype", DataType.INT8, outputDetails.dataType())
+        assertTrue(
+            "INT8 input shape must be [1,224,224,3]",
+            inputDetails.shape().contentEquals(intArrayOf(1, 224, 224, 3)),
+        )
+        assertTrue(
+            "INT8 output shape must be [1,4]",
+            outputDetails.shape().contentEquals(intArrayOf(1, 4)),
+        )
         val inputQuant = inputDetails.quantizationParams()
         val outputQuant = outputDetails.quantizationParams()
 
@@ -177,7 +183,7 @@ class BenchmarkDeviceProfileTest {
 
     @Test
     fun testFp32ModelLoadsAndInfers() {
-        val assetPath = "models/ca_mobilenetv3_small_fp32.tflite"
+        val assetPath = "ca_mobilenetv3_small_fp32.tflite"
         val fd = try {
             context.assets.openFd(assetPath)
         } catch (e: Exception) {
@@ -251,15 +257,10 @@ class BenchmarkDeviceProfileTest {
 
     @Test
     fun testModelSizeComparison() {
-        val int8Path = "models/ca_mobilenetv3_small_int8.tflite"
-        val fp32Path = "models/ca_mobilenetv3_small_fp32.tflite"
+        val int8Path = "ca_mobilenetv3_small_int8.tflite"
+        val fp32Path = "ca_mobilenetv3_small_fp32.tflite"
 
-        val int8Size = try {
-            context.assets.openFd(int8Path).use { it.length }
-        } catch (e: Exception) {
-            println("SKIP: $int8Path not found")
-            return
-        }
+        val int8Size = context.assets.openFd(int8Path).use { it.length }
 
         val fp32Size = try {
             context.assets.openFd(fp32Path).use { it.length }
