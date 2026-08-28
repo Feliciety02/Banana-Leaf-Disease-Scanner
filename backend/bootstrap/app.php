@@ -1,8 +1,8 @@
 <?php
 
 use App\Http\Middleware\AssignRequestContext;
-use App\Http\Middleware\EnsureAdmin;
-use App\Http\Middleware\EnsureAgriculturalExpert;
+use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\NormalizeApiInput;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -19,8 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->api(prepend: [AssignRequestContext::class]);
-        $middleware->alias(['admin' => EnsureAdmin::class, 'agricultural_expert' => EnsureAgriculturalExpert::class]);
+        $middleware->api(prepend: [NormalizeApiInput::class, AssignRequestContext::class]);
+        $middleware->alias(['role' => EnsureRole::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(fn ($request) => $request->is('api/*'));

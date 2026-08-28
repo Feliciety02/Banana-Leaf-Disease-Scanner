@@ -4,14 +4,15 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
-class EnsureAdmin
+class NormalizeApiInput
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user()?->isAdmin()) {
-            return response()->json(['success' => false, 'message' => 'Administrator access is required.', 'errors' => (object) []], 403);
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => Str::lower($request->string('email')->trim()->toString())]);
         }
 
         return $next($request);

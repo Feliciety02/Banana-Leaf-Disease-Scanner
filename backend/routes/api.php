@@ -19,6 +19,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\InferenceController;
 use App\Http\Controllers\MobileSyncController;
 use App\Http\Controllers\ProfileController;
+use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthController::class)->middleware('throttle:public-api');
@@ -38,15 +39,18 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
     Route::put('/profile', [ProfileController::class, 'update']);
     Route::put('/profile/password', [ProfileController::class, 'password']);
     Route::delete('/profile', [ProfileController::class, 'destroy']);
-    Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
-    Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview']);
-    Route::delete('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'withdrawResearchConsent']);
-    Route::post('/inference', InferenceController::class);
     Route::post('/research/model-comparison', ModelComparisonController::class);
-    Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
-    Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
 
-    Route::prefix('admin')->middleware('admin')->group(function () {
+    Route::middleware('role:'.User::ROLE_FARMER)->group(function () {
+        Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
+        Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview']);
+        Route::delete('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'withdrawResearchConsent']);
+        Route::post('/inference', InferenceController::class);
+        Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
+        Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
+    });
+
+    Route::prefix('admin')->middleware('role:'.User::ROLE_ADMIN)->group(function () {
         Route::get('/', DashboardController::class);
         Route::get('/dashboard', DashboardController::class);
         Route::get('/analytics', DashboardController::class);
@@ -75,7 +79,7 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
         Route::apiResource('diagnoses', AdminDiagnosisController::class)->only(['index', 'show', 'destroy']);
     });
 
-    Route::prefix('expert')->middleware('agricultural_expert')->group(function () {
+    Route::prefix('expert')->middleware('role:'.User::ROLE_AGRICULTURAL_EXPERT)->group(function () {
         Route::get('/dashboard', ExpertDashboardController::class);
         Route::get('/diagnosis-reviews', [DiagnosisReviewController::class, 'index']);
         Route::get('/diagnosis-reviews/{diagnosis}', [DiagnosisReviewController::class, 'show']);

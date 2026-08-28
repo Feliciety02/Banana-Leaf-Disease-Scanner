@@ -17,7 +17,7 @@ class AuthenticationService
         $user = $this->users->create([
             ...$attributes,
             'password' => Hash::make($attributes['password']),
-            'role' => 'farmer',
+            'role' => User::ROLE_FARMER,
         ]);
         $user->sendEmailVerificationNotification();
 
