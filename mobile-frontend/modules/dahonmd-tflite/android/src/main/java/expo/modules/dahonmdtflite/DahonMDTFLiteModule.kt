@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.io.RandomAccessFile
@@ -73,7 +74,7 @@ class DahonMDTFLiteModule : Module() {
         if (interpreter != null) return
         initMutex.withLock {
             if (interpreter != null) return
-            loadModel("models/ca_mobilenetv3_small_int8.tflite", 1)
+            loadModel(INT8_MODEL_ASSET, 1)
         }
     }
 
@@ -107,12 +108,26 @@ class DahonMDTFLiteModule : Module() {
         interpreter = Interpreter(modelBytes, options)
 
         val inputDetails = interpreter!!.getInputTensor(0)
+        require(inputDetails.dataType() == DataType.INT8) {
+            "Production model input must be INT8, received ${inputDetails.dataType()}"
+        }
+        require(inputDetails.shape().contentEquals(intArrayOf(1, MODEL_HEIGHT, MODEL_WIDTH, CHANNELS))) {
+            "Production model input must be [1,$MODEL_HEIGHT,$MODEL_WIDTH,$CHANNELS], received ${inputDetails.shape().contentToString()}"
+        }
         val inputQuant = inputDetails.quantizationParams()
+        require(inputQuant.scale > 0.0f) { "Production model input quantization scale must be positive" }
         inputScale = inputQuant.scale
         inputZeroPoint = inputQuant.zeroPoint
 
         val outputDetails = interpreter!!.getOutputTensor(0)
+        require(outputDetails.dataType() == DataType.INT8) {
+            "Production model output must be INT8, received ${outputDetails.dataType()}"
+        }
+        require(outputDetails.shape().contentEquals(intArrayOf(1, NUM_CLASSES))) {
+            "Production model output must be [1,$NUM_CLASSES], received ${outputDetails.shape().contentToString()}"
+        }
         val outputQuant = outputDetails.quantizationParams()
+        require(outputQuant.scale > 0.0f) { "Production model output quantization scale must be positive" }
         outputScale = outputQuant.scale
         outputZeroPoint = outputQuant.zeroPoint
 
@@ -221,7 +236,7 @@ class DahonMDTFLiteModule : Module() {
 
     private fun getDeviceInfo(): Map<String, Any> {
         val activityManager = context.getSystemService(ActivityManager::class.java)
-        val memInfo = ActivityManager.MemoryMemInfo()
+        val memInfo = ActivityManager.MemoryInfo()
         activityManager.getMemoryInfo(memInfo)
 
         val totalMemBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
@@ -316,8 +331,8 @@ class DahonMDTFLiteModule : Module() {
         numThreads: Int,
     ): Map<String, Any> {
         val assetPath = when (modelVariant) {
-            "int8" -> "models/ca_mobilenetv3_small_int8.tflite"
-            "fp32" -> "models/ca_mobilenetv3_small_fp32.tflite"
+            "int8" -> INT8_MODEL_ASSET
+            "fp32" -> FP32_MODEL_ASSET
             else -> throw IllegalArgumentException("Unknown model variant: $modelVariant. Use 'int8' or 'fp32'.")
         }
 
@@ -472,6 +487,8 @@ class DahonMDTFLiteModule : Module() {
     }
 
     companion object {
+        private const val INT8_MODEL_ASSET = "ca_mobilenetv3_small_int8.tflite"
+        private const val FP32_MODEL_ASSET = "ca_mobilenetv3_small_fp32.tflite"
         private const val MODEL_WIDTH = 224
         private const val MODEL_HEIGHT = 224
         private const val CHANNELS = 3

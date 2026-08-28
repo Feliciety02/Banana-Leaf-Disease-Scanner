@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import java.io.File
 import java.io.FileOutputStream
@@ -35,16 +36,12 @@ class DahonMDTFLiteModuleTest {
         interpreter = null
     }
 
-    private fun loadModel(): Interpreter? {
-        return try {
-            val fd = context.assets.openFd("models/ca_mobilenetv3_small_int8.tflite")
-            val bytes = ByteArray(fd.length.toInt())
-            java.io.FileInputStream(fd.fileDescriptor).use { it.read(bytes) }
-            fd.close()
-            Interpreter(bytes)
-        } catch (e: Exception) {
-            null
-        }
+    private fun loadModel(): Interpreter {
+        val fd = context.assets.openFd("ca_mobilenetv3_small_int8.tflite")
+        val bytes = ByteArray(fd.length.toInt())
+        java.io.FileInputStream(fd.fileDescriptor).use { it.read(bytes) }
+        fd.close()
+        return Interpreter(bytes)
     }
 
     private fun createTestBitmap(): Bitmap {
@@ -122,19 +119,19 @@ class DahonMDTFLiteModuleTest {
     @Test
     fun testModelInputOutputShapes() {
         val testInterpreter = loadModel()
-        if (testInterpreter == null) {
-            println("SKIP: TFLite model not found in test assets")
-            return
-        }
         interpreter = testInterpreter
 
-        val inputShape = interpreter!!.getInputTensor(0).shape()
+        val inputTensor = interpreter!!.getInputTensor(0)
+        assertEquals("Input dtype", DataType.INT8, inputTensor.dataType())
+        val inputShape = inputTensor.shape()
         assertEquals("Input batch", 1, inputShape[0])
         assertEquals("Input height", 224, inputShape[1])
         assertEquals("Input width", 224, inputShape[2])
         assertEquals("Input channels", 3, inputShape[3])
 
-        val outputShape = interpreter!!.getOutputTensor(0).shape()
+        val outputTensor = interpreter!!.getOutputTensor(0)
+        assertEquals("Output dtype", DataType.INT8, outputTensor.dataType())
+        val outputShape = outputTensor.shape()
         assertEquals("Output batch", 1, outputShape[0])
         assertEquals("Output classes", 4, outputShape[1])
     }
@@ -142,10 +139,6 @@ class DahonMDTFLiteModuleTest {
     @Test
     fun testModelInferenceOnTestImage() {
         val testInterpreter = loadModel()
-        if (testInterpreter == null) {
-            println("SKIP: TFLite model not found in test assets")
-            return
-        }
         interpreter = testInterpreter
 
         val inputQuant = interpreter!!.getInputTensor(0).quantizationParams()
