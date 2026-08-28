@@ -1180,7 +1180,11 @@ def make_supervised_dataset(
 
 
 def make_teacher_dataset(
-    records: Sequence[ImageRecord], config: ExperimentConfig, training: bool
+    records: Sequence[ImageRecord],
+    config: ExperimentConfig,
+    training: bool,
+    *,
+    shuffle_epoch: int | None = None,
 ) -> tf.data.Dataset:
     tf = _require_tensorflow()
     from ai.data.augmentation import build_augmentation
@@ -1195,7 +1199,14 @@ def make_teacher_dataset(
     options.experimental_deterministic = True
     base = base.with_options(options)
     if training:
-        base = base.shuffle(len(records), seed=config.runtime.seed, reshuffle_each_iteration=True)
+        if shuffle_epoch is not None:
+            # Per-epoch deterministic shuffling so a stopped/resumed SSL run rebuilds the
+            # exact same batch order for the resumption epoch without replaying prior epochs.
+            base = base.shuffle(
+                len(records), seed=config.runtime.seed + shuffle_epoch, reshuffle_each_iteration=False
+            )
+        else:
+            base = base.shuffle(len(records), seed=config.runtime.seed, reshuffle_each_iteration=True)
     base = base.map(
         lambda path, label: (decode_and_resize(path, config.image_size), label),
         num_parallel_calls=_parallelism(config),

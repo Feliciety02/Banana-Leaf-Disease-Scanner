@@ -6,6 +6,8 @@ import argparse
 import gc
 import json
 import os
+import re
+import tempfile
 import time
 from pathlib import Path
 
@@ -18,9 +20,11 @@ os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 os.environ.setdefault("OMP_NUM_THREADS", "8")
 os.environ.setdefault("TF_NUM_INTRAOP_THREADS", "8")
 
+import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
+from ai.config.config import ExperimentConfig
 from ai.data.dataset import build_ssl_pretraining_records, make_supervised_dataset, make_teacher_dataset, prepare_splits, write_label_map
 from ai.losses.byol_loss import byol_loss
 from ai.losses.classification_loss import classification_loss
@@ -35,15 +39,350 @@ from ai.training.teacher_protocol import (
 )
 
 LIVE_FILE = "teacher_live.json"
+CHECKPOINT_PREFIX = "ssl_checkpoint_epoch_"
+CHECKPOINT_MARKER_SUFFIX = ".complete"
+FINAL_SSL_MODEL_NAME = "resnet101_ssl_pretrained.keras"
 
 
 def write_live_progress(output_dir: Path, payload: dict) -> None:
     (output_dir / LIVE_FILE).write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def save_final_ssl_model(model: tf.keras.Model, output_dir: Path) -> Path:
+    """Persist the completed SSL model using the established final artifact name."""
+    destination = output_dir / FINAL_SSL_MODEL_NAME
+    model.save(destination)
+    return destination
+
+
 def dataset_batches(dataset: tf.data.Dataset) -> int:
     cardinality = int(dataset.cardinality())
     return cardinality if cardinality > 0 else 0
+
+
+def checkpoint_paths(output_dir: Path, epoch: int) -> dict[str, Path]:
+    """Return the fixed file set for one intermediate SSL checkpoint epoch."""
+    base = Path(f"{CHECKPOINT_PREFIX}{epoch:03d}")
+    return {
+        "online": output_dir / f"{base.name}_online.npz",
+        "target": output_dir / f"{base.name}_target.npz",
+        "optimizer": output_dir / f"{base.name}_optimizer.npz",
+        "meta": output_dir / f"{base.name}_meta.json",
+        "marker": output_dir / f"{base.name}{CHECKPOINT_MARKER_SUFFIX}",
+    }
+
+
+def _save_npz_atomic(destination: Path, arrays: list[np.ndarray]) -> None:
+    """Atomic npz write: save to a sibling temp file, then rename into place."""
+    descriptor, temporary = tempfile.mkstemp(suffix=".npz", dir=str(destination.parent))
+    os.close(descriptor)
+    try:
+        np.savez_compressed(temporary, *[np.asarray(array) for array in arrays])
+        os.replace(temporary, destination)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
+
+
+def _load_npz_arrays(source: Path) -> list[np.ndarray]:
+    with np.load(source) as payload:
+        return [payload[f"arr_{index}"] for index in range(len(payload.files))]
+
+
+def _optimizer_lr(optimizer: tf.keras.optimizers.Optimizer) -> float:
+    value = optimizer.learning_rate
+    if tf.is_tensor(value) or hasattr(value, "numpy"):
+        return float(value.numpy())
+    return float(value)
+
+
+def _atomic_write_json(destination: Path, payload: dict) -> None:
+    temporary = destination.with_name(destination.name + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    os.replace(temporary, destination)
+
+
+def save_ssl_checkpoint(
+    output_dir: Path,
+    epoch: int,
+    online_model: tf.keras.Model,
+    target_model: tf.keras.Model,
+    optimizer: tf.keras.optimizers.Optimizer,
+    config: ExperimentConfig,
+) -> Path:
+    """Atomically persist online/EMA-target weights, optimizer slots, and metadata.
+
+    The ``.complete`` marker (the final commit point) is written only after every part has
+    been atomically renamed, so an interrupted save never yields a "valid" checkpoint.
+    """
+    paths = checkpoint_paths(output_dir, epoch)
+    _save_npz_atomic(paths["online"], online_model.get_weights())
+    _save_npz_atomic(paths["target"], target_model.get_weights())
+    # Keras 3 optimizers expose state via .variables (weights + slots + lr); there is
+    # no get_weights(). Variables restore exactly through optimizer.set_weights().
+    try:
+        optimizer_arrays = [variable.numpy() for variable in optimizer.variables]
+    except AttributeError as error:
+        raise TypeError(
+            "Optimizer does not expose resumable variables; use a Keras-compatible optimizer"
+        ) from error
+    _save_npz_atomic(paths["optimizer"], optimizer_arrays)
+    _atomic_write_json(
+        paths["meta"],
+        {
+            "epoch": epoch,
+            "total_epochs": config.teacher.ssl_epochs,
+            "checkpoint_interval": config.teacher.ssl_checkpoint_interval,
+            "max_recent_checkpoints": config.teacher.max_recent_checkpoints,
+            "milestone_interval": config.teacher.milestone_interval,
+            "data_seed": config.runtime.seed,
+            "learning_rate": _optimizer_lr(optimizer),
+            "format": "numpy-arrays-v1",
+            "partial_resume_note": (
+                "Weights, EMA target, and optimizer slots restore exactly. Global TensorFlow RNG "
+                "(mask sampling via tf.random.uniform) and per-layer augmentation generator call "
+                "counts are not bit-restorable across process restarts; data order is reproduced "
+                "per epoch via shuffle_epoch."
+            ),
+        },
+    )
+    # The marker is the commit point and must remain the final write for this set.
+    _atomic_write_json(paths["marker"], {"epoch": epoch, "complete": True})
+    prune_ssl_checkpoints(output_dir, config, just_completed_epoch=epoch)
+    return paths["marker"]
+
+
+def valid_ssl_checkpoint_epochs(
+    output_dir: Path,
+    config: ExperimentConfig | None = None,
+) -> list[int]:
+    """Return sorted epochs with a valid marker, metadata, and complete payload file set."""
+    valid: list[int] = []
+    pattern = re.compile(re.escape(CHECKPOINT_PREFIX) + r"(\d{3,6})" + re.escape(CHECKPOINT_MARKER_SUFFIX))
+    for marker in output_dir.glob(f"{CHECKPOINT_PREFIX}*{CHECKPOINT_MARKER_SUFFIX}"):
+        match = pattern.fullmatch(marker.name)
+        if not match:
+            continue
+        epoch = int(match.group(1))
+        paths = checkpoint_paths(output_dir, epoch)
+        if not all(path.is_file() for path in paths.values()):
+            continue
+        try:
+            marker_payload = json.loads(marker.read_text(encoding="utf-8"))
+            metadata = json.loads(paths["meta"].read_text(encoding="utf-8"))
+            marker_valid = (
+                marker_payload.get("complete") is True
+                and int(marker_payload.get("epoch", -1)) == epoch
+            )
+            metadata_valid = int(metadata.get("epoch", -1)) == epoch
+            if config is not None:
+                metadata_valid = (
+                    metadata_valid
+                    and int(metadata.get("total_epochs", -1)) == config.teacher.ssl_epochs
+                )
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            continue
+        if marker_valid and metadata_valid:
+            valid.append(epoch)
+    return sorted(valid)
+
+
+def latest_valid_ssl_checkpoint(
+    output_dir: Path,
+    config: ExperimentConfig | None = None,
+) -> int | None:
+    """Return the highest epoch with a valid, configuration-compatible checkpoint set."""
+    epochs = valid_ssl_checkpoint_epochs(output_dir, config)
+    return epochs[-1] if epochs else None
+
+
+def prune_ssl_checkpoints(
+    output_dir: Path,
+    config: ExperimentConfig,
+    *,
+    just_completed_epoch: int,
+) -> list[int]:
+    """Prune old complete non-milestones only after a newer set commits.
+
+    The latest ``max_recent_checkpoints`` and every ``milestone_interval`` epoch
+    remain. The marker is removed before payloads so an interrupted prune leaves
+    a set that resume treats as invalid.
+    """
+    valid_epochs = valid_ssl_checkpoint_epochs(output_dir, config)
+    recent = set(valid_epochs[-config.teacher.max_recent_checkpoints :])
+    milestones = {
+        epoch for epoch in valid_epochs if epoch % config.teacher.milestone_interval == 0
+    }
+    protected = recent | milestones | {just_completed_epoch}
+    pruned: list[int] = []
+    for epoch in valid_epochs:
+        if epoch in protected:
+            continue
+        paths = checkpoint_paths(output_dir, epoch)
+        paths["marker"].unlink(missing_ok=True)
+        for name in ("online", "target", "optimizer", "meta"):
+            paths[name].unlink(missing_ok=True)
+        pruned.append(epoch)
+    return pruned
+
+
+def load_ssl_checkpoint(output_dir: Path, epoch: int, config: ExperimentConfig) -> dict:
+    paths = checkpoint_paths(output_dir, epoch)
+    missing = [
+        name
+        for name in ("online", "target", "optimizer", "meta", "marker")
+        if not paths[name].is_file()
+    ]
+    if missing:
+        raise ValueError(f"SSL checkpoint epoch {epoch} is missing {missing}")
+    marker = json.loads(paths["marker"].read_text(encoding="utf-8"))
+    if marker.get("complete") is not True or int(marker.get("epoch", -1)) != epoch:
+        raise ValueError(f"SSL checkpoint epoch {epoch} has an invalid completion marker")
+    meta = json.loads(paths["meta"].read_text(encoding="utf-8"))
+    if int(meta.get("epoch", -1)) != epoch:
+        raise ValueError(f"SSL checkpoint epoch {epoch} has mismatched metadata")
+    if int(meta.get("total_epochs", config.teacher.ssl_epochs)) != config.teacher.ssl_epochs:
+        raise ValueError(
+            f"SSL checkpoint epoch {epoch} was written for {meta.get('total_epochs')} epochs but the "
+            f"active configuration uses {config.teacher.ssl_epochs}; re-run with the original config"
+        )
+    return {
+        "online": _load_npz_arrays(paths["online"]),
+        "target": _load_npz_arrays(paths["target"]),
+        "optimizer": _load_npz_arrays(paths["optimizer"]),
+        "meta": meta,
+    }
+
+
+def _restore_model_weights(model: tf.keras.Model, arrays: list[np.ndarray], label: str) -> None:
+    try:
+        model.set_weights(arrays)
+    except (ValueError, TypeError) as error:
+        raise ValueError(f"Failed to restore {label} weights from checkpoint: {error}") from error
+
+
+def _ssl_history_upto(output_dir: Path, upto_epoch: int) -> list[dict]:
+    history_path = output_dir / "teacher_ssl_history.json"
+    if not history_path.is_file():
+        return []
+    rows = json.loads(history_path.read_text(encoding="utf-8"))
+    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+        raise ValueError(f"{history_path} is not a list of epoch rows")
+    truncated = rows[: upto_epoch]
+    if len(truncated) < upto_epoch:
+        print(
+            f"Warning: teacher_ssl_history.json has {len(truncated)}/{upto_epoch} rows for the "
+            "resumed checkpoint epoch; metrics for the missing epochs will be absent from the final history"
+        )
+    return truncated
+
+
+def _run_ssl_pretraining(
+    config: ExperimentConfig,
+    records: list,
+    output_dir: Path,
+    online: tf.keras.Model,
+    target: tf.keras.Model,
+    online_ssl: tf.keras.Model,
+    online_mim: tf.keras.Model,
+    target_projector: tf.keras.Model,
+    ssl_optimizer: tf.keras.optimizers.Optimizer,
+    epoch_start: int,
+    ssl_history: list[dict],
+) -> None:
+    decay = tf.constant(config.teacher.byol_ema_decay, tf.float32)
+
+    @tf.function
+    def ssl_step(batch: dict[str, tf.Tensor]) -> dict[str, tf.Tensor]:
+        # Labels are deliberately unused: this phase is strictly self-supervised.
+        with tf.GradientTape() as tape:
+            online_one = online_ssl(batch["view_one"], training=True)
+            online_two = online_ssl(batch["view_two"], training=True)
+            contrastive = tf.constant(0.0, tf.float32)
+            if config.teacher.lambda_cl > 0:
+                contrastive = nt_xent_loss(
+                    online_one["projection"], online_two["projection"], config.teacher.contrastive_temperature
+                )
+
+            bootstrap = tf.constant(0.0, tf.float32)
+            if config.teacher.lambda_byol > 0:
+                target_one = target_projector(batch["view_one"], training=False)
+                target_two = target_projector(batch["view_two"], training=False)
+                bootstrap = byol_loss(
+                    online_one["prediction"], online_two["prediction"], target_one, target_two
+                )
+
+            mim = tf.constant(0.0, tf.float32)
+            if config.teacher.lambda_mim > 0:
+                reconstruction = online_mim(batch["masked_images"], training=True)
+                mim = masked_reconstruction_loss(batch["view_one"], reconstruction, batch["mask"])
+
+            total = (
+                config.teacher.lambda_cl * contrastive
+                + config.teacher.lambda_byol * bootstrap
+                + config.teacher.lambda_mim * mim
+            )
+            if online.losses:
+                total += tf.add_n(online.losses)
+        gradients = tape.gradient(total, online.trainable_variables)
+        gradient_pairs = [
+            (gradient, variable)
+            for gradient, variable in zip(gradients, online.trainable_variables)
+            if gradient is not None
+        ]
+        ssl_optimizer.apply_gradients(gradient_pairs)
+        if config.teacher.lambda_byol > 0:
+            update_ema_target(online, target, decay)
+        return {"loss": total, "contrastive": contrastive, "byol": bootstrap, "mim": mim}
+
+    checkpoint_interval = config.teacher.ssl_checkpoint_interval
+    for epoch in range(epoch_start, config.teacher.ssl_epochs + 1):
+        ssl_dataset = make_teacher_dataset(records, config, training=True, shuffle_epoch=epoch)
+        total_ssl_batches = dataset_batches(ssl_dataset)
+        metrics = {name: tf.keras.metrics.Mean() for name in ("loss", "contrastive", "byol", "mim")}
+        progress = tqdm(
+            ssl_dataset,
+            desc=f"SSL epoch {epoch}/{config.teacher.ssl_epochs}",
+            total=total_ssl_batches or None,
+            unit="batch",
+            dynamic_ncols=True,
+        )
+        for batch_index, batch in enumerate(progress, start=1):
+            results = ssl_step(batch)
+            for name, value in results.items():
+                metrics[name].update_state(value)
+            running = {name: float(metric.result()) for name, metric in metrics.items()}
+            progress.set_postfix({name: f"{value:.4f}" for name, value in running.items()})
+            if batch_index % 5 == 0 or batch_index == total_ssl_batches:
+                write_live_progress(
+                    output_dir,
+                    {
+                        "phase": "self_supervised_pretraining",
+                        "epoch": epoch,
+                        "total_epochs": config.teacher.ssl_epochs,
+                        "batch": batch_index,
+                        "total_batches": total_ssl_batches,
+                        "metrics": running,
+                        "learning_rate": _optimizer_lr(ssl_optimizer),
+                        "timestamp": time.time(),
+                    },
+                )
+        row = {
+            "phase": "self_supervised_pretraining",
+            "epoch": epoch,
+            **{name: float(metric.result()) for name, metric in metrics.items()},
+            "learning_rate": _optimizer_lr(ssl_optimizer),
+        }
+        ssl_history.append(row)
+        progress.close()
+        print(" - ".join(f"{name}={value:.5f}" if isinstance(value, float) else f"{name}={value}" for name, value in row.items()))
+        save_history(ssl_history, output_dir / "teacher_ssl_history.json")
+        if epoch % checkpoint_interval == 0:
+            marker = save_ssl_checkpoint(output_dir, epoch, online, target, ssl_optimizer, config)
+            print(f"Intermediate SSL checkpoint saved at epoch {epoch} ({marker.name})")
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,6 +392,11 @@ def parse_args() -> argparse.Namespace:
         "--resume-ssl",
         action="store_true",
         help="Skip self-supervised pretraining and load resnet101_ssl_pretrained.keras from the output directory if present",
+    )
+    parser.add_argument(
+        "--resume-ssl-intermediate",
+        action="store_true",
+        help="Resume self-supervised pretraining from the latest valid periodic SSL checkpoint in the output directory",
     )
     parser.add_argument(
         "--resume-finetune",
@@ -73,7 +417,7 @@ def train(args: argparse.Namespace) -> Path:
     splits = prepare_splits(config, output_dir / "split_manifest.json")
     write_label_map(splits.class_names, output_dir / "label_map.json")
 
-    ssl_path = output_dir / "resnet101_ssl_pretrained.keras"
+    ssl_path = output_dir / FINAL_SSL_MODEL_NAME
     best_path = output_dir / "best_teacher.keras"
     if args.resume_finetune and best_path.is_file():
         online = tf.keras.models.load_model(best_path)
@@ -88,10 +432,43 @@ def train(args: argparse.Namespace) -> Path:
         # explicitly designated, overlap-screened unlabeled inventory. Validation,
         # internal test, and locked final-field-test pixels are never included.
         ssl_records = build_ssl_pretraining_records(splits)
-        ssl_dataset = make_teacher_dataset(ssl_records, config, training=True)
+
+        resume_epoch: int | None = None
+        if args.resume_ssl_intermediate:
+            if ssl_path.is_file():
+                raise ValueError(
+                    f"{ssl_path.name} already exists; use --resume-ssl (not --resume-ssl-intermediate)"
+                )
+            resume_epoch = latest_valid_ssl_checkpoint(output_dir, config)
+            if resume_epoch is None:
+                raise FileNotFoundError(
+                    f"No valid intermediate SSL checkpoint found under {output_dir}; "
+                    "start fresh or use --resume-ssl"
+                )
+            if resume_epoch >= config.teacher.ssl_epochs:
+                raise ValueError(
+                    f"Intermediate checkpoint is already at epoch {resume_epoch} of "
+                    f"{config.teacher.ssl_epochs}; use --resume-ssl to continue to fine-tuning"
+                )
 
         online = build_teacher(config)
         target = build_ema_target(config, online)
+        ssl_optimizer = make_optimizer(config.teacher.ssl_learning_rate, config.teacher.weight_decay)
+        ssl_history: list[dict] = []
+        epoch_start = 1
+        if resume_epoch is not None:
+            loaded = load_ssl_checkpoint(output_dir, resume_epoch, config)
+            _restore_model_weights(online, loaded["online"], "online")
+            _restore_model_weights(target, loaded["target"], "EMA target")
+            ssl_optimizer.build(online.trainable_variables)
+            try:
+                ssl_optimizer.set_weights(loaded["optimizer"])
+            except (ValueError, TypeError) as error:
+                raise ValueError(f"Failed to restore optimizer slots from checkpoint: {error}") from error
+            ssl_history = _ssl_history_upto(output_dir, resume_epoch)
+            epoch_start = resume_epoch + 1
+            print(f"Resumed SSL pretraining from intermediate checkpoint epoch {resume_epoch}")
+
         online_ssl = tf.keras.Model(
             online.input,
             {name: online.output[name] for name in ("projection", "prediction")},
@@ -99,99 +476,26 @@ def train(args: argparse.Namespace) -> Path:
         )
         online_mim = tf.keras.Model(online.input, online.output["reconstruction"], name="resnet101_mim_path")
         target_projector = tf.keras.Model(target.input, target.output["projection"], name="resnet101_target_projector")
-        ssl_optimizer = make_optimizer(config.teacher.ssl_learning_rate, config.teacher.weight_decay)
-        decay = tf.constant(config.teacher.byol_ema_decay, tf.float32)
 
-        @tf.function
-        def ssl_step(batch: dict[str, tf.Tensor]) -> dict[str, tf.Tensor]:
-            # Labels are deliberately unused: this phase is strictly self-supervised.
-            with tf.GradientTape() as tape:
-                online_one = online_ssl(batch["view_one"], training=True)
-                online_two = online_ssl(batch["view_two"], training=True)
-                contrastive = tf.constant(0.0, tf.float32)
-                if config.teacher.lambda_cl > 0:
-                    contrastive = nt_xent_loss(
-                        online_one["projection"], online_two["projection"], config.teacher.contrastive_temperature
-                    )
+        _run_ssl_pretraining(
+            config,
+            ssl_records,
+            output_dir,
+            online,
+            target,
+            online_ssl,
+            online_mim,
+            target_projector,
+            ssl_optimizer,
+            epoch_start,
+            ssl_history,
+        )
 
-                bootstrap = tf.constant(0.0, tf.float32)
-                if config.teacher.lambda_byol > 0:
-                    target_one = target_projector(batch["view_one"], training=False)
-                    target_two = target_projector(batch["view_two"], training=False)
-                    bootstrap = byol_loss(
-                        online_one["prediction"], online_two["prediction"], target_one, target_two
-                    )
-
-                mim = tf.constant(0.0, tf.float32)
-                if config.teacher.lambda_mim > 0:
-                    reconstruction = online_mim(batch["masked_images"], training=True)
-                    mim = masked_reconstruction_loss(batch["view_one"], reconstruction, batch["mask"])
-
-                total = (
-                    config.teacher.lambda_cl * contrastive
-                    + config.teacher.lambda_byol * bootstrap
-                    + config.teacher.lambda_mim * mim
-                )
-                if online.losses:
-                    total += tf.add_n(online.losses)
-            gradients = tape.gradient(total, online.trainable_variables)
-            gradient_pairs = [
-                (gradient, variable)
-                for gradient, variable in zip(gradients, online.trainable_variables)
-                if gradient is not None
-            ]
-            ssl_optimizer.apply_gradients(gradient_pairs)
-            if config.teacher.lambda_byol > 0:
-                update_ema_target(online, target, decay)
-            return {"loss": total, "contrastive": contrastive, "byol": bootstrap, "mim": mim}
-
-        ssl_history: list[dict] = []
-        total_ssl_batches = dataset_batches(ssl_dataset)
-        for epoch in range(1, config.teacher.ssl_epochs + 1):
-            metrics = {name: tf.keras.metrics.Mean() for name in ("loss", "contrastive", "byol", "mim")}
-            progress = tqdm(
-                ssl_dataset,
-                desc=f"SSL epoch {epoch}/{config.teacher.ssl_epochs}",
-                total=total_ssl_batches or None,
-                unit="batch",
-                dynamic_ncols=True,
-            )
-            for batch_index, batch in enumerate(progress, start=1):
-                results = ssl_step(batch)
-                for name, value in results.items():
-                    metrics[name].update_state(value)
-                running = {name: float(metric.result()) for name, metric in metrics.items()}
-                progress.set_postfix({name: f"{value:.4f}" for name, value in running.items()})
-                if batch_index % 5 == 0 or batch_index == total_ssl_batches:
-                    write_live_progress(
-                        output_dir,
-                        {
-                            "phase": "self_supervised_pretraining",
-                            "epoch": epoch,
-                            "total_epochs": config.teacher.ssl_epochs,
-                            "batch": batch_index,
-                            "total_batches": total_ssl_batches,
-                            "metrics": running,
-                            "learning_rate": float(tf.keras.backend.get_value(ssl_optimizer.learning_rate)),
-                            "timestamp": time.time(),
-                        },
-                    )
-            row = {
-                "phase": "self_supervised_pretraining",
-                "epoch": epoch,
-                **{name: float(metric.result()) for name, metric in metrics.items()},
-                "learning_rate": float(tf.keras.backend.get_value(ssl_optimizer.learning_rate)),
-            }
-            ssl_history.append(row)
-            progress.close()
-            print(" - ".join(f"{name}={value:.5f}" if isinstance(value, float) else f"{name}={value}" for name, value in row.items()))
-            save_history(ssl_history, output_dir / "teacher_ssl_history.json")
-
-        online.save(ssl_path)
+        save_final_ssl_model(online, output_dir)
         print(f"Self-supervised ResNet-101 checkpoint saved to {ssl_path}")
 
-        # Free SSL-only models, EMA target, optimizer, dataset, and traced graph before fine-tuning.
-        del target, online_ssl, online_mim, target_projector, ssl_optimizer, ssl_dataset, ssl_step, decay
+        # Free SSL-only models, EMA target, optimizer, and traced graph before fine-tuning.
+        del target, online_ssl, online_mim, target_projector, ssl_optimizer
     gc.collect()
 
     # Phase 2: all ResNet-101 encoder weights and the classifier are supervised-fine-tuned.

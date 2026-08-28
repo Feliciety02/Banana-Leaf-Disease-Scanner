@@ -240,6 +240,7 @@ def _run_teacher(spec: ExperimentSpec, args: argparse.Namespace) -> Path:
         davao_field_dir=getattr(args, "davao_field_dir", None),
         davao_field_manifest=getattr(args, "davao_field_manifest", None),
         resume_ssl=False,
+        resume_ssl_intermediate=False,
         resume_finetune=False,
     )
     return train_teacher(namespace)

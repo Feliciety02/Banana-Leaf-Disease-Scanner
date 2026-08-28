@@ -1,0 +1,30 @@
+{
+  "experiment_name": "four_class_ca_mobilenetv3_small_kd_gpu_seed42",
+  "data": {
+    "dataset_dir": "/home/feanne/dahonmd-data/banana_leaf_thesis_4class",
+    "final_split_dir": "ai/artifacts/final_split",
+    "batch_size": 4,
+    "cache_dataset": true
+  },
+  "teacher": {
+    "backbone": "ResNet101",
+    "imagenet_weights": true,
+    "ssl_enabled": true
+  },
+  "student": {
+    "backbone": "MobileNetV3SmallCoordinateAttention",
+    "coordinate_attention": true,
+    "imagenet_weights": true,
+    "epochs": 100
+  },
+  "distillation": {
+    "enabled": true
+  },
+  "runtime": {
+    "seed": 42,
+    "output_dir": "ai/artifacts/four_class/enhanced/runs/20260829_seed42_run01",
+    "early_stopping_patience": 15,
+    "reduce_lr_patience": 6,
+    "min_learning_rate": 1e-7
+  }
+}
