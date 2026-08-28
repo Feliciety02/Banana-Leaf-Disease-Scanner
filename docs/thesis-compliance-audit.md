@@ -1,7 +1,7 @@
-# Thesis Final Release Audit
+# Thesis Source-Contract Audit — Release Verification Pending
 
-> Re-audit after all implementation tasks are completed.
-> Every row has direct code/test evidence. Nothing is assumed.
+> This table records source-level protocol evidence. It is not a final release certificate.
+> The dated architecture audit in `docs/architecture-audit-2026-08-28.md` is authoritative for runtime readiness and remaining blockers.
 
 ---
 
@@ -22,22 +22,22 @@
 | 11 | Group-aware leakage control | ✅ Verified | `_stratified_group_assignment()`: groups are indivisible. Leakage detection: `seen_hashes` and `seen_groups` dicts check all splits. `build_ssl_pretraining_records()`: validates held-out hash/group exclusion. Davao overlap: checks path/hash/group against all existing splits. | `ai/data/dataset.py:673-694,772-786,860-890,1096-1125,1375-1387` |
 | 12 | Train-only calibration | ✅ Verified | `convert_tflite.py:48`: `select_stratified_representative_records(splits.train, ...)`. Calibration manifest: `"validation_or_test_samples": 0`, `"source_partition": "train"`. | `ai/deployment/convert_tflite.py:48-63` |
 | 13 | INT8 TFLite | ✅ Verified | `convert_tflite.py`: `target_spec.supported_ops = [TFLITE_BUILTINS_INT8]`, `inference_input_type = tf.int8`, `inference_output_type = tf.int8`. `quantization_audit.py`: checks `input_dtype_int8`, `output_dtype_int8`, `no_floating_point_tensors`, `full_integer_verified`. | `ai/deployment/convert_tflite.py:70-82` `ai/deployment/quantization_audit.py:30-56` |
-| 14 | Working native Android inference | ✅ Verified | `DahonMDTFLiteModule.kt`: lazy model loading from `assets/models/ca_mobilenetv3_small_int8.tflite`, quantization params read from model, mutex-serialized inference. `index.ts`: typed `classifyImage(uri)` bridge. `inference.ts`: validates `[1,224,224,3]` int8 input, int8 output, 4-class label contract, finite scores. | `modules/dahonmd-tflite/android/.../DahonMDTFLiteModule.kt:1-100` `modules/dahonmd-tflite/index.ts:1-163` `mobile-frontend/src/services/inference.ts:1-25` |
-| 15 | Offline stateless app | ✅ Verified | `App.tsx:21`: "Classification runs locally on the device. No account, Internet connection, upload, or scan history is required." `check-release-readiness.mjs`: bans `services/auth`, `services/database`, `services/sync`, `services/http`. | `mobile-frontend/App.tsx:21` `mobile-frontend/scripts/check-release-readiness.mjs:4` |
+| 14 | Working native Android inference | ⚠️ Source implemented; runtime blocked | `DahonMDTFLiteModule.kt` contains local model loading, exact INT8 tensor checks, and mutex-serialized inference. The required `.tflite` asset is absent and the Android device path has not run. | `modules/dahonmd-tflite/android/.../DahonMDTFLiteModule.kt` `modules/dahonmd-tflite/index.ts` `mobile-frontend/src/services/inference.ts` |
+| 15 | Offline stateless app | ❌ Release not verified | The active dependency graph is stateless and network-free, but classification cannot complete without the missing model asset. `check-release-readiness.mjs` fails closed. | `mobile-frontend/App.tsx` `mobile-frontend/scripts/check-release-readiness.mjs` |
 | 16 | No production backend dependency | ✅ Verified | `package.json` grep: no `firebase`, `supabase`, `auth`, `http`, `backend` packages. `check-release-readiness.mjs` bans `services/http`, `services/auth`, `services/database`, `services/sync`. | `mobile-frontend/package.json` `mobile-frontend/scripts/check-release-readiness.mjs:4` |
 | 17 | No accounts/history | ✅ Verified | `App.tsx:21`: explicit "No account, Internet connection, upload, or scan history is required." No `AsyncStorage`, `SecureStore`, `SQLite`, or any persistence layer. | `mobile-frontend/App.tsx:21` |
 | 18 | Grad-CAM evaluation-only | ✅ Verified | `gradcam_thesis.py` docstring: "Grad-CAM is a research-evaluation-only technique." `QUALITATIVE_DISCLAIMER`: "does NOT prove spatial localisation accuracy, diagnostic correctness, or clinical reliability." Not imported in `inference.ts` or `App.tsx`. | `ai/evaluation/gradcam_thesis.py:1-15,85-100` |
 | 19 | Correct metrics | ✅ Verified | `metrics.py`: `classification_metrics()` computes accuracy, macro P/R/F1, per-class P/R/F1/support, confusion matrix, classification_report. `final_evaluation.py`: reports all for teacher, student, baseline. `compare_final.py`: comparison tables. `csv_export.py`: CSV export. | `ai/evaluation/metrics.py:17-54` `ai/evaluation/final_evaluation.py` `ai/evaluation/compare_final.py` `ai/evaluation/csv_export.py` |
 | 20 | Davao field evaluation support | ✅ Verified | `final_evaluation.py:302`: filters `field_subset == "davao"` and `label_review_status == "validated"`. Writes `student_davao_field_evaluation.json` + confusion matrix. `compare_final.py`: held-out vs Davao contrast with deltas. | `ai/evaluation/final_evaluation.py:298-310` `ai/evaluation/compare_final.py` `ai/data/build_davao_field_manifest.py` |
-| 21 | Documentation consistent with implementation | ✅ Verified | `check-release-readiness.mjs` checks match actual file structure. Native module name `DahonMDTFLite` matches Kotlin, TS bridge, and `app.json` plugin. Config validation rules match documented constraints. | `mobile-frontend/scripts/check-release-readiness.mjs` `mobile-frontend/app.json` `ai/config/config.py:203-325` |
+| 21 | Documentation consistent with implementation | ✅ Verified | Root, mobile, and architecture documentation now distinguish the stateless thesis client from legacy/demo server-backed utilities and disclose the missing release artifact. | `README.md` `mobile-frontend/README.md` `docs/architecture.md` `docs/architecture-audit-2026-08-28.md` |
 
 ---
 
 ## Conclusion
 
-**THESIS IMPLEMENTATION READY**
+**SOURCE CONTRACT IMPLEMENTED — RELEASE NOT VERIFIED**
 
-21/21 requirements verified with direct code/test evidence.
+The static architecture and scientific protocol are implemented, but the offline runtime acceptance test remains blocked.
 
 Remaining items are execution-time dependencies (not implementation blockers):
 
@@ -45,6 +45,6 @@ Remaining items are execution-time dependencies (not implementation blockers):
 |---|---|---|
 | Dataset not yet on disk | ⚠️ Expected | Phases 1–5 require the physical dataset |
 | Trained model files not yet generated | ⚠️ Expected | Phases 6–9 produce `.keras` and `.tflite` artifacts |
-| `ca_mobilenetv3_small_int8.tflite` not bundled | ⚠️ Expected | Produced by Phase 9, copied in Phase 9b |
-| On-device benchmark requires Android device | ⚠️ Expected | Phase 12b requires physical hardware |
+| `ca_mobilenetv3_small_int8.tflite` not bundled | ❌ Release blocker | Produced by Phase 9, copied in Phase 9b |
+| On-device offline test and benchmark not run | ❌ Verification blocker | Phase 12b requires representative Android hardware |
 | All `PENDING EXPERIMENTAL VALIDATION` markers | ⚠️ Expected | These are intentional gates that resolve once training + device testing complete |
