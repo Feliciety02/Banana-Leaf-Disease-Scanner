@@ -30,14 +30,14 @@ class UserController extends Controller
 
     public function indexFarmers(Request $request): JsonResponse
     {
-        $request->merge(['role' => 'farmer']);
+        $request->merge(['role' => User::ROLE_FARMER]);
 
         return $this->index($request);
     }
 
     public function indexExperts(Request $request): JsonResponse
     {
-        $request->merge(['role' => 'agricultural_expert']);
+        $request->merge(['role' => User::ROLE_AGRICULTURAL_EXPERT]);
 
         return $this->index($request);
     }
@@ -61,18 +61,18 @@ class UserController extends Controller
 
     public function storeFarmer(StoreUserRequest $request): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => 'Farmer created.', 'data' => new UserResource($this->users->create($request->validated(), 'farmer'))], 201);
+        return response()->json(['success' => true, 'message' => 'Farmer created.', 'data' => new UserResource($this->users->create($request->validated(), User::ROLE_FARMER))], 201);
     }
 
     public function storeExpert(StoreUserRequest $request): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => 'Agricultural reviewer created.', 'data' => new UserResource($this->users->create($request->validated(), 'agricultural_expert'))], 201);
+        return response()->json(['success' => true, 'message' => 'Agricultural reviewer created.', 'data' => new UserResource($this->users->create($request->validated(), User::ROLE_AGRICULTURAL_EXPERT))], 201);
     }
 
     public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
         $data = $request->validated();
-        if ($request->user()->is($user) && ($data['role'] ?? 'admin') !== 'admin') {
+        if ($request->user()->is($user) && ($data['role'] ?? User::ROLE_ADMIN) !== User::ROLE_ADMIN) {
             return response()->json(['success' => false, 'message' => 'You cannot remove your own administrator role.', 'errors' => ['role' => ['Choose another administrator to make this change.']]], 422);
         }
         $user = $this->users->update($user, $data);
@@ -83,7 +83,7 @@ class UserController extends Controller
     public function updateFarmer(UpdateUserRequest $request, User $user): JsonResponse
     {
         abort_unless($user->isFarmer(), 404);
-        $user = $this->users->update($user, $request->validated(), 'farmer');
+        $user = $this->users->update($user, $request->validated(), User::ROLE_FARMER);
 
         return response()->json(['success' => true, 'message' => 'Farmer updated.', 'data' => new UserResource($user)]);
     }
@@ -91,7 +91,7 @@ class UserController extends Controller
     public function updateExpert(UpdateUserRequest $request, User $user): JsonResponse
     {
         abort_unless($user->isAgriculturalExpert(), 404);
-        $user = $this->users->update($user, $request->validated(), 'agricultural_expert');
+        $user = $this->users->update($user, $request->validated(), User::ROLE_AGRICULTURAL_EXPERT);
 
         return response()->json(['success' => true, 'message' => 'Agricultural reviewer updated.', 'data' => new UserResource($user)]);
     }

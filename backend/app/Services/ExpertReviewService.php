@@ -18,21 +18,23 @@ class ExpertReviewService
 
     public function cases(string $scope): Collection
     {
-        $cases = $this->diagnoses->reviewCases($scope, (float) config('banana.confidence_threshold'));
+        $confidenceThreshold = (float) config('banana.confidence_threshold');
+        $cases = $this->diagnoses->reviewCases($scope, $confidenceThreshold);
 
-        return $scope === 'reviewed' ? $cases : $this->priority->rank($cases);
+        return $scope === 'reviewed' ? $cases : $this->priority->rank($cases, $confidenceThreshold);
     }
 
     public function dashboard(): array
     {
-        $summary = $this->diagnoses->expertDashboard((float) config('banana.confidence_threshold'));
+        $confidenceThreshold = (float) config('banana.confidence_threshold');
+        $summary = $this->diagnoses->expertDashboard($confidenceThreshold);
 
         return [
             'needs_review' => $summary['needs_review'],
             'uncertain_results' => $summary['uncertain'],
             'farmer_review_requests' => $summary['pending_requests'],
             'disease_content_awaiting_verification' => $this->diseases->countByVerificationStatus('researched'),
-            'cases' => $this->priority->rank($summary['cases'])->take(6),
+            'cases' => $this->priority->rank($summary['cases'], $confidenceThreshold)->take(6),
         ];
     }
 

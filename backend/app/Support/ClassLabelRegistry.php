@@ -27,6 +27,7 @@ class ClassLabelRegistry
         }
 
         $labels = array_values($decoded);
+
         return count(array_unique($labels)) === $classCount
             && collect($labels)->every(fn ($label) => is_string($label) && trim($label) !== '')
             && $labels === $expectedLabels

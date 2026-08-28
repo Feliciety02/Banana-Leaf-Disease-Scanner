@@ -14,6 +14,10 @@ class InferenceController extends Controller
     {
         $request->validate(['image' => ['required', 'image', 'max:10240']]);
 
-        return response()->json(['data' => $this->inference->predict($request->file('image'))]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Legacy web inference completed.',
+            'data' => $this->inference->predict($request->file('image')),
+        ]);
     }
 }

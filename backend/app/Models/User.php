@@ -15,6 +15,14 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
+    public const ROLE_FARMER = 'farmer';
+
+    public const ROLE_AGRICULTURAL_EXPERT = 'agricultural_expert';
+
+    public const ROLE_ADMIN = 'admin';
+
+    public const ROLES = [self::ROLE_FARMER, self::ROLE_AGRICULTURAL_EXPERT, self::ROLE_ADMIN];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -67,16 +75,21 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->hasRole(self::ROLE_ADMIN);
     }
 
     public function isFarmer(): bool
     {
-        return $this->role === 'farmer';
+        return $this->hasRole(self::ROLE_FARMER);
     }
 
     public function isAgriculturalExpert(): bool
     {
-        return $this->role === 'agricultural_expert';
+        return $this->hasRole(self::ROLE_AGRICULTURAL_EXPERT);
+    }
+
+    public function hasRole(string ...$roles): bool
+    {
+        return in_array($this->role, $roles, true);
     }
 }
