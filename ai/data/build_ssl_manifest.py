@@ -12,7 +12,7 @@ from typing import Any, Iterable
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from ai.data.dataset import _HammingBkTree, _flip_aware_difference_hash, _sha256
+from ai.data.image_fingerprints import HammingBkTree, flip_aware_difference_hash, sha256_file
 from ai.data.metadata_manifest import UNRESOLVED_VALUES
 
 
@@ -210,13 +210,13 @@ def _inspect(path: Path, config: dict[str, Any]) -> tuple[dict[str, Any] | None,
                 oriented.load()
                 width, height = oriented.size
                 mode = oriented.mode
-                dhash = _flip_aware_difference_hash(oriented.convert("RGB"))
+                dhash = flip_aware_difference_hash(oriented.convert("RGB"))
     except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Warning) as error:
         return None, f"unreadable_image:{type(error).__name__}"
     if width < config["minimum_width"] or height < config["minimum_height"]:
         return None, "below_minimum_dimensions"
     return {
-        "sha256": _sha256(path),
+        "sha256": sha256_file(path),
         "width": width,
         "height": height,
         "original_mode": mode,
@@ -334,7 +334,7 @@ def build_ssl_manifest(
     unresolved_review_keys: set[str] = set()
     related_internal = DisjointSet(valid)
     primary_values: dict[int, list[str]] = defaultdict(list)
-    primary_tree = _HammingBkTree()
+    primary_tree = HammingBkTree()
     for relative, inspection in primary_hashes.items():
         value = inspection["_dhash_int"]
         if value not in primary_values:
@@ -371,7 +371,7 @@ def build_ssl_manifest(
                     rows[external_path]["reason_codes"].append("near_duplicate:related_to_labeled")
 
     external_values: dict[int, list[str]] = defaultdict(list)
-    external_tree = _HammingBkTree()
+    external_tree = HammingBkTree()
     for external_path, inspection in sorted(valid.items()):
         value = inspection["_dhash_int"]
         for matched in external_tree.query(value, threshold):
@@ -588,7 +588,7 @@ def load_ssl_dataset_records(
             path.relative_to(root)
         except ValueError as error:
             raise ValueError(f"SSL manifest path escapes dataset root: {row['image_path']}") from error
-        if not path.is_file() or _sha256(path) != row["sha256"]:
+        if not path.is_file() or sha256_file(path) != row["sha256"]:
             raise ValueError(f"External SSL image changed after manifest creation: {path}")
         provenance = row["provenance"]
         group_id = provenance["biological_group_id"]

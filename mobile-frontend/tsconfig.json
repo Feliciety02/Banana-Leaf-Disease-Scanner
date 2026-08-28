@@ -2,22 +2,5 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true
-  },
-  "exclude": [
-    "src/components/SyncNotice.tsx",
-    "src/components/__tests__/**",
-    "src/hooks/**",
-    "src/services/apiConfig.ts",
-    "src/services/auth.ts",
-    "src/services/database.ts",
-    "src/services/diseases.ts",
-    "src/services/http.ts",
-    "src/services/imagePolicy.ts",
-    "src/services/imageStorage.ts",
-    "src/services/modelComparison.ts",
-    "src/services/sync.ts",
-    "src/services/syncPolicy.ts",
-    "src/services/__tests__/syncPolicy.test.ts",
-    "src/services/__tests__/imagePolicy.test.ts"
-  ]
+  }
 }

@@ -28,6 +28,9 @@ If a populated pre-consolidation mobile database is discovered later, do not att
 4. Skip only records whose `sync_uuid` is already present. Report UUID collisions whose prediction payload differs.
 5. Reconcile counts per user, source, and UUID before switching clients. Keep both database backups until users and administrators verify history.
 
-## Runtime rule
+## Historical runtime rule
 
-Only `backend` should be served. Expo uses `EXPO_PUBLIC_API_URL`; React uses `VITE_WEB_API_URL`. Both URLs must resolve to the same Laravel deployment and database.
+The former synchronized Expo client used `EXPO_PUBLIC_API_URL`, and React used
+`VITE_WEB_API_URL`. This rule is retained only as migration history. The active
+thesis mobile application no longer uses a backend URL, account, synchronization,
+or database; only the legacy React application uses the Laravel service.

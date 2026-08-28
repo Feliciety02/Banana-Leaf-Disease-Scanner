@@ -1,5 +1,10 @@
 # Client–Server–Database and Thesis Boundary Audit
 
+> [!NOTE]
+> Historical snapshot from 2026-08-28. Source paths and test totals may have
+> changed after repository organization; use `docs/architecture/overview.md`
+> for the current boundary.
+
 Audit date: 2026-08-28  
 Repository: DahonMD  
 Scope: tracked application source, active entry points, configuration, migrations, tests, and visible untracked workspace artifacts

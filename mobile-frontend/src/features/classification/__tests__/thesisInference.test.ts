@@ -10,7 +10,7 @@ jest.mock('expo-image-manipulator', () => ({
   SaveFormat: { JPEG: 'jpeg' },
 }));
 
-jest.mock('../../../modules/dahonmd-tflite', () => {
+jest.mock('../../../../modules/dahonmd-tflite', () => {
   let callCount = 0;
   return {
     classifyImage: jest.fn(async () => {
@@ -29,10 +29,10 @@ jest.mock('../../../modules/dahonmd-tflite', () => {
   };
 });
 
-import { CLASS_KEYS } from '../../data';
+import { CLASS_KEYS } from '../disease-data';
 import { analyzeLeaf, validateNativeResult, MODEL_INPUT, type NativeResult } from '../inference';
 
-const { classifyImage } = require('../../../modules/dahonmd-tflite');
+const { classifyImage } = require('../../../../modules/dahonmd-tflite');
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -243,7 +243,7 @@ describe('four-class label mapping', () => {
   });
 
   it('all four CLASS_KEYS have display names', () => {
-    const { CLASS_DISPLAY_NAMES } = require('../../data');
+    const { CLASS_DISPLAY_NAMES } = require('../disease-data');
     expect(CLASS_DISPLAY_NAMES.healthy).toBe('Healthy');
     expect(CLASS_DISPLAY_NAMES.sigatoka).toBe('Sigatoka');
     expect(CLASS_DISPLAY_NAMES['panama-disease']).toBe('Panama Disease');
@@ -301,7 +301,7 @@ describe('offline operation', () => {
     const path = require('path');
     const nativePath = path.resolve(
       __dirname,
-      '../../../modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
+      '../../../../modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
     );
     const source = fs.readFileSync(nativePath, 'utf8');
     expect(source).toContain('inputDetails.dataType() == DataType.INT8');
@@ -313,7 +313,7 @@ describe('offline operation', () => {
   it('links the production model into the Android asset root used by the native module', () => {
     const fs = require('fs');
     const path = require('path');
-    const appConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../app.json'), 'utf8'));
+    const appConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../../app.json'), 'utf8'));
     const assetPlugin = appConfig.expo.plugins.find(
       (plugin: unknown) => Array.isArray(plugin) && plugin[0] === 'expo-asset',
     );
@@ -321,7 +321,7 @@ describe('offline operation', () => {
 
     const nativePath = path.resolve(
       __dirname,
-      '../../../modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
+      '../../../../modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
     );
     const source = fs.readFileSync(nativePath, 'utf8');
     expect(source).toContain('INT8_MODEL_ASSET = "ca_mobilenetv3_small_int8.tflite"');

@@ -18,7 +18,8 @@ from ai.data.build_final_split import (
     write_split_outputs,
 )
 from ai.data.build_labeled_cohort import build_cohort, load_cohort_config, write_cohort_manifest
-from ai.data.dataset import _sha256, prepare_splits
+from ai.data.dataset import prepare_splits
+from ai.data.image_fingerprints import sha256_file
 from ai.data.metadata_manifest import _record_fingerprint, enrich_metadata, write_manifest
 
 
@@ -88,8 +89,8 @@ class FinalSplitBuilderTest(unittest.TestCase):
         left, right = by_class["healthy"][0:2]
         evidence = {
             "review_key": f"{left}||{right}",
-            "sha256_a": _sha256(root / left),
-            "sha256_b": _sha256(root / right),
+            "sha256_a": sha256_file(root / left),
+            "sha256_b": sha256_file(root / right),
             "flip_aware_dhash64_a": "0000000000000000",
             "flip_aware_dhash64_b": "0000000000000000",
             "hamming_distance": 0,

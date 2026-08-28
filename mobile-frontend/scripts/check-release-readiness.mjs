@@ -4,12 +4,12 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const productionSources = [
   'index.ts',
-  'App.tsx',
-  'src/components/AppErrorBoundary.tsx',
-  'src/data.ts',
-  'src/types.ts',
-  'src/services/inference.ts',
-  'src/services/preprocessing.ts',
+  'src/app/App.tsx',
+  'src/shared/components/AppErrorBoundary.tsx',
+  'src/features/classification/disease-data.ts',
+  'src/features/classification/types.ts',
+  'src/features/classification/inference.ts',
+  'src/features/classification/preprocessing.ts',
   'modules/dahonmd-tflite/index.ts',
   'modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
 ];
@@ -74,7 +74,7 @@ if (existsSync(appConfigPath)) {
   problems.push('Expo app config is missing: app.json.');
 }
 
-const inferencePath = resolve(root, 'src/services/inference.ts');
+const inferencePath = resolve(root, 'src/features/classification/inference.ts');
 if (existsSync(inferencePath)) {
   const inference = readFileSync(inferencePath, 'utf8');
   if (inference.includes('NativeModules.DahonMDTFLite')) {

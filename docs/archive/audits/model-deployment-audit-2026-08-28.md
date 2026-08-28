@@ -1,5 +1,9 @@
 # Final CA-MobileNetV3-Small Deployment Audit
 
+> [!NOTE]
+> Historical snapshot from 2026-08-28. Use current component guides and test
+> output before making a release-readiness claim.
+
 Audit date: 2026-08-28
 
 ## Decision

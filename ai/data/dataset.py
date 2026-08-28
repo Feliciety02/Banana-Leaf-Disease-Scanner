@@ -7,7 +7,7 @@ import json
 import random
 import warnings
 from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -15,14 +15,19 @@ import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from ai.config.config import ExperimentConfig
+from ai.data.image_fingerprints import (
+    HammingBkTree as _HammingBkTree,
+    difference_hash as _difference_hash,
+    flip_aware_difference_hash as _flip_aware_difference_hash,
+    sha256_file as _sha256,
+)
 from ai.data.metadata_manifest import (
-    LEGACY_DEFAULTS,
-    LEGACY_FIELDS,
     enrich_metadata,
     load_manifest_payload,
     validation_report as build_metadata_validation_report,
     write_manifest as write_metadata_manifest,
 )
+from ai.data.records import DatasetSplits, ImageInventoryValidation, ImageRecord, METADATA_DEFAULTS, METADATA_FIELDS
 
 
 def _require_tensorflow():
@@ -34,55 +39,6 @@ def _require_tensorflow():
             "Install the AI dependencies with: python -m pip install -r ai/requirements.txt"
         ) from error
     return tf
-
-
-@dataclass(frozen=True)
-class ImageRecord:
-    path: str
-    label: int
-    class_name: str
-    sha256: str
-    group_id: str
-    source: str = "unknown"
-    plant_id: str = "unknown"
-    leaf_id: str = "unknown"
-    site_id: str = "unknown"
-    session_id: str = "unknown"
-    origin_type: str = "unknown"
-    capture_device: str = "unknown"
-    acquisition_date: str = "unknown"
-    field_subset: str = "none"
-    species_review_status: str = "pending"
-    visibility_quality_status: str = "pending"
-    inclusion_status: str = "pending"
-    label_validator: str = "unknown"
-    label_review_status: str = "pending"
-
-
-@dataclass
-class DatasetSplits:
-    class_names: list[str]
-    train: list[ImageRecord]
-    validation: list[ImageRecord]
-    test: list[ImageRecord]
-    ssl_unlabeled: list[ImageRecord] = field(default_factory=list)
-    final_field_test: list[ImageRecord] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
-class ImageInventoryValidation:
-    hashes_by_path: dict[Path, str]
-    perceptual_hashes_by_path: dict[Path, int]
-    report_path: Path
-    scanned_count: int
-    rejected_count: int
-    quarantined_count: int
-    exact_duplicate_count: int
-    near_duplicate_pair_count: int
-
-
-METADATA_FIELDS = LEGACY_FIELDS
-METADATA_DEFAULTS = LEGACY_DEFAULTS
 
 
 def require_dataset_dir(config: ExperimentConfig) -> Path:
@@ -101,17 +57,6 @@ def _image_paths(directory: Path, extensions: Sequence[str]) -> list[Path]:
     return sorted(path for path in directory.rglob("*") if path.is_file() and path.suffix.lower() in allowed)
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    try:
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
-    except OSError as error:
-        raise OSError(f"Could not read image: {path}: {error}") from error
-    return digest.hexdigest()
-
-
 def _candidate_class(path: Path, root: Path) -> str | None:
     parts = path.relative_to(root).parts
     if not parts:
@@ -119,63 +64,6 @@ def _candidate_class(path: Path, root: Path) -> str | None:
     if parts[0] in {"train", "validation", "val", "test"}:
         return parts[1] if len(parts) > 1 else None
     return parts[0]
-
-
-def _difference_hash(image: Image.Image) -> int:
-    resized = image.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
-    pixels = resized.tobytes()
-    value = 0
-    for row in range(8):
-        offset = row * 9
-        for column in range(8):
-            value = (value << 1) | int(pixels[offset + column] > pixels[offset + column + 1])
-    return value
-
-
-def _flip_aware_difference_hash(image: Image.Image) -> int:
-    variants = (
-        image,
-        image.transpose(Image.Transpose.FLIP_LEFT_RIGHT),
-        image.transpose(Image.Transpose.FLIP_TOP_BOTTOM),
-        image.transpose(Image.Transpose.ROTATE_180),
-    )
-    return min(_difference_hash(variant) for variant in variants)
-
-
-class _HammingBkTree:
-    """BK-tree for a reusable, sub-quadratic perceptual-hash sweep."""
-
-    def __init__(self) -> None:
-        self._nodes: list[tuple[int, dict[int, int]]] = []
-
-    def add(self, value: int) -> None:
-        if not self._nodes:
-            self._nodes.append((value, {}))
-            return
-        index = 0
-        while True:
-            current, children = self._nodes[index]
-            distance = (current ^ value).bit_count()
-            child = children.get(distance)
-            if child is None:
-                children[distance] = len(self._nodes)
-                self._nodes.append((value, {}))
-                return
-            index = child
-
-    def query(self, value: int, radius: int) -> set[int]:
-        if not self._nodes:
-            return set()
-        matches: set[int] = set()
-        pending = [0]
-        while pending:
-            current, children = self._nodes[pending.pop()]
-            distance = (current ^ value).bit_count()
-            if distance <= radius:
-                matches.add(current)
-            lower, upper = distance - radius, distance + radius
-            pending.extend(index for edge, index in children.items() if lower <= edge <= upper)
-        return matches
 
 
 def load_near_duplicate_reviews(path: str | Path | None) -> dict[str, dict[str, str]]:

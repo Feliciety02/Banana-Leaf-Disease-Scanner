@@ -12,7 +12,7 @@ from typing import Any, Iterable
 
 from PIL import Image, ImageOps
 
-from ai.data.dataset import _flip_aware_difference_hash, _sha256
+from ai.data.image_fingerprints import flip_aware_difference_hash, sha256_file
 from ai.data.metadata_manifest import load_manifest_payload
 
 
@@ -81,10 +81,10 @@ def _inspect_image(root: Path, relative: str) -> dict[str, Any]:
         oriented = ImageOps.exif_transpose(source)
         oriented.load()
         width, height = oriented.size
-        dhash = _flip_aware_difference_hash(oriented.convert("RGB"))
+        dhash = flip_aware_difference_hash(oriented.convert("RGB"))
     return {
         "path": relative,
-        "sha256": _sha256(path),
+        "sha256": sha256_file(path),
         "width": width,
         "height": height,
         "flip_aware_dhash64": f"{dhash:016x}",
@@ -294,7 +294,7 @@ def load_and_validate_adjudication(path: str | Path, dataset_root: str | Path) -
                 candidate_path.relative_to(root)
             except ValueError as error:
                 raise ValueError(f"Candidate path escapes dataset root: {pair[f'path_{suffix}']}") from error
-            current = _sha256(candidate_path)
+            current = sha256_file(candidate_path)
             if current != pair[f"sha256_{suffix}"]:
                 raise ValueError(f"Image content changed after candidate generation: {pair[f'path_{suffix}']}")
         fingerprint_inputs.append({key_name: pair[key_name] for key_name in (
