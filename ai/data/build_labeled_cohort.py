@@ -107,7 +107,7 @@ def _inventory_report_blockers(path: str | Path, inventory_count: int) -> tuple[
     blockers: list[str] = []
     if summary.get("scanned") != inventory_count:
         blockers.append(
-            f"inventory report scanned {summary.get('scanned')} files but active+quarantine inventory has {inventory_count}"
+            f"inventory report scanned {summary.get('scanned')} files but current inventory has {inventory_count}"
         )
     if summary.get("cross_label_exact_conflicts", 0):
         blockers.append(f"{summary['cross_label_exact_conflicts']} cross-label exact conflicts remain")

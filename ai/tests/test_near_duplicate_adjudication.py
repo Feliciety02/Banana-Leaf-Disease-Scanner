@@ -63,7 +63,7 @@ class NearDuplicateAdjudicationTest(unittest.TestCase):
         return destination
 
     def _metadata(self, root: Path, destination: Path) -> Path:
-        payload = enrich_metadata(root, CLASS_LABELS, ["dead"], [".png"], None)
+        payload = enrich_metadata(root, CLASS_LABELS, [".png"], None)
         return write_manifest(payload, destination)
 
     def test_confirmed_transitive_relations_share_one_split_without_image_changes(self) -> None:

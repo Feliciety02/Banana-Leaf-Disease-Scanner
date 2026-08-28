@@ -50,8 +50,8 @@ class ComparisonServiceTest(unittest.TestCase):
             baseline.write_bytes(b"fixture")
             enhanced.write_bytes(b"fixture")
             label_map.write_text(json.dumps({
-                "0": "healthy", "1": "dead", "2": "black-sigatoka",
-                "3": "yellow-sigatoka", "4": "cordana-leaf-spot",
+                "0": "healthy", "1": "black-sigatoka", "2": "yellow-sigatoka",
+                "3": "cordana-leaf-spot", "4": "panama-disease",
             }), encoding="utf-8")
             with patch.dict(os.environ, {
                 "DAHONMD_BASELINE_TFLITE": str(baseline),

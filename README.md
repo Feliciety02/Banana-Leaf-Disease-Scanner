@@ -102,6 +102,5 @@ on Android hardware with the backend and network unavailable.
 ## Scientific Boundaries
 
 - `sigatoka` combines Black- and Yellow-source presentations; they are not separate output classes.
-- `dead` is a quarantined historical dataset label and is not a model class or Moko disease.
 - Panama Disease output is not laboratory confirmation of Fusarium or Foc infection.
 - Source images, expert review, cohort membership, frozen splits, and experimental results must not be altered during repository maintenance.

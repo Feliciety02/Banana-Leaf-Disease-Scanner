@@ -23,7 +23,7 @@ and field-level evidence in `field_provenance`.
 | `location` | Verified capture location; source-level regions are explicitly labeled | Yes | Required for field images |
 | `expert_validated` | `pending` or `validated` | Pending | Must be `validated` |
 | `group_id` | Reviewed biological/acquisition family, or reviewed singleton ID | Pending | Yes |
-| `qc_status` | `pending_human_review`, `approved`, `excluded`, or `quarantined` | Pending | Must be `approved` |
+| `qc_status` | `pending_human_review`, `approved`, or `excluded` | Pending | Must be `approved` |
 | `duplicate_status` | Automated or reviewed duplicate-screen result | Pending | Must be resolved |
 | `originality_status` | `original`, `augmented`, `derived`, or `unknown` | Yes | Must be `original` |
 | `lighting_condition` | Verified lighting category when recorded | Yes | No when unavailable |

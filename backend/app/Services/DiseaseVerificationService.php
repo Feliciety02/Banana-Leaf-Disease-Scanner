@@ -34,7 +34,7 @@ class DiseaseVerificationService
         }
 
         $classIdentity = strtolower($disease->model_class_key.' '.$disease->name);
-        $isNonDiseaseClass = str_contains($classIdentity, 'healthy') || str_contains($classIdentity, 'dead');
+        $isNonDiseaseClass = str_contains($classIdentity, 'healthy');
         foreach ($isNonDiseaseClass ? [] : ['causal_agent', 'curative_status'] as $claimType) {
             if (! $disease->evidence->contains('claim_type', $claimType)) {
                 $errors['evidence'][] = "A {$claimType} claim mapping is required.";

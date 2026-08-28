@@ -59,9 +59,6 @@ class DatasetManifestInventoryTest(unittest.TestCase):
             dataset = workspace / "dataset"
             self._make_minimum_dataset(dataset)
             (dataset / "healthy" / "corrupt.png").write_bytes(b"not an image")
-            invalid_class = dataset / "dead"
-            invalid_class.mkdir()
-            Image.new("RGB", (4, 4), (1, 2, 3)).save(invalid_class / "dead.png")
             Image.new("L", (4, 4), 128).save(dataset / "healthy" / "grayscale.png")
 
             config = ExperimentConfig()
@@ -71,12 +68,11 @@ class DatasetManifestInventoryTest(unittest.TestCase):
             splits = prepare_splits(config, manifest)
 
             report = json.loads((workspace / "image_validation_report.json").read_text(encoding="utf-8"))
-            self.assertEqual(report["summary"]["scanned"], 15)
+            self.assertEqual(report["summary"]["scanned"], 14)
             self.assertEqual(report["summary"]["accepted"], 13)
             self.assertEqual(report["summary"]["rejected"], 1)
-            self.assertEqual(report["summary"]["quarantined"], 1)
             self.assertEqual(report["summary"]["rejected_by_reason"]["unreadable_image"], 1)
-            self.assertNotIn("dead", splits.class_names)
+            self.assertEqual(splits.class_names, list(CLASS_LABELS))
             self.assertTrue(
                 any(Path(record.path).name == "grayscale.png" for record in splits.train + splits.validation + splits.test)
             )

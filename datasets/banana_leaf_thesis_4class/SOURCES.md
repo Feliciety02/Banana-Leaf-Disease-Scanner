@@ -1,7 +1,7 @@
-# Four-Class Thesis Dataset Sources and Dead-Leaf Quarantine
+# Four-Class Thesis Dataset Sources
 
 This record documents the sources, licenses, admission checks, and flattening
-for the four-class thesis inventory and preserved dead-leaf quarantine. The
+for the four-class thesis inventory. The
 August 23, 2026 validator report is authoritative for current counts; older
 admission narratives below are retained as history.
 
@@ -13,8 +13,7 @@ admission narratives below are retained as history.
 | `sigatoka` | 4,000 active | Zenodo Tanzania (Black Sigatoka); v4 compilation (Yellow and Black Sigatoka); BananaLSD; earlier Banana Disease Recognition originals |
 | `panama-disease` | 4,000 active | Zenodo Tanzania (Fusarium Wilt); Banana Disease Recognition Dataset originals |
 | `cordana-leaf-spot` | 670 active | BananaLSD originals; v4 compilation (Cordana); Ecuador Cordana field originals |
-| `dead` | 745 quarantined | Preserved source images; excluded from every thesis split and model output |
-| **Files on disk** | **13,415** | **12,670 active; 745 quarantined** |
+| **Files on disk** | **12,670** | **12,670 active** |
 
 ## Filename prefixes and provenance
 
@@ -77,7 +76,7 @@ dimension of 1024 px on admission.
 - **Upstream dataset:** Mafi et al. (2023), DOI <https://doi.org/10.17632/79w2n6b4kf.1>
 - **Version:** 1
 - **License:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Used here:** earlier original-image imports supporting Healthy, Dead leaf, Sigatoka, and Panama disease
+- **Used here:** earlier original-image imports supporting Healthy, Sigatoka, and Panama disease
 - **Excluded:** source-provided augmented derivatives
 
 ### Banana Leaf Disease Dataset v4 (compilation)

@@ -13,8 +13,8 @@ Status reviewed on 2026-08-23 against the repository and automated tests.
 - `[ ]` means it still needs real dataset work, adviser/domain approval, a completed experiment, generated artifacts, or retained evidence.
 - Completed implementation checks must be rechecked if the corresponding code or research protocol changes.
 - The virtual environment and required packages are present.
-- The fixed thesis outputs are Healthy, Sigatoka, Panama disease, and Cordana leaf spot. The `dead` folder is preserved as a 745-image quarantine and is never assigned an output index.
-- The current 13,420-file inventory yields 12,670 canonical four-class images after five exact Cordana copies are reported and excluded without deletion. The audit found 1,011 perceptual pairs requiring review; only 16 images have explicit biological/acquisition group assignments, and all 12,670 active metadata entries remain incomplete. Formal split creation and retraining are therefore correctly blocked.
+- The fixed thesis outputs are Healthy, Sigatoka, Panama disease, and Cordana leaf spot.
+- The current 12,675-file inventory yields 12,670 canonical four-class images after five exact Cordana copies are reported and excluded without deletion. The former 745-image `dead` folder is removed and no longer appears in the active inventory. The audit found 1,011 perceptual pairs requiring review; only 16 images have explicit biological/acquisition group assignments, and all 12,670 active metadata entries remain incomplete. Formal split creation and retraining are therefore correctly blocked.
 - Existing baseline/enhanced artifacts and their reports use retired contracts. They remain historical evidence only and are rejected by current runtime label-map validation. No current-contract model is trained or deployable.
 
 The intended enhanced architecture remains Coordinate Attention-enhanced
@@ -24,7 +24,7 @@ Do not change either variant without an approved thesis protocol amendment.
 
 ## Fixed research contract
 
-- [ ] Confirm the four supported model classes and dead-leaf quarantine policy with the thesis adviser and agricultural/domain reviewer.
+- [ ] Confirm the four supported model classes with the thesis adviser and agricultural/domain reviewer.
 - [x] Preserve the exact output-index order from `ai/config/labels.py`:
   - `0` — `healthy`
   - `1` — `sigatoka`
@@ -433,7 +433,7 @@ Evidence required: raw timing logs, profiler exports/screenshots, device specifi
 ## 18. Robustness and error analysis
 
 - [ ] Review the confusion matrix for recurring class confusions.
-- [ ] Inspect errors involving Dead leaf, Sigatoka, Panama disease, Cordana leaf spot, and Healthy separately.
+- [ ] Inspect errors involving Sigatoka, Panama disease, Cordana leaf spot, and Healthy separately.
 - [ ] Review low-confidence correct predictions and high-confidence incorrect predictions.
 - [ ] Check performance under blur, shadows, clutter, occlusion, varying distances, and different capture devices where real samples exist.
 - [ ] Check field images separately from curated images when sample sizes permit.

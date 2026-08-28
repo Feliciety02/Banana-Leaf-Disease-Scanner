@@ -24,7 +24,6 @@ def main() -> None:
     payload = enrich_metadata(
         root=root,
         class_names=config.data.class_names,
-        quarantined_class_names=config.data.quarantined_class_names,
         extensions=config.data.allowed_extensions,
         existing_path=args.metadata_manifest,
         group_manifest_path=args.group_manifest,

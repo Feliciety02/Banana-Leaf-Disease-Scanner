@@ -46,7 +46,6 @@ class DashboardService
             'simulated_predictions' => $snapshot['simulated_predictions'],
             'pending_or_failed_syncs' => $snapshot['pending_or_failed_syncs'],
             'healthy_predictions' => $snapshot['healthy_predictions'],
-            'dead_predictions' => $snapshot['dead_predictions'],
             'diseased_predictions' => $snapshot['diseased_predictions'],
             'confidence_threshold' => $confidenceThreshold,
             'diagnoses_per_class' => $snapshot['diagnoses_per_class'],

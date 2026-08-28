@@ -3,9 +3,7 @@
 ## Current content gate
 
 The thesis model now follows the four-class contract `healthy`, `sigatoka`,
-`panama-disease`, and `cordana-leaf-spot`. The `dead` source folder and its
-knowledge content remain preserved, but `dead` is quarantined and has no model
-output index. The `sigatoka` class
+`panama-disease`, and `cordana-leaf-spot`. The `sigatoka` class
 combines Black- and Yellow-source presentations and does not claim subtype
 identification. Generic Sigatoka images without sufficient provenance remain
 outside the training root pending expert review. The Panama training folder has
@@ -21,7 +19,7 @@ must use one of the canonical values as `model_class_key`.
 
 ## Research dossier gate
 
-For every confirmed disease class, prepare and validate a dossier before database insertion. It must document the accepted and alternative names, current causal-agent taxonomy and type, Philippine relevance, leaf-visible and non-leaf symptoms, spread, curative status, prevention, management, referral/reporting action, visual look-alikes, image-only limitations, evidence quality, and full source metadata. Non-disease visual classes such as Healthy and Dead leaf must explicitly omit pathogen claims and explain that the image class cannot establish a biological cause.
+For every confirmed disease class, prepare and validate a dossier before database insertion. It must document the accepted and alternative names, current causal-agent taxonomy and type, Philippine relevance, leaf-visible and non-leaf symptoms, spread, curative status, prevention, management, referral/reporting action, visual look-alikes, image-only limitations, evidence quality, and full source metadata. Non-disease visual classes such as Healthy must explicitly omit pathogen claims and explain that the image class cannot establish a biological cause.
 
 The evidence target is at least two peer-reviewed sources, one authoritative agricultural/institutional source, and a Philippines-specific source where available. Foundational biological evidence must be distinguished from current management or regulatory guidance. Source disagreement is stored in evidence notes rather than silently removed.
 
@@ -40,4 +38,4 @@ All chemical management items must set `regulatory_check_required`. They remain 
 
 ## Public result rule
 
-Uncertain results show retry guidance and no disease-specific management. Healthy output says only that no supported disease pattern was strongly detected. Dead leaf output describes a terminal visible condition and never assigns Moko disease or another cause. Farmer guidance comes only from verified records. All results retain the screening disclaimer and image-only limitations.
+Uncertain results show retry guidance and no disease-specific management. Healthy output says only that no supported disease pattern was strongly detected. Farmer guidance comes only from verified records. All results retain the screening disclaimer and image-only limitations.
