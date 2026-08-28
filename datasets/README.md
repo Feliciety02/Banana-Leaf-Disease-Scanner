@@ -16,7 +16,7 @@ Use this folder when your task involves collecting images, checking labels, remo
 If you are new to the dataset, follow this order:
 
 1. Read [Meaning of each label](#meaning-of-each-label).
-2. Check whether the image belongs in training or [label review](label-review/README.md).
+2. Check whether the image belongs in training or [label review](reviews/labels/README.md).
 3. Record provenance and biological grouping.
 4. Put only approved images in the exact class folder.
 5. Run the validator.
@@ -27,34 +27,41 @@ If you are new to the dataset, follow this order:
 
 ## Workspace Map
 
-The current paths are retained because AI configuration, tests, manifests, and
-historical evidence refer to them directly. Dataset image and generated JSON/CSV
-content is intentionally ignored by Git, so moving those files would not have a
-Git recovery path.
+The workspace keeps immutable image inputs at the top level and groups all
+supporting material by purpose. Dataset images and generated JSON/CSV content
+remain intentionally ignored by Git; the manifests and review records are
+preserved locally and must be backed up with the research workspace.
 
 | Path | Role | Current use |
 | --- | --- | --- |
 | `banana_leaf_thesis_4class/` | **SOURCE INPUT** | Original working image inventory. The four model-class folders are active inputs; `dead/` is quarantine and is not a fifth class. Do not modify images in place. |
 | `davao-field/` | **SOURCE INPUT** | Original Davao field acquisitions. Keep originals immutable. |
 | `ssl-unlabeled/` | **SOURCE INPUT** | Original external unlabeled banana-leaf candidates. Keep originals immutable. |
-| `image_metadata.json` | **CURRENT METADATA** | Authoritative metadata manifest documented by `METADATA_SCHEMA.md`. |
-| `group_manifest.json` | **CURRENT METADATA** | Active grouping input referenced by AI configurations and validation. |
-| `group_manifest.reviewed.json` | **MANUAL REVIEW OUTPUT** | Proposed reviewed grouping output; do not replace the active manifest without the documented checks. |
-| `group_manifest_retired.json` | **ARCHIVED METADATA** | Historical assignments for paths absent from the current inventory. |
-| `near_duplicate_adjudication.json` and matching `.csv` | **MANUAL REVIEW** | Authoritative review queue and spreadsheet view documented by `NEAR_DUPLICATE_REVIEW.md`. |
-| `near_duplicate_adjudication.reviewed.json` | **MANUAL REVIEW OUTPUT** | Imported review decisions; apply only through the documented validation command. |
-| `near_duplicate_application_summary.json` | **GENERATED OUTPUT** | Reproducible application report; it does not change labels or images. |
-| Other `near_duplicate_*.csv` working copies | **UNKNOWN / WORKING COPY** | Not referenced by tracked code or current documentation. Preserve until their owner confirms whether they are historical evidence. |
-| `cohorts/` | **COHORT** | Versioned cohort output and blocked diagnostic output. A file named as the final cohort can still contain `status: blocked`; inspect its status before use. |
-| `splits/` | **SPLIT** | Generated frozen-split workspace. No completed split summary is currently present. |
-| `label-review/` | **MANUAL REVIEW / ARCHIVE** | Label decisions and dated migration evidence. |
-| `ssl/` | **CURRENT METADATA + GENERATED OUTPUT** | SSL source registry and review decisions are inputs; `ssl/manifests/` contains generated manifests. |
-| `davao-field-workflow/` | **CURRENT METADATA + GENERATED OUTPUT** | Field registry and review decisions are inputs; `manifests/` contains generated manifests. |
+| `metadata/` | **CURRENT + ARCHIVED METADATA** | Authoritative image/group manifests, a proposed reviewed group output, and retired assignments. |
+| `reviews/` | **HUMAN REVIEW** | Label decisions, the near-duplicate queue, reviewed decisions, application summary, and preserved working copies. |
+| `workflows/` | **ACQUISITION WORKFLOWS** | Davao field and external SSL registries, review files, and generated manifests. |
+| `outputs/` | **GENERATED OUTPUTS** | Versioned cohort diagnostics and frozen-split workspace. Inspect each artifact's status before use. |
+| `docs/` | **STUDENT GUIDES** | Metadata, duplicate review, cohort, split, SSL, and Davao workflow instructions in pipeline order. |
 
-Physical migration to `source/`, `metadata/current/`, `metadata/archive/`, and
-`reviews/` is deferred until the ignored working files have an external backup
-and their current-versus-historical status is confirmed. This avoids silently
-rewriting provenance paths or losing research evidence.
+```text
+datasets/
+├── banana_leaf_thesis_4class/  # labeled images + dead quarantine
+├── davao-field/                # original field captures
+├── ssl-unlabeled/              # original unlabeled SSL candidates
+├── metadata/                   # image and grouping manifests
+├── reviews/                    # human label and duplicate decisions
+├── workflows/                  # Davao and SSL registries/manifests
+├── outputs/                    # cohort and split artifacts
+└── docs/                       # step-by-step student guides
+```
+
+The 4 GB labeled image root was intentionally not relocated: current
+provenance and adjudication manifests store its absolute root. Keeping the
+three input paths stable avoids rewriting scientific evidence merely for
+cosmetic foldering.
+
+The complete old-to-new path map and integrity record is in
+[`layout-migration-2026-08-28.md`](docs/layout-migration-2026-08-28.md).
 
 ## Current Class Contract (August 26, 2026)
 
@@ -81,13 +88,14 @@ sorted alphabetically or changed independently in another client.
 > The August 26 formal audit found 0 unreadable images, 0 exact duplicate
 > copies, 1,011 perceptual pairs requiring visual review, and only 16 active
 > images with explicit biological/acquisition group assignments. Seven stale
-> assignments were moved to `group_manifest_retired.json` without erasing them.
+> assignments were moved to `metadata/archive/group_manifest_retired.json`
+> without erasing them.
 > Formal split creation is blocked until metadata and near-duplicate review are
 > complete. Existing model artifacts are incompatible with this contract.
 
 The complete pair-review procedure, decision vocabulary, current queue counts,
 and deterministic artifact fingerprints are in
-[`NEAR_DUPLICATE_REVIEW.md`](NEAR_DUPLICATE_REVIEW.md). The generated JSON and
+[`near-duplicate-review.md`](docs/near-duplicate-review.md). The generated JSON and
 CSV review artifacts remain local under `datasets/` because the repository's
 dataset ignore policy excludes non-documentation files.
 
@@ -96,21 +104,21 @@ the dead-leaf quarantine. The validator determines the accepted canonical count
 after exact-copy exclusion; folder counts alone are not a formal cohort.
 
 After review and grouping, use the versioned cohort procedure in
-[`COHORT_SELECTION.md`](COHORT_SELECTION.md). The current 700-per-class build is
+[`cohort-selection.md`](docs/cohort-selection.md). The current 700-per-class build is
 blocked and selects zero files: Cordana has only 670 raw images, while metadata
 and duplicate adjudication are still incomplete. Cohort selection precedes the
 70/15/15 split.
 
 The atomic group-aware splitting procedure and current signed blocked result
-are documented in [`FINAL_SPLIT.md`](FINAL_SPLIT.md). No train, validation, or
+are documented in [`final-split.md`](docs/final-split.md). No train, validation, or
 test manifest is emitted until the cohort and all split quality gates pass.
 
 The separate public-unlabeled ingestion framework is documented in
-[`SSL_INGESTION.md`](SSL_INGESTION.md). Its current honest count is zero acquired
+[`ssl-ingestion.md`](docs/ssl-ingestion.md). Its current honest count is zero acquired
 and zero SSL-ready, leaving the full 8,000-image target outstanding.
 
 For Davao field photos, follow the student checklist in
-[`DAVAO_FIELD_WORKFLOW.md`](DAVAO_FIELD_WORKFLOW.md). It explains what metadata
+[`davao-field-workflow.md`](docs/davao-field-workflow.md). It explains what metadata
 to record, how expert review works, why related photos share a group, and why
 approved images are final-test-only. The current field manifest reports zero
 acquired and zero expert-validated test-ready images.
@@ -133,7 +141,7 @@ license, mapping, and selection details.
 
 A repository-wide rescan then found 428 exact Healthy copies in four repeated
 107-image batches. They were moved to
-`label-review/exact-duplicates/healthy-incoming-2026-08-16/`; one clean
+`reviews/labels/exact-duplicates/healthy-incoming-2026-08-16/`; one clean
 `fresh1.jpg` through `fresh107.jpg` set remains active. (The quarantined copies
 were removed from the working tree later that day and remain recoverable from
 git history.)
@@ -307,7 +315,7 @@ the active training set:
 | Finding | Action |
 | --- | --- |
 | `bananier_cercosporiose_noire_sigatocare.jpg` exactly duplicated image 70 | Removed the second active copy |
-| Malformed `452.jpeg` was reintroduced and exactly matched quarantined copies | Removed the reintroduced active copy; the original audit copy remains under `label-review/malformed/sigatoka/` |
+| Malformed `452.jpeg` was reintroduced and exactly matched quarantined copies | Removed the reintroduced active copy; the original audit copy remains under `reviews/labels/malformed/sigatoka/` |
 | 5 unrelated PDFs and 1 executable were present in the class folder | Removed; these formats are never loaded by the model |
 
 The 131 retained Black-source images are now part of the 154-image `sigatoka`
@@ -344,11 +352,11 @@ The August 14, 2026 audit made these recoverable changes:
 
 | Finding | Action |
 | --- | --- |
-| 38 duplicate Healthy files | Moved to `label-review/exact-duplicates/` |
-| 1 duplicate Yellow-source Sigatoka file | Moved to `label-review/exact-duplicates/sigatoka/` |
-| Malformed Sigatoka image `452.jpeg` | Moved to `label-review/malformed/sigatoka/` |
+| 38 duplicate Healthy files | Moved to `reviews/labels/exact-duplicates/` |
+| 1 duplicate Yellow-source Sigatoka file | Moved to `reviews/labels/exact-duplicates/sigatoka/` |
+| Malformed Sigatoka image `452.jpeg` | Moved to `reviews/labels/malformed/sigatoka/` |
 | Former `moko-disease` images | Renamed and retained as the visual `dead` class |
-| 473 generic `sigatoka` images | Moved outside training to `label-review/sigatoka-unverified/` |
+| 473 generic `sigatoka` images | Moved outside training to `reviews/labels/sigatoka-unverified/` |
 
 The old Moko folder name was not supported by image-only evidence. Renaming it to `dead` describes visible condition only and makes no claim about why the leaves died.
 
@@ -367,13 +375,13 @@ The 23 Yellow-source images now included in `sigatoka` came from Mafi et al.,
 The source documents field collection and augmentation but not molecular
 confirmation or expert review for every retained image. Several images have
 Cordana-like visual overlap. Their original source label and pending status are
-recorded in `label-review/sigatoka-legacy-yellow-review.csv`.
+recorded in `reviews/labels/sigatoka-legacy-yellow-review.csv`.
 
 These images support source-labeled exploratory research only. They must not support a production diagnostic claim until reviewed.
 
 ## Label Review Workflow
 
-Use [label-review/README.md](label-review/README.md) for quarantined files.
+Use [reviews/labels/README.md](reviews/labels/README.md) for quarantined files.
 
 An admission decision must record:
 
@@ -434,7 +442,7 @@ class-stratified split of biological/acquisition groups:
 > [!CAUTION]
 > A generated manifest is not, by itself, proof that the split is biologically
 > independent. The validator can enforce only the relationships recorded in
-> `group_manifest.json` plus exact byte matches. Until the source, near-duplicate,
+> `metadata/group_manifest.json` plus exact byte matches. Until the source, near-duplicate,
 > and biological/acquisition-group audit is complete, report resulting scores as
 > preliminary rather than as evidence of field generalization.
 
@@ -468,10 +476,10 @@ safeguard. Hashing catches byte-identical copies but cannot recognize a differen
 angle, crop, re-encode, or burst frame of the same leaf. Therefore, an unreviewed
 hash-only inventory is acceptable for exploratory runs but is **not sufficient
 evidence of an independent thesis test set**. Those relationships must be
-resolved in `datasets/group_manifest.json` before a formal experiment.
+resolved in `datasets/metadata/group_manifest.json` before a formal experiment.
 
-`datasets/image_metadata.json` uses the deterministic schema documented in
-[`METADATA_SCHEMA.md`](METADATA_SCHEMA.md). It records the canonical and
+`datasets/metadata/image_metadata.json` uses the deterministic schema documented in
+[`metadata-schema.md`](docs/metadata-schema.md). It records the canonical and
 original labels, source dataset/type, public/field origin, available capture
 metadata, expert decision, biological/acquisition group, QC and duplicate
 status, per-field evidence, and a content fingerprint. Unknown values are
@@ -511,8 +519,8 @@ From the repository root:
 ```powershell
 .venv\Scripts\python.exe -m ai.data.validate_dataset `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --group-manifest datasets\group_manifest.json `
-  --metadata-manifest datasets\image_metadata.json `
+  --group-manifest datasets\metadata\group_manifest.json `
+  --metadata-manifest datasets\metadata\image_metadata.json `
   --formal
 ```
 
@@ -538,9 +546,9 @@ Do not ignore a warning simply because training still starts. Fix or formally do
 | Problem | What to do |
 | --- | --- |
 | A class folder is rejected | Match the exact lowercase model key from the label table. |
-| An image is unreadable | Move it to `label-review/malformed/` (or, if the folder is empty, record the exclusion in `label-review/` and rely on git history) and retain the audit note. |
+| An image is unreadable | Move it to `reviews/labels/malformed/` (or, if the folder is empty, record the exclusion in `reviews/labels/` and rely on git history) and retain the audit note. |
 | A duplicate appears in two classes | Remove it from training and resolve the label conflict. |
-| Related photos appear in different splits | Add their paths to one group in `group_manifest.json`. |
+| Related photos appear in different splits | Add their paths to one group in `metadata/group_manifest.json`. |
 | Yellow and Cordana look similar | Do not guess; keep the record pending qualified review. |
 | The dataset count changed | Revalidate, record the reason, and create a new experiment version. |
 | Accuracy dropped after adding images | Check labels, balance, provenance, and field difficulty; a larger test can be more honest. |
@@ -551,7 +559,7 @@ Before giving the dataset to the model trainer, provide:
 
 - the validated dataset path;
 - the class counts;
-- `group_manifest.json`;
+- `metadata/group_manifest.json`;
 - provenance and license records;
 - the list of pending or excluded images;
 - validator output and split-manifest fingerprint; and

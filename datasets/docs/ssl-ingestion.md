@@ -20,7 +20,7 @@ are neither requested nor accepted by its registry schema.
 | shortage | **8,000** |
 
 The current versioned manifest is
-`datasets/ssl/manifests/banana-leaf-external-ssl-v1.json`, with status `empty`
+`datasets/workflows/ssl/manifests/banana-leaf-external-ssl-v1.json`, with status `empty`
 and fingerprint
 `bf4909673ff1b1c28078dd5c779cc86083d21ca1147921c55e7306ecb156bc18`.
 The command intentionally exits nonzero for an empty inventory. The 8,000 value
@@ -29,8 +29,8 @@ is a target, not an achieved count.
 ## Separation and files
 
 - Image root: `datasets/ssl-unlabeled/`
-- Source/image registry: `datasets/ssl/source_registry.json`
-- Near-duplicate decisions: `datasets/ssl/near_duplicate_reviews.json`
+- Source/image registry: `datasets/workflows/ssl/source_registry.json`
+- Near-duplicate decisions: `datasets/workflows/ssl/near_duplicate_reviews.json`
 - Policy: `ai/config/ssl_ingestion_v1.json`
 - Schema example: `ai/config/ssl_source_registry_template.json`
 - Builder/loader: `ai/data/build_ssl_manifest.py`
@@ -101,12 +101,12 @@ disease classification.
 ```powershell
 .venv\Scripts\python.exe -m ai.data.build_ssl_manifest `
   --ssl-root datasets\ssl-unlabeled `
-  --source-registry datasets\ssl\source_registry.json `
+  --source-registry datasets\workflows\ssl\source_registry.json `
   --labeled-dataset-root datasets\banana_leaf_thesis_4class `
-  --heldout-exclusion datasets\splits\banana-leaf-thesis-split-v1\ssl_exclusion_manifest.json `
-  --near-reviews datasets\ssl\near_duplicate_reviews.json `
+  --heldout-exclusion datasets\outputs\splits\banana-leaf-thesis-split-v1\ssl_exclusion_manifest.json `
+  --near-reviews datasets\workflows\ssl\near_duplicate_reviews.json `
   --config ai\config\ssl_ingestion_v1.json `
-  --output datasets\ssl\manifests\banana-leaf-external-ssl-v1.json
+  --output datasets\workflows\ssl\manifests\banana-leaf-external-ssl-v1.json
 ```
 
 The held-out exclusion does not exist yet because the final labeled split is
@@ -120,7 +120,7 @@ Training must receive all three paths:
 ```powershell
 --final-split-dir <frozen-final-split> `
 --ssl-unlabeled-dir datasets\ssl-unlabeled `
---ssl-manifest datasets\ssl\manifests\banana-leaf-external-ssl-v1.json
+--ssl-manifest datasets\workflows\ssl\manifests\banana-leaf-external-ssl-v1.json
 ```
 
 A raw SSL directory is rejected. The loader verifies the SSL fingerprint, the

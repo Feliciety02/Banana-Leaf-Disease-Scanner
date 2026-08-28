@@ -33,7 +33,7 @@ audit record:
 | `healthy-duplicate-cleanup-2026-08-16.md` | Record of removed duplicate Healthy copies | Historical |
 | `taxonomy-migration-2026-08-16.md` | Record of the Black/Yellow → `sigatoka` + `panama-disease` taxonomy change | Historical |
 
-These records remain outside `banana_leaf_thesis_4class`, so the training loader cannot
+These records remain outside `../../banana_leaf_thesis_4class`, so the training loader cannot
 silently treat them as ground truth.
 
 ## Sigatoka and Panama Review Rule
@@ -82,10 +82,10 @@ Do not use a model prediction as the authority for relabeling that model's own t
 ## Known Findings
 
 - Sixty-two generic Sigatoka files were exact duplicates of files retained under
-  `banana_leaf_thesis_4class/sigatoka`. Only one training copy of each was kept.
+  `../../banana_leaf_thesis_4class/sigatoka`. Only one training copy of each was kept.
 - The legacy Yellow-source review sheet records conservative biological grouping
   and visible Cordana-like overlap.
-- `banana_leaf_thesis_4class/panama-disease` contains source-labeled candidates;
+- `../../banana_leaf_thesis_4class/panama-disease` contains source-labeled candidates;
   agricultural-expert review and biological/source grouping are still pending.
 - The malformed JPEG produced both a truncated-read warning and malformed MPO
   interpretation in Pillow; its audit copy is recoverable from git history.
@@ -102,4 +102,4 @@ Confirm every item:
 - [ ] The destination does not place the same biological specimen across splits.
 - [ ] The dataset will be validated again after the move.
 
-Return to the [dataset guide](../README.md) before admitting or excluding records.
+Return to the [dataset guide](../../README.md) before admitting or excluding records.

@@ -23,6 +23,9 @@ datasets/**/*
 !datasets/README.md
 !datasets/.gitkeep
 !datasets/**/*.md
+# Human label-review CSVs are small, versioned decision evidence. Generated
+# near-duplicate spreadsheets elsewhere under datasets/ remain ignored.
+!datasets/reviews/labels/**/*.csv
 .vscode/
 dahonmd_colab_code.zip
 **/.gradle/

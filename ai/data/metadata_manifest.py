@@ -338,7 +338,7 @@ def enrich_metadata(
         )
         provenance.setdefault(
             "group_id",
-            "explicit datasets/group_manifest.json assignment"
+            "explicit datasets/metadata/group_manifest.json assignment"
             if record["group_id"] not in UNRESOLVED_VALUES else
             "unresolved; requires biological/acquisition review or explicit independent-singleton confirmation",
         )
