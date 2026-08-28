@@ -4,6 +4,7 @@ Pillow>=10,<13
 scikit-learn>=1.4,<2
 matplotlib>=3.8,<4
 python-dotenv>=1.0,<2
+tqdm>=4.66,<5
 fastapi>=0.141,<0.142
 python-multipart>=0.0.32,<0.1
 uvicorn>=0.52,<0.53

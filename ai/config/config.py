@@ -116,6 +116,12 @@ class TeacherConfig:
     predictor_hidden_dim: int = 512
     dropout_rate: float = 0.30
     ssl_epochs: int = 100
+    # Save recoverable SSL state (weights, EMA target, optimizer slots) after every epoch so a
+    # stopped run loses at most the unfinished epoch. Rolling retention bounds disk use while
+    # preserving periodic milestone checkpoints for audit/recovery.
+    ssl_checkpoint_interval: int = 1
+    max_recent_checkpoints: int = 3
+    milestone_interval: int = 10
     finetune_epochs: int = 100
     ssl_learning_rate: float = 3e-4
     finetune_learning_rate: float = 1e-4
@@ -261,6 +267,9 @@ class ExperimentConfig:
             raise ValueError("The research baseline must use the same MobileNetV3-Small variant as the enhanced student")
         for name, value in {
             "teacher.ssl_epochs": self.teacher.ssl_epochs,
+            "teacher.ssl_checkpoint_interval": self.teacher.ssl_checkpoint_interval,
+            "teacher.max_recent_checkpoints": self.teacher.max_recent_checkpoints,
+            "teacher.milestone_interval": self.teacher.milestone_interval,
             "teacher.finetune_epochs": self.teacher.finetune_epochs,
             "student.epochs": self.student.epochs,
             "data.batch_size": self.data.batch_size,
