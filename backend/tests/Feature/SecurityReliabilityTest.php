@@ -17,6 +17,35 @@ class SecurityReliabilityTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_api_normalizes_identity_input_without_mutating_passwords(): void
+    {
+        $password = '  secret123  ';
+
+        $registration = $this->postJson('/api/auth/register', [
+            'name' => '  Field Farmer  ',
+            'email' => '  FARMER@Example.Test  ',
+            'password' => $password,
+            'password_confirmation' => $password,
+        ])->assertCreated();
+
+        $registration->assertJsonPath('data.user.name', 'Field Farmer')
+            ->assertJsonPath('data.user.email', 'farmer@example.test');
+        $this->postJson('/api/auth/login', [
+            'email' => ' FARMER@EXAMPLE.TEST ',
+            'password' => $password,
+        ])->assertOk();
+    }
+
+    public function test_role_gate_rejects_non_farmers_from_farmer_workflows(): void
+    {
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->getJson('/api/diagnoses')->assertForbidden();
+        $this->postJson('/api/inference')->assertForbidden();
+
+        Sanctum::actingAs(User::factory()->agriculturalExpert()->create());
+        $this->postJson('/api/mobile/sync')->assertForbidden();
+    }
+
     public function test_health_includes_database_check_and_request_id(): void
     {
         $response = $this->withHeader('X-Request-ID', 'health-check-123')->getJson('/api/health');
