@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 import numpy as np
 from dotenv import load_dotenv
 
-from ai.config.labels import CLASS_LABELS, NUM_CLASSES, QUARANTINED_CLASS_NAMES
+from ai.config.labels import CLASS_LABELS, NUM_CLASSES
 
 
 AI_ROOT = Path(__file__).resolve().parents[1]
@@ -70,7 +70,6 @@ class DataConfig:
     planned_ssl_unlabeled_total: int = 8000
     # Fixed model output-index order. Dataset directory names must match these keys.
     class_names: tuple[str, ...] = CLASS_LABELS
-    quarantined_class_names: tuple[str, ...] = QUARANTINED_CLASS_NAMES
     near_duplicate_hamming_distance: int = 6
     require_near_duplicate_review: bool = True
     require_complete_metadata: bool = True
@@ -227,13 +226,6 @@ class ExperimentConfig:
                 "data.class_names and their output-index order are fixed to "
                 f"{list(CLASS_LABELS)}"
             )
-        if tuple(self.data.quarantined_class_names) != QUARANTINED_CLASS_NAMES:
-            raise ValueError(
-                "data.quarantined_class_names is fixed to "
-                f"{list(QUARANTINED_CLASS_NAMES)} so preserved dead-leaf data cannot enter the experiment"
-            )
-        if set(self.data.class_names).intersection(self.data.quarantined_class_names):
-            raise ValueError("Active and quarantined class names must be disjoint")
         if (self.data.image_height, self.data.image_width, self.data.image_channels) != (224, 224, 3):
             raise ValueError("Teacher, student, calibration, and mobile inference require 224x224 RGB input")
         if self.data.planned_labeled_per_class * NUM_CLASSES != self.data.planned_labeled_total:

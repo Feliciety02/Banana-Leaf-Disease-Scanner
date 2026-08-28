@@ -236,31 +236,6 @@ class ScientificKnowledgeSeeder extends Seeder
                 ],
             ],
             [
-                'slug' => 'dead', 'model_class_key' => 'dead', 'name' => 'Dead Leaf', 'alternative_names' => ['Fully dried leaf', 'Necrotic leaf'],
-                'scientific_name' => null, 'causal_agent' => null, 'pathogen_type' => null,
-                'short_description' => 'A fully dried or necrotic banana leaf',
-                'farmer_summary' => 'This class describes a leaf that is already mostly or completely dead. It is a visible condition, not a diagnosis of the cause. Disease, pests, nutrient problems, drought, physical damage, normal aging, or several stresses together can lead to leaf death.',
-                'curative_status' => 'unclear_evidence', 'evidence_level' => 'moderate',
-                'image_only_limitations' => 'A photograph of dead tissue usually cannot show which earlier symptoms developed first or identify the responsible pathogen. DahonMD must not report Moko disease or another specific cause from this class.',
-                'professional_referral' => 'Ask an agricultural professional when several leaves or plants are declining, damage is spreading quickly, or internal stem and fruit symptoms are also present.',
-                'description' => 'The photographed leaf appears fully dried or necrotic. The cause cannot be established from dead leaf tissue alone.',
-                'management' => 'Inspect the whole plant and nearby plants before acting. Follow appropriate farm-sanitation practices for dead tissue and seek assessment when decline is widespread or unexplained.',
-                'prevention' => 'Monitor plants earlier so spots, yellowing, wilting, pest damage, and environmental stress can be assessed before the leaf is fully dead.',
-                'symptom_records' => [[
-                    'stage' => 'advanced', 'plant_part' => 'leaves', 'symptom' => 'Most or all visible leaf tissue is brown, dry, collapsed, or necrotic.',
-                    'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Most or all of the leaf is dry, brown, and no longer green.', 'sort_order' => 1,
-                ]],
-                'management_records' => [
-                    ['category' => 'sanitation', 'recommendation' => 'Handle dead leaf tissue using appropriate plantation sanitation practices after checking the wider plant for active symptoms.', 'farmer_friendly_text' => 'Check the rest of the plant first, then follow proper farm sanitation for dead leaves.', 'evidence_strength' => 'moderate', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 1],
-                    ['category' => 'expert_referral', 'recommendation' => 'Refer widespread, rapidly progressing, or unexplained plant decline for agricultural assessment.', 'farmer_friendly_text' => 'Ask an agricultural professional if several leaves or plants are dying or the damage is spreading.', 'evidence_strength' => 'high', 'requires_professional' => true, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 2],
-                ],
-                'evidence' => [
-                    ['source' => 'nozawa_2026', 'claim_type' => 'differential_diagnosis', 'claim_text' => 'Overlapping banana leaf-spot appearances can have different biological causes, so advanced dead tissue cannot establish a pathogen from appearance alone.', 'evidence_strength' => 'high'],
-                    ['source' => 'esguera_2024', 'claim_type' => 'symptom', 'claim_text' => 'Banana leaf-spot symptom interpretation depends on lesion development and cultivar context that can be lost after broad tissue necrosis.', 'evidence_strength' => 'moderate'],
-                    ['source' => 'pcaarrd_2017', 'claim_type' => 'management', 'claim_text' => 'Good agricultural practices, monitoring, and appropriate sanitation support management of banana production problems in Philippine field conditions.', 'evidence_strength' => 'moderate'],
-                ],
-            ],
-            [
                 'slug' => 'sigatoka', 'model_class_key' => 'sigatoka', 'name' => 'Sigatoka Leaf Spot', 'alternative_names' => ['Black Sigatoka', 'Yellow Sigatoka', 'Black leaf streak disease', 'Yellow leaf spot'],
                 'scientific_name' => 'Pseudocercospora fijiensis / Pseudocercospora musae', 'causal_agent' => 'Pseudocercospora fijiensis or Pseudocercospora musae', 'pathogen_type' => 'fungus',
                 'short_description' => 'A merged image-screening class for Black and Yellow Sigatoka leaf-spot patterns',

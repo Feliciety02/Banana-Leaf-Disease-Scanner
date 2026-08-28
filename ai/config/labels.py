@@ -12,10 +12,6 @@ CLASS_LABELS: tuple[str, ...] = (
     "cordana-leaf-spot",
 )
 
-# These folders are intentionally preserved in the source inventory but can
-# never become model outputs or split records for the four-class thesis study.
-QUARANTINED_CLASS_NAMES: tuple[str, ...] = ("dead",)
-
 CLASS_DISPLAY_NAMES: dict[str, str] = {
     "healthy": "Healthy",
     "sigatoka": "Sigatoka",
@@ -28,8 +24,6 @@ assert len(CLASS_LABELS) == NUM_CLASSES
 assert set(CLASS_DISPLAY_NAMES) == set(CLASS_LABELS)
 
 # Source-dataset spellings are harmonized before quality control and splitting.
-# Moko/dead-leaf material is deliberately quarantined instead of becoming an
-# output class.
 SOURCE_LABEL_ALIASES: dict[str, str | None] = {
     "healthy": "healthy",
     "sigatoka": "sigatoka",
@@ -49,7 +43,6 @@ SOURCE_LABEL_ALIASES: dict[str, str | None] = {
     "moko": None,
     "moko-disease": None,
     "moko_disease": None,
-    "dead": None,
 }
 
 

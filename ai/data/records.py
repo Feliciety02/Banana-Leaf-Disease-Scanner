@@ -48,7 +48,6 @@ class ImageInventoryValidation:
     report_path: Path
     scanned_count: int
     rejected_count: int
-    quarantined_count: int
     exact_duplicate_count: int
     near_duplicate_pair_count: int
 

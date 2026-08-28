@@ -125,7 +125,6 @@ SOURCE_RULES: tuple[dict[str, str], ...] = (
     {"prefix": "panama-kaggle-", "dataset": "banana-disease-recognition-dataset", "label": "Panama disease", "location": UNKNOWN},
     {"prefix": "black sigatoka disease", "dataset": "banana-disease-recognition-dataset", "label": "Black Sigatoka Disease", "location": UNKNOWN},
     {"prefix": "yellow sigatoka disease", "dataset": "banana-disease-recognition-dataset", "label": "Yellow Sigatoka Disease", "location": UNKNOWN},
-    {"prefix": "dead leaf", "dataset": "banana-disease-recognition-dataset", "label": "Dead Leaf", "location": UNKNOWN},
 )
 
 
@@ -243,7 +242,6 @@ def _duplicate_states(report_path: Path | None) -> tuple[dict[str, str], dict[st
 def enrich_metadata(
     root: Path,
     class_names: Sequence[str],
-    quarantined_class_names: Sequence[str],
     extensions: Sequence[str],
     existing_path: str | Path | None,
     group_manifest_path: str | Path | None = None,
@@ -264,7 +262,6 @@ def enrich_metadata(
     duplicate_states, inventory_report = _duplicate_states(report_path)
     allowed = {extension.lower() for extension in extensions}
     active = set(class_names)
-    quarantined = set(quarantined_class_names)
     paths = sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in allowed)
     inventory_relatives = {_normalize_path(str(path.relative_to(root))) for path in paths}
     stale_groups = sorted(set(group_map) - inventory_relatives)
@@ -280,7 +277,7 @@ def enrich_metadata(
     for path in paths:
         relative = _normalize_path(str(path.relative_to(root)))
         canonical = relative.split("/", 1)[0]
-        if canonical not in active | quarantined:
+        if canonical not in active:
             continue
         previous = existing.get(relative, {})
         record = _legacy_to_v2(relative, previous)
@@ -342,17 +339,13 @@ def enrich_metadata(
             if record["group_id"] not in UNRESOLVED_VALUES else
             "unresolved; requires biological/acquisition review or explicit independent-singleton confirmation",
         )
-        if canonical in quarantined:
-            record["qc_status"] = "quarantined"
-            record["duplicate_status"] = "not_applicable_quarantined"
-        else:
-            # Technical decoder success is not upgraded to human quality approval.
-            old_qc = previous.get("qc_status")
-            record["qc_status"] = old_qc if old_qc in {"approved", "excluded"} else "pending_human_review"
-            if summary:
-                record["duplicate_status"] = duplicate_states.get(relative, "automated_clear")
-            elif record.get("duplicate_status", PENDING) in UNRESOLVED_VALUES:
-                record["duplicate_status"] = PENDING
+        # Technical decoder success is not upgraded to human quality approval.
+        old_qc = previous.get("qc_status")
+        record["qc_status"] = old_qc if old_qc in {"approved", "excluded"} else "pending_human_review"
+        if summary:
+            record["duplicate_status"] = duplicate_states.get(relative, "automated_clear")
+        elif record.get("duplicate_status", PENDING) in UNRESOLVED_VALUES:
+            record["duplicate_status"] = PENDING
         provenance["qc_status"] = "human decision preserved; automated decoding never substitutes for human QC"
         provenance["duplicate_status"] = (
             f"inventory report SHA-256/dHash screen: {report_path.name}" if summary else "inventory report unavailable"
@@ -479,7 +472,7 @@ def validation_report(
         },
         "missing_paths": missing,
         "unresolved_records": unresolved,
-        "unused_or_quarantined_paths": sorted(set(records) - set(relatives)),
+        "unused_paths": sorted(set(records) - set(relatives)),
     }
     return report, len(missing), len(unresolved)
 

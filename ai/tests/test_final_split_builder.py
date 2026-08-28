@@ -58,7 +58,7 @@ class FinalSplitBuilderTest(unittest.TestCase):
         groups_path.write_text(json.dumps(groups), encoding="utf-8")
 
         metadata_payload = enrich_metadata(
-            root, CLASS_LABELS, ["dead"], [".png"], None, groups_path, None
+            root, CLASS_LABELS, [".png"], None, groups_path, None
         )
         for relative, record in metadata_payload["images"].items():
             record.update({

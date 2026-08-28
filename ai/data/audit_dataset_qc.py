@@ -18,7 +18,7 @@ from typing import Any, Iterable
 
 from PIL import Image, UnidentifiedImageError
 
-from ai.config.labels import CLASS_LABELS, QUARANTINED_CLASS_NAMES
+from ai.config.labels import CLASS_LABELS
 from ai.data.metadata_manifest import THESIS_FIELDS, load_manifest_payload
 from ai.data.near_duplicate_adjudication import (
     GROUPING_DECISIONS,
@@ -196,7 +196,14 @@ def _metadata_missing_fields(metadata: dict[str, Any], group_id: str) -> list[st
         "inclusion_status",
         "label_validator",
     }
-    return sorted(field for field in fields if effective.get(field) in UNRESOLVED_VALUES)
+    missing = {
+        field for field in fields if effective.get(field) in UNRESOLVED_VALUES
+    }
+    # Human QC uses a descriptive pending value rather than the generic
+    # ``pending`` sentinel, but it is still unresolved for the formal gate.
+    if effective.get("qc_status") == "pending_human_review":
+        missing.add("qc_status")
+    return sorted(missing)
 
 
 def _build_record(
@@ -229,7 +236,7 @@ def _build_record(
         {"reject", "unusable", "severely_blurred", "obscured"},
     )
     qc_status = _status_from_value(
-        metadata.get("qc_status"), {"approved"}, {"excluded", "quarantined"}
+        metadata.get("qc_status"), {"approved"}, {"excluded"}
     )
     inclusion_status = _status_from_value(
         metadata.get("inclusion_status"), {"included"}, {"excluded"}

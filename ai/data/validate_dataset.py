@@ -73,7 +73,6 @@ def main() -> None:
         template = write_metadata_template(
             require_dataset_dir(config),
             config.data.class_names,
-            config.data.quarantined_class_names,
             config.data.allowed_extensions,
             config.data.metadata_manifest,
         )
@@ -103,8 +102,7 @@ def main() -> None:
     print(
         "Inventory: "
         f"{summary['scanned']} scanned; {summary['accepted']} active; "
-        f"{summary['quarantined']} quarantined/preserved; "
-        f"{summary['exact_duplicate_copies_excluded']} exact duplicate copies excluded; "
+f"{summary['exact_duplicate_copies_excluded']} exact duplicate copies excluded; "
         f"{summary['near_duplicate_pairs_requiring_review']} near-duplicate pairs require review"
     )
     if config.data.group_manifest:

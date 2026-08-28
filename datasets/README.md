@@ -2,7 +2,7 @@
 
 # DahonMD Dataset Guide
 
-Layout, provenance, label-review, leakage-prevention, and validation rules for the four-class banana-leaf thesis dataset and its preserved dead-leaf quarantine.
+Layout, provenance, label-review, leakage-prevention, and validation rules for the four-class banana-leaf thesis dataset.
 
 </div>
 
@@ -34,7 +34,7 @@ preserved locally and must be backed up with the research workspace.
 
 | Path | Role | Current use |
 | --- | --- | --- |
-| `banana_leaf_thesis_4class/` | **SOURCE INPUT** | Original working image inventory. The four model-class folders are active inputs; `dead/` is quarantine and is not a fifth class. Do not modify images in place. |
+| `banana_leaf_thesis_4class/` | **SOURCE INPUT** | Original working image inventory. The four model-class folders are active inputs. Do not modify images in place. |
 | `davao-field/` | **SOURCE INPUT** | Original Davao field acquisitions. Keep originals immutable. |
 | `ssl-unlabeled/` | **SOURCE INPUT** | Original external unlabeled banana-leaf candidates. Keep originals immutable. |
 | `metadata/` | **CURRENT + ARCHIVED METADATA** | Authoritative image/group manifests, a proposed reviewed group output, and retired assignments. |
@@ -45,7 +45,7 @@ preserved locally and must be backed up with the research workspace.
 
 ```text
 datasets/
-├── banana_leaf_thesis_4class/  # labeled images + dead quarantine
+├── banana_leaf_thesis_4class/  # labeled images
 ├── davao-field/                # original field captures
 ├── ssl-unlabeled/              # original unlabeled SSL candidates
 ├── metadata/                   # image and grouping manifests
@@ -81,7 +81,6 @@ sorted alphabetically or changed independently in another client.
 | 1 | `sigatoka` | Sigatoka | 4,000 |
 | 2 | `panama-disease` | Panama Disease | 4,000 |
 | 3 | `cordana-leaf-spot` | Cordana Leaf Spot | 670 files |
-| — | `dead` | Preserved quarantine; no model index | 745 |
 |  |  | **Four-class canonical total** | **12,670** |
 
 > [!WARNING]
@@ -99,9 +98,7 @@ and deterministic artifact fingerprints are in
 CSV review artifacts remain local under `datasets/` because the repository's
 dataset ignore policy excludes non-documentation files.
 
-There are 13,415 image files on disk: 12,670 in active class folders and 745 in
-the dead-leaf quarantine. The validator determines the accepted canonical count
-after exact-copy exclusion; folder counts alone are not a formal cohort.
+There are 12,670 image files on disk in the four active class folders. The validator determines the accepted canonical count after exact-copy exclusion; folder counts alone are not a formal cohort.
 
 After review and grouping, use the versioned cohort procedure in
 [`cohort-selection.md`](docs/cohort-selection.md). The current 700-per-class build is
@@ -164,7 +161,6 @@ against the entire active dataset:
 | `sigatoka` | 251 | +5,567 | 5,818 |
 | `panama-disease` | 4,088 | — | 4,088 |
 | `cordana-leaf-spot` | 231 | +203 | 434 |
-| `dead` | 55 | — | 55 |
 Additions by source:
 
 - **Zenodo Banana Leaves Imagery Dataset** (Tanzania, DOI
@@ -215,7 +211,6 @@ sweep ran in two passes:
 | `healthy` | 29 | 24 |
 | `panama-disease` | 14 | 11 |
 | `sigatoka` | 3 | 3 |
-| `dead` | 0 | 0 |
 | **Total** | 134 | **117** |
 
 **Pass 2 — fine-verified pairs:** every remaining pair at 64-bit distance ≤ 2
@@ -243,7 +238,6 @@ strictest thresholds (dist=0 + 256-bit confirmation).
 ```text
 datasets/banana_leaf_thesis_4class/
 ├── healthy/            # *.jpg (mostly zenodo, v4, nutrient, original)
-├── dead/
 ├── sigatoka/
 ├── panama-disease/
 └── cordana-leaf-spot/
@@ -267,7 +261,6 @@ artifacts cannot be used with the current class contract.
 datasets/
 └── banana_leaf_thesis_4class/
     ├── healthy/
-    ├── dead/
     ├── sigatoka/
     ├── panama-disease/
     └── cordana-leaf-spot/
@@ -285,15 +278,13 @@ datasets/banana_leaf_thesis_4class/
 ```
 
 `val/` may replace `validation/`. Every split must contain the same four active
-class keys. A `dead/` folder may exist beside an unsplit dataset and is reported
-as quarantine; it is never accepted inside a model split.
+class keys; no other class folder is accepted.
 
 ## Meaning of Each Label
 
 | Class | Intended meaning | Important boundary |
 | --- | --- | --- |
 | Healthy | No target-class symptoms visible in the image | Not proof the entire plant is disease-free |
-| Dead leaf (quarantine only) | Fully dried or necrotic leaf appearance | Preserved for audit/history; no model index and not a Moko diagnosis |
 | Sigatoka leaf spot | Provenance- or expert-supported Black or Yellow Sigatoka presentation | The model does not distinguish Black from Yellow Sigatoka |
 | Panama disease | Provenance- or expert-supported Panama disease leaf presentation | Leaf symptoms alone cannot confirm Fusarium wilt; field or laboratory assessment may be needed |
 | Cordana leaf spot | Provenance- or expert-supported Cordana presentation | Review images with Sigatoka-like overlap |
@@ -524,7 +515,7 @@ From the repository root:
   --formal
 ```
 
-The validator checks the active class order, the preserved quarantine, RGB
+The validator checks the active class order, readable RGB
 decodability, exact and perceptual duplicates, structured metadata, group
 leakage, external-inventory overlap, and split consistency before writing a
 persistent manifest. Formal mode refuses to create a split while review remains
@@ -534,8 +525,7 @@ Class imbalance must be reported rather than hidden. Record any weighting, sampl
 
 ### What success looks like
 
-The validator should confirm four exact model classes, the preserved dead-leaf
-quarantine, readable RGB conversion, completed review gates, and leakage-free
+The validator should confirm four exact model classes, readable RGB conversion, completed review gates, and leakage-free
 inventories. It writes a reusable split manifest only when the selected gate
 mode allows it.
 

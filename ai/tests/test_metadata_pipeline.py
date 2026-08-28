@@ -36,10 +36,10 @@ class MetadataEnrichmentTest(unittest.TestCase):
                 encoding="utf-8",
             )
             first = enrich_metadata(
-                root, CLASS_LABELS, ["dead"], [".jpg"], None, groups, None
+                root, CLASS_LABELS, [".jpg"], None, groups, None
             )
             second = enrich_metadata(
-                root, CLASS_LABELS, ["dead"], [".jpg"], None, groups, None
+                root, CLASS_LABELS, [".jpg"], None, groups, None
             )
             self.assertEqual(first, second)
             known = first["images"]["healthy/healthy-zenodo-0001.jpg"]
@@ -59,7 +59,7 @@ class MetadataEnrichmentTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
             root = self._inventory(workspace)
-            payload = enrich_metadata(root, CLASS_LABELS, ["dead"], [".jpg"], None)
+            payload = enrich_metadata(root, CLASS_LABELS, [".jpg"], None)
             manifest = write_manifest(payload, workspace / "metadata.json")
             loaded = load_manifest_payload(manifest)
             relative = "healthy/healthy-zenodo-0001.jpg"
@@ -74,7 +74,7 @@ class MetadataEnrichmentTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
             root = self._inventory(workspace)
-            payload = enrich_metadata(root, CLASS_LABELS, ["dead"], [".jpg"], None)
+            payload = enrich_metadata(root, CLASS_LABELS, [".jpg"], None)
             relative = "healthy/healthy-zenodo-0001.jpg"
             record = copy.deepcopy(payload["images"][relative])
             issues = formal_metadata_issues(relative, record, CLASS_LABELS)
@@ -95,7 +95,7 @@ class MetadataEnrichmentTest(unittest.TestCase):
             workspace = Path(directory)
             root = self._inventory(workspace)
             before = {path.relative_to(root): path.read_bytes() for path in root.rglob("*.jpg")}
-            enrich_metadata(root, CLASS_LABELS, ["dead"], [".jpg"], None)
+            enrich_metadata(root, CLASS_LABELS, [".jpg"], None)
             after = {path.relative_to(root): path.read_bytes() for path in root.rglob("*.jpg")}
             self.assertEqual(before, after)
 

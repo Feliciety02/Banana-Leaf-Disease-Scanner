@@ -151,7 +151,6 @@ def write_near_duplicate_review_template(
 def validate_image_inventory(
     root: Path,
     class_names: Sequence[str],
-    quarantined_class_names: Sequence[str],
     allowed_extensions: Sequence[str],
     report_path: str | Path,
     near_duplicate_hamming_distance: int = 6,
@@ -159,17 +158,15 @@ def validate_image_inventory(
     metadata_map: dict[str, dict[str, str]] | None = None,
     quality_report_path: str | Path | None = None,
 ) -> ImageInventoryValidation:
-    """Validate, exact-deduplicate, quarantine, and near-duplicate-screen images."""
+    """Validate, exact-deduplicate, and near-duplicate-screen images."""
     allowed = {extension.lower() for extension in allowed_extensions}
     candidates = sorted(
         path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in allowed
     )
     valid_classes = set(class_names)
     reviews = near_duplicate_reviews or {}
-    quarantined_classes = set(quarantined_class_names)
     candidates_by_hash: dict[str, list[dict[str, Any]]] = {}
     rejected: list[dict] = []
-    quarantined: list[dict] = []
     accepted_by_class = {class_name: 0 for class_name in class_names}
     rejected_by_reason: dict[str, int] = {}
     quality_excluded: list[dict[str, str]] = []
@@ -184,13 +181,10 @@ def validate_image_inventory(
         perceptual_hash: int | None = None
         metadata = {**METADATA_DEFAULTS, **(metadata_map or {}).get(relative, {})}
 
-        if class_name not in valid_classes and class_name not in quarantined_classes:
+        if class_name not in valid_classes:
             reasons.append({
                 "code": "invalid_class",
-                "message": (
-                    f"Image class '{class_name}' is neither active {list(class_names)} "
-                    f"nor quarantined {list(quarantined_class_names)}"
-                ),
+                "message": f"Image class '{class_name}' is not one of the active classes {list(class_names)}",
             })
 
         quality_reason = None
@@ -263,11 +257,6 @@ def validate_image_inventory(
             "height": height,
             "source_mode": source_mode,
         }
-        if class_name in quarantined_classes:
-            quarantined.append({
-                key: value for key, value in item.items() if key not in {"path", "perceptual_hash"}
-            })
-            continue
         candidates_by_hash.setdefault(digest, []).append(item)
 
     hashes_by_path: dict[Path, str] = {}
@@ -351,13 +340,11 @@ def validate_image_inventory(
         "schema_version": 1,
         "dataset_root": str(root),
         "valid_classes": list(class_names),
-        "quarantined_classes": list(quarantined_class_names),
         "allowed_extensions": sorted(allowed),
         "summary": {
             "scanned": len(candidates),
             "accepted": len(hashes_by_path),
             "rejected": len(rejected),
-            "quarantined": len(quarantined),
             "exact_duplicate_groups": len(exact_duplicate_groups),
             "exact_duplicate_copies_excluded": sum(
                 len(group["excluded_copies"]) for group in exact_duplicate_groups
@@ -371,7 +358,6 @@ def validate_image_inventory(
             "rejected_by_reason": dict(sorted(rejected_by_reason.items())),
         },
         "rejected_images": rejected,
-        "quarantined_images": quarantined,
         "exact_duplicate_groups": exact_duplicate_groups,
         "cross_label_exact_conflicts": cross_label_exact_conflicts,
         "near_duplicate_method": {
@@ -411,7 +397,6 @@ def validate_image_inventory(
         report_path=destination.resolve(),
         scanned_count=len(candidates),
         rejected_count=len(rejected),
-        quarantined_count=len(quarantined),
         exact_duplicate_count=sum(len(group["excluded_copies"]) for group in exact_duplicate_groups),
         near_duplicate_pair_count=unresolved_near_duplicates,
     )
@@ -425,7 +410,6 @@ def load_metadata_manifest(path: str | Path | None) -> dict[str, dict[str, Any]]
 def write_metadata_template(
     root: Path,
     class_names: Sequence[str],
-    quarantined_class_names: Sequence[str],
     allowed_extensions: Sequence[str],
     destination: str | Path,
 ) -> Path:
@@ -433,7 +417,6 @@ def write_metadata_template(
     payload = enrich_metadata(
         root=root,
         class_names=class_names,
-        quarantined_class_names=quarantined_class_names,
         extensions=allowed_extensions,
         existing_path=destination if Path(destination).is_file() else None,
     )
@@ -692,7 +675,6 @@ def _write_manifest(
         ),
         "dataset_root": str(root),
         "class_names": splits.class_names,
-        "quarantined_class_names": list(config.data.quarantined_class_names),
         "splits": {
             name: [serialize(record) for record in getattr(splits, name)]
             for name in ("train", "validation", "test")
@@ -1018,7 +1000,6 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
     validation = validate_image_inventory(
         root,
         config.data.class_names,
-        config.data.quarantined_class_names,
         config.data.allowed_extensions,
         manifest.parent / "image_validation_report.json",
         config.data.near_duplicate_hamming_distance,
