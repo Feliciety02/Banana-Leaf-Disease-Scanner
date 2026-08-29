@@ -24,7 +24,7 @@ Configuration defaults and values in `ai/config/` are candidate starting points 
 | `data/dataset.py` | Dataset validation and split orchestration plus TensorFlow input pipelines |
 | `data/build_*.py` | Explicit cohort, split, SSL, and Davao manifest builders |
 | `models/` and `losses/` | Teacher/student architectures and thesis loss functions |
-| `training/` | Training entry points and experiment orchestration |
+| [`training/README.md`](training/README.md) | GPU training, monitoring, safe stopping, checkpoints, and resume runbook |
 | `evaluation/` | Metrics, comparisons, Grad-CAM, and final evaluation reports |
 | `deployment/` | TFLite conversion, quantization audit, inference, and benchmark tooling |
 | `tests/` | Source-contract, model, dataset, and deployment protocol checks |
