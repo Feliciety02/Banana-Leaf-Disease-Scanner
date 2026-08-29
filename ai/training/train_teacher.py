@@ -264,6 +264,20 @@ def _restore_model_weights(model: tf.keras.Model, arrays: list[np.ndarray], labe
         raise ValueError(f"Failed to restore {label} weights from checkpoint: {error}") from error
 
 
+def _ssl_trainable_variables(online: tf.keras.Model) -> list[tf.Variable]:
+    """Trainable variables that actually receive gradients during SSL pretraining.
+
+    The logits classification head is not part of any SSL loss, so its kernel and bias
+    never appear in ``apply_gradients``. That means the SSL optimizer lazily builds slots
+    only for the remaining trainable variables. Restoring must replicate that exact slot
+    layout, so the resume path builds the optimizer over this (logits-excluded) set instead
+    of every trainable variable. Otherwise ``optimizer.set_weights`` sees 4 extra slots and
+    misaligns every optimizer state array from the saved checkpoint.
+    """
+    logits_weights = set(id(w) for w in online.get_layer("logits").trainable_weights)
+    return [variable for variable in online.trainable_variables if id(variable) not in logits_weights]
+
+
 def _ssl_history_upto(output_dir: Path, upto_epoch: int) -> list[dict]:
     history_path = output_dir / "teacher_ssl_history.json"
     if not history_path.is_file():
@@ -460,7 +474,7 @@ def train(args: argparse.Namespace) -> Path:
             loaded = load_ssl_checkpoint(output_dir, resume_epoch, config)
             _restore_model_weights(online, loaded["online"], "online")
             _restore_model_weights(target, loaded["target"], "EMA target")
-            ssl_optimizer.build(online.trainable_variables)
+            ssl_optimizer.build(_ssl_trainable_variables(online))
             try:
                 ssl_optimizer.set_weights(loaded["optimizer"])
             except (ValueError, TypeError) as error:
