@@ -80,3 +80,21 @@ jobs:
           cache-dependency-path: ai/requirements.txt
       - run: python -m pip install -r ai/requirements.txt
       - run: python -m unittest discover -s ai/tests -v
+
+  readme-lock:
+    name: Root README lock
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail if the root README changed
+        run: |
+          EXPECTED="68071aae3edda2f78c2652f729b6676d8c386422"
+          ACTUAL="$(git hash-object README.md)"
+          if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+            echo "::error::The root README.md is protected and must not be changed."
+            echo "It is intentionally frozen (run commands + project overview)."
+            echo "expected blob: $EXPECTED"
+            echo "actual blob:   $ACTUAL"
+            exit 1
+          fi
