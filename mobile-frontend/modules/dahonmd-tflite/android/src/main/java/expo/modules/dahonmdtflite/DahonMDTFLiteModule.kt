@@ -323,7 +323,7 @@ class DahonMDTFLiteModule : Module() {
         )
     }
 
-    private fun benchmarkModel(
+    private suspend fun benchmarkModel(
         uri: String,
         modelVariant: String,
         warmupRuns: Int,
@@ -337,11 +337,27 @@ class DahonMDTFLiteModule : Module() {
         }
 
         val benchmarkInterpreter = loadModelFresh(assetPath, numThreads)
-        val benchInputQuant = benchmarkInterpreter.getInputTensor(0).quantizationParams()
-        val benchOutputQuant = benchmarkInterpreter.getOutputTensor(0).quantizationParams()
+        val benchInputTensor = benchmarkInterpreter.getInputTensor(0)
+        val benchOutputTensor = benchmarkInterpreter.getOutputTensor(0)
+        val expectedType = if (modelVariant == "int8") DataType.INT8 else DataType.FLOAT32
+        require(benchInputTensor.dataType() == expectedType) {
+            "$modelVariant benchmark input must be $expectedType, received ${benchInputTensor.dataType()}"
+        }
+        require(benchOutputTensor.dataType() == expectedType) {
+            "$modelVariant benchmark output must be $expectedType, received ${benchOutputTensor.dataType()}"
+        }
+        require(benchInputTensor.shape().contentEquals(intArrayOf(1, MODEL_HEIGHT, MODEL_WIDTH, CHANNELS))) {
+            "$modelVariant benchmark input must be [1,$MODEL_HEIGHT,$MODEL_WIDTH,$CHANNELS]"
+        }
+        require(benchOutputTensor.shape().contentEquals(intArrayOf(1, NUM_CLASSES))) {
+            "$modelVariant benchmark output must be [1,$NUM_CLASSES]"
+        }
+        val benchInputQuant = benchInputTensor.quantizationParams()
+        val benchOutputQuant = benchOutputTensor.quantizationParams()
 
-        val inputBuf = ByteBuffer.allocateDirect(INPUT_SIZE).apply { order(ByteOrder.nativeOrder()) }
-        val outputBuf = ByteBuffer.allocateDirect(OUTPUT_SIZE).apply { order(ByteOrder.nativeOrder()) }
+        val bytesPerElement = if (modelVariant == "int8") 1 else Float.SIZE_BYTES
+        val inputBuf = ByteBuffer.allocateDirect(INPUT_SIZE * bytesPerElement).apply { order(ByteOrder.nativeOrder()) }
+        val outputBuf = ByteBuffer.allocateDirect(OUTPUT_SIZE * bytesPerElement).apply { order(ByteOrder.nativeOrder()) }
 
         val bitmap = withContext(Dispatchers.IO) {
             readBitmapFromUri(uri)
@@ -364,19 +380,27 @@ class DahonMDTFLiteModule : Module() {
             val r = (pixel shr 16) and 0xFF
             val g = (pixel shr 8) and 0xFF
             val b = pixel and 0xFF
-            inputBuf.put(quantizeWith(r, benchInputQuant.scale, benchInputQuant.zeroPoint))
-            inputBuf.put(quantizeWith(g, benchInputQuant.scale, benchInputQuant.zeroPoint))
-            inputBuf.put(quantizeWith(b, benchInputQuant.scale, benchInputQuant.zeroPoint))
+            if (modelVariant == "int8") {
+                inputBuf.put(quantizeWith(r, benchInputQuant.scale, benchInputQuant.zeroPoint))
+                inputBuf.put(quantizeWith(g, benchInputQuant.scale, benchInputQuant.zeroPoint))
+                inputBuf.put(quantizeWith(b, benchInputQuant.scale, benchInputQuant.zeroPoint))
+            } else {
+                inputBuf.putFloat(r.toFloat() / 255.0f)
+                inputBuf.putFloat(g.toFloat() / 255.0f)
+                inputBuf.putFloat(b.toFloat() / 255.0f)
+            }
         }
         inputBuf.rewind()
 
         for (i in 0 until warmupRuns) {
+            inputBuf.rewind()
             outputBuf.clear()
             benchmarkInterpreter.run(inputBuf, outputBuf)
         }
 
         val inferenceTimings = mutableListOf<Double>()
         for (i in 0 until measuredRuns) {
+            inputBuf.rewind()
             outputBuf.clear()
             val start = System.nanoTime()
             benchmarkInterpreter.run(inputBuf, outputBuf)
@@ -386,7 +410,11 @@ class DahonMDTFLiteModule : Module() {
 
         outputBuf.rewind()
         val logits = FloatArray(NUM_CLASSES) { i ->
-            (outputBuf.get(i).toInt() - benchOutputQuant.zeroPoint) * benchOutputQuant.scale
+            if (modelVariant == "int8") {
+                (outputBuf.get(i).toInt() - benchOutputQuant.zeroPoint) * benchOutputQuant.scale
+            } else {
+                outputBuf.getFloat(i * Float.SIZE_BYTES)
+            }
         }
 
         benchmarkInterpreter.close()

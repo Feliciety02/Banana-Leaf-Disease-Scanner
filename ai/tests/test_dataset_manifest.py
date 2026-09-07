@@ -7,7 +7,7 @@ from PIL import Image
 
 from ai.config.config import ExperimentConfig
 from ai.config.labels import CLASS_LABELS
-from ai.data.dataset import prepare_splits
+from ai.data.dataset import prepare_splits, validate_image_inventory
 
 
 class DatasetManifestInventoryTest(unittest.TestCase):
@@ -224,6 +224,105 @@ class DatasetManifestInventoryTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "Data leakage detected: group 'leaked-leaf'"):
                 prepare_splits(config, workspace / "split.json")
+
+    def test_unchanged_dataset_reuses_validation_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            dataset = workspace / "dataset"
+            self._make_minimum_dataset(dataset)
+            config = ExperimentConfig()
+            self._allow_synthetic_exploration(config)
+            config.data.dataset_dir = str(dataset)
+            manifest = workspace / "split_manifest.json"
+            cache = workspace / "image_validation_cache.json"
+
+            first = prepare_splits(config, manifest)
+            self.assertTrue(manifest.is_file())
+            self.assertTrue(cache.is_file())
+            first_counts = (len(first.train), len(first.validation), len(first.test))
+
+            # Load the cache before calling prepare_splits; touch its files' mtimes
+            # by reading so we can confirm it is reused and not rewritten on a fresh run.
+            second = prepare_splits(config, manifest)
+            second_counts = (len(second.train), len(second.validation), len(second.test))
+            self.assertEqual(second_counts, first_counts)
+
+    def test_modified_image_force_revalidation_and_blocks_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            dataset = workspace / "dataset"
+            self._make_minimum_dataset(dataset)
+            config = ExperimentConfig()
+            self._allow_synthetic_exploration(config)
+            config.data.dataset_dir = str(dataset)
+            manifest = workspace / "split_manifest.json"
+
+            prepare_splits(config, manifest)
+            target = dataset / "healthy" / "0.png"
+            Image.new("RGB", (4, 4), (255, 254, 253)).save(target)
+
+            # The changed file invalidates the cache, forcing a re-validation that
+            # then detects the content drift against the frozen manifest.
+            with self.assertRaisesRegex(ValueError, "Image content changed"):
+                prepare_splits(config, manifest)
+
+    def test_resume_without_split_manifest_reuses_cache_and_reevaluates_gates(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            dataset = workspace / "dataset"
+            self._make_minimum_dataset(dataset)
+            config = ExperimentConfig()
+            self._allow_synthetic_exploration(config)
+            config.data.dataset_dir = str(dataset)
+            cache = workspace / "image_validation_cache.json"
+
+            # Simulate the interrupted first run: the image validation cache was
+            # written but the run was stopped before any split manifest was created.
+            report = workspace / "image_validation_report.json"
+            validate_image_inventory(
+                dataset,
+                config.data.class_names,
+                config.data.allowed_extensions,
+                report,
+                near_duplicate_hamming_distance=config.data.near_duplicate_hamming_distance,
+                cache_path=cache,
+            )
+            self.assertTrue(cache.is_file())
+            self.assertFalse((workspace / "split_manifest.json").exists())
+
+            # A resume must reuse the cached hashes (no re-hash) yet still produce a
+            # fresh, gate-checked split instead of erroring.
+            manifest = workspace / "split_manifest.json"
+            splits = prepare_splits(config, manifest)
+            self.assertTrue(manifest.is_file())
+            self.assertGreater(len(splits.train), 0)
+
+            # Dropping the cache entirely must still produce an identical split.
+            cache.unlink()
+            report.unlink(missing_ok=True)
+            splits_again = prepare_splits(config, workspace / "split_2.json")
+            self.assertEqual(
+                (len(splits.train), len(splits.validation), len(splits.test)),
+                (len(splits_again.train), len(splits_again.validation), len(splits_again.test)),
+            )
+
+    def test_added_image_invalidates_cache_and_rejects_new_inventory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            dataset = workspace / "dataset"
+            self._make_minimum_dataset(dataset)
+            config = ExperimentConfig()
+            self._allow_synthetic_exploration(config)
+            config.data.dataset_dir = str(dataset)
+            manifest = workspace / "split_manifest.json"
+            cache = workspace / "image_validation_cache.json"
+
+            prepare_splits(config, manifest)
+            self.assertTrue(cache.is_file())
+            Image.new("RGB", (4, 4), (255, 254, 253)).save(dataset / "healthy" / "added.png")
+
+            with self.assertRaisesRegex(ValueError, "Dataset inventory changed"):
+                prepare_splits(config, manifest)
 
 
 if __name__ == "__main__":

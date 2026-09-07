@@ -20,7 +20,7 @@ class ProfileController extends Controller
 
     public function update(UpdateProfileRequest $request): JsonResponse
     {
-        $user = $this->accounts->updateProfile($request->user(), $request->validated());
+        $user = $this->accounts->updateProfile($request->user(), $request->safe()->except('current_password'));
 
         return response()->json(['success' => true, 'message' => 'Profile updated.', 'data' => ['user' => new UserResource($user)]]);
     }
@@ -34,6 +34,7 @@ class ProfileController extends Controller
 
     public function destroy(Request $request): JsonResponse
     {
+        $request->validate(['current_password' => ['required', 'current_password']]);
         $this->accounts->delete($request->user());
 
         return response()->json(status: 204);

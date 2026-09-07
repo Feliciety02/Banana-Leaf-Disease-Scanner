@@ -17,7 +17,10 @@ class DiagnosisService
 
     public const CONSENT_DATASET_APPROVED = 'dataset_approved';
 
-    public function __construct(private readonly DiagnosisRepositoryInterface $diagnoses) {}
+    public function __construct(
+        private readonly DiagnosisRepositoryInterface $diagnoses,
+        private readonly PrivateDiagnosisImageStorage $images,
+    ) {}
 
     public function paginateForUser(User $user, array $filters, int $perPage): LengthAwarePaginator
     {
@@ -33,7 +36,7 @@ class DiagnosisService
     {
         $attributes['user_id'] = $user->id;
         $attributes['is_simulated'] = config('banana.ai_mode') !== 'PRODUCTION';
-        $attributes['image_path'] = $image?->store('diagnoses', 'public');
+        $attributes['image_path'] = $image ? $this->images->store($image) : null;
         $attributes['sync_status'] = $attributes['source'] === 'mobile' ? 'synced' : null;
 
         if ($researchConsent) {
@@ -70,6 +73,7 @@ class DiagnosisService
     {
         foreach ([$diagnosis->image_path, $diagnosis->gradcam_path] as $path) {
             if ($path) {
+                Storage::disk('local')->delete($path);
                 Storage::disk('public')->delete($path);
             }
         }

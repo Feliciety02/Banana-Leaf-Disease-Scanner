@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DiagnosisReview extends Model
 {
+    protected $touches = ['diagnosis'];
+
     protected $fillable = [
         'diagnosis_id', 'expert_id', 'review_status', 'verified_label', 'image_quality', 'next_steps', 'notes',
         'requires_field_inspection', 'requested_at', 'reviewed_at',
@@ -20,6 +22,12 @@ class DiagnosisReview extends Model
             'requested_at' => 'datetime',
             'reviewed_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(fn (DiagnosisReview $review) => $review->diagnosis?->recordSyncChange('upsert'));
+        static::deleted(fn (DiagnosisReview $review) => $review->diagnosis?->recordSyncChange('upsert'));
     }
 
     public function diagnosis(): BelongsTo

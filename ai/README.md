@@ -24,7 +24,8 @@ Configuration defaults and values in `ai/config/` are candidate starting points 
 | `data/dataset.py` | Dataset validation and split orchestration plus TensorFlow input pipelines |
 | `data/build_*.py` | Explicit cohort, split, SSL, and Davao manifest builders |
 | `models/` and `losses/` | Teacher/student architectures and thesis loss functions |
-| [`training/README.md`](training/README.md) | GPU training, monitoring, safe stopping, checkpoints, and resume runbook |
+| [`training/ENHANCED_MODEL_RUNBOOK.md`](training/ENHANCED_MODEL_RUNBOOK.md) | Short copy-paste runbook for the recommended enhanced model |
+| [`training/GPU_TRAINING_GUIDE.md`](training/GPU_TRAINING_GUIDE.md) | Complete GPU guide, teacher diagnostics, and troubleshooting |
 | `evaluation/` | Metrics, comparisons, Grad-CAM, and final evaluation reports |
 | `deployment/` | TFLite conversion, quantization audit, inference, and benchmark tooling |
 | `tests/` | Source-contract, model, dataset, and deployment protocol checks |
@@ -32,6 +33,42 @@ Configuration defaults and values in `ai/config/` are candidate starting points 
 `config/config.py` remains one compatibility module because its schema,
 validation, JSON loading/saving, and determinism functions are imported together
 throughout training, evaluation, models, and tests.
+
+## Current GPU training workflow
+
+The root [model experiment roadmap](../MODEL_EXPERIMENTS.md) records the numbered
+experiments, current evidence, and decision rules.
+
+The recommended next run is the supervised ImageNet-initialized Coordinate
+Attention student:
+
+- `ai/config/diagnostics/ca_mobilenetv3_supervised_imagenet.json`
+- `ai/training/run_enhanced_supervised_gpu.sh`
+- `ai/training/monitor_training.ps1` for live batch and epoch progress
+
+It uses the baseline's 20-epoch warm-up and 10-epoch fine-tuning schedule while
+keeping transferred BatchNorm statistics frozen. It does not use the current
+teacher because that teacher did not beat the baseline.
+
+Training runs inside WSL with Linux GPU Python. The launcher defaults to
+`/home/feanne/.venvs/dahonmd-tf-gpu/bin/python`. On another member's computer,
+set the correct interpreter before starting:
+
+```bash
+export DAHONMD_GPU_PYTHON="/home/<your-wsl-user>/.venvs/dahonmd-tf-gpu/bin/python"
+```
+
+Replace `<your-wsl-user>` with the member's WSL username. Do not activate or
+use the repository's Windows `.venv` for WSL GPU training.
+
+Use the exact start, monitor, stop, and resume commands in the
+[enhanced model runbook](training/ENHANCED_MODEL_RUNBOOK.md). Normal restarts
+use the same launcher.
+
+If the SSL teacher underperforms the baseline, use the isolated
+[teacher recovery diagnostic](training/GPU_TRAINING_GUIDE.md#teacher-recovery-diagnostic).
+It compares stable ImageNet-only and SSL-initialized fine-tuning without using
+the test partition or overwriting the original run.
 
 ## Dataset validation
 
@@ -82,10 +119,14 @@ See `datasets/docs/davao-field-workflow.md`. The current validated Davao count i
 | 5 ResNet-101 supervised without SSL | `configuration_5_*` | `ai.training.train_supervised_ablation` |
 | 6 ResNet-101 SSL + supervised fine-tuning | `configuration_6_*` | `ai.training.train_teacher` |
 | 7 optional CA student from non-SSL teacher | `configuration_7_*` | `ai.training.train_student` |
+| 8 thesis ResNet-101 teacher variants | `configuration_8_*` | `ai.training.train_teacher` |
 
 All configurations are under `ai/config/ablations/`. Pass the same frozen
 `--final-split-dir` to every training, evaluation, and export command; never
 tune from held-out test results.
+
+The ablation configs are separate experiment definitions. Do not run the old
+combined teacher/KD launcher until a corrected teacher has been validated.
 
 ## Evaluation and conversion
 

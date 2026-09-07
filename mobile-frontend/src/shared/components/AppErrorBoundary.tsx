@@ -8,7 +8,9 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { faile
   static getDerivedStateFromError() { return { failed: true }; }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('DahonMD mobile UI crashed.', { message: error.message, componentStack: info.componentStack });
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      console.error('DahonMD mobile UI crashed.', { message: error.message, componentStack: info.componentStack });
+    }
   }
 
   render() {

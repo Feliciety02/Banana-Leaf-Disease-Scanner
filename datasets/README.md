@@ -40,6 +40,7 @@ preserved locally and must be backed up with the research workspace.
 | `metadata/` | **CURRENT + ARCHIVED METADATA** | Authoritative image/group manifests, a proposed reviewed group output, and retired assignments. |
 | `reviews/` | **HUMAN REVIEW** | Label decisions, the near-duplicate queue, reviewed decisions, application summary, and preserved working copies. |
 | `workflows/` | **ACQUISITION WORKFLOWS** | Davao field and external SSL registries, review files, and generated manifests. |
+| `augmentation-derived/` | **INACTIVE ARCHIVE** | Source-provided derivatives kept outside active class folders. Do not use for validation/test; prefer regenerating training augmentation after the split. |
 | `outputs/` | **GENERATED OUTPUTS** | Versioned cohort diagnostics and frozen-split workspace. Inspect each artifact's status before use. |
 | `docs/` | **STUDENT GUIDES** | Metadata, duplicate review, cohort, split, SSL, and Davao workflow instructions in pipeline order. |
 
@@ -77,20 +78,23 @@ sorted alphabetically or changed independently in another client.
 
 | Output | Model key | Display name | Working images |
 | ---: | --- | --- | ---: |
-| 0 | `healthy` | Healthy | 4,000 |
-| 1 | `sigatoka` | Sigatoka | 4,000 |
-| 2 | `panama-disease` | Panama Disease | 4,000 |
-| 3 | `cordana-leaf-spot` | Cordana Leaf Spot | 670 files |
-|  |  | **Four-class canonical total** | **12,670** |
+| 0 | `healthy` | Healthy | 3,000 |
+| 1 | `sigatoka` | Sigatoka | 3,000 |
+| 2 | `panama-disease` | Panama Disease | 3,000 |
+| 3 | `cordana-leaf-spot` | Cordana Leaf Spot | 881 files |
+|  |  | **Four-class canonical total** | **9,881** |
 
 > [!WARNING]
-> The August 26 formal audit found 0 unreadable images, 0 exact duplicate
-> copies, 1,011 perceptual pairs requiring visual review, and only 16 active
-> images with explicit biological/acquisition group assignments. Seven stale
-> assignments were moved to `metadata/archive/group_manifest_retired.json`
-> without erasing them.
-> Formal split creation is blocked until metadata and near-duplicate review are
-> complete. Existing model artifacts are incompatible with this contract.
+> The September 4 Cordana acquisition changed the inventory fingerprint. Its
+> 3,000 source-provided augmentation derivatives were removed from the active
+> class folder and archived under `augmentation-derived/cordana-ecuador/`.
+> They are not part of the active inventory and must not enter
+> validation or test partitions.
+
+The current exploratory validator accepted all 9,881 active files with zero
+exact duplicate copies and reported 109 perceptual pairs requiring review.
+Earlier 13,000- and 16,000-file reports are retired because their inventories
+are no longer active.
 
 The complete pair-review procedure, decision vocabulary, current queue counts,
 and deterministic artifact fingerprints are in
@@ -98,13 +102,40 @@ and deterministic artifact fingerprints are in
 CSV review artifacts remain local under `datasets/` because the repository's
 dataset ignore policy excludes non-documentation files.
 
-There are 12,670 image files on disk in the four active class folders. The validator determines the accepted canonical count after exact-copy exclusion; folder counts alone are not a formal cohort.
+There are 9,881 image files on disk in the four active class folders. The validator determines the accepted canonical count after exact-copy exclusion; folder counts alone are not a formal cohort.
 
 After review and grouping, use the versioned cohort procedure in
-[`cohort-selection.md`](docs/cohort-selection.md). The current 700-per-class build is
-blocked and selects zero files: Cordana has only 670 raw images, while metadata
-and duplicate adjudication are still incomplete. Cohort selection precedes the
-70/15/15 split.
+[`cohort-selection.md`](docs/cohort-selection.md). The current 700-per-class build
+remains blocked because metadata and duplicate adjudication are incomplete.
+Folder-level balance does not resolve those scientific gates. Cohort selection
+precedes the 70/15/15 split.
+
+### September 4, 2026 non-Cordana reduction
+
+Healthy, Sigatoka, and Panama Disease were reduced to exactly 3,000 active
+files each. The recoverable operation moved 2,965 files outside the active
+dataset to `reductions/non-cordana-to-3000-2026-09-04/`: three confirmed
+byte-identical Healthy copies, 126 broad perceptual candidates selected as
+surplus, and 2,836 deterministic source-stratified surplus files. The latter
+two categories are not asserted to be duplicates. Minority-source files were
+preserved; surplus selection came from the dominant Zenodo batches.
+
+Cordana was excluded from every planned move. Its 881-file inventory was
+protected with a filename, size, and SHA-256 baseline before and after the
+operation. The full plan and evidence are under
+`workflows/non-cordana-reduction-2026-09-04/`.
+
+### September 4, 2026 Cordana acquisition
+
+The acquisition initially left 1,000 non-augmentation Cordana images. Before
+the later non-Cordana reduction began, the folder had changed externally to
+881 files; the reduction preserved that 881-file baseline without modification.
+The acquisition admitted 331 of 739 ABCGMP Cordana candidates after exact and
+flip-aware near-duplicate screening. The separately downloaded 3,000 Ecuador
+derivatives remain only in the inactive
+`augmentation-derived/cordana-ecuador/` archive. Full provenance and license
+caveats are recorded in
+[`banana_leaf_thesis_4class/SOURCES.md`](banana_leaf_thesis_4class/SOURCES.md).
 
 The atomic group-aware splitting procedure and current signed blocked result
 are documented in [`final-split.md`](docs/final-split.md). No train, validation, or

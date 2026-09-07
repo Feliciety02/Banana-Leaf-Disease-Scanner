@@ -12,6 +12,9 @@ ENHANCED_RUN="ai/artifacts/four_class/enhanced/runs/20260829_seed42_run01"
 ENHANCED_SELECTED="ai/artifacts/four_class/enhanced/selected"
 STATUS_FILE="ai/artifacts/four_class/training_status.txt"
 SSL_INTERMEDIATE_GLOB="ssl_checkpoint_epoch_*.complete"
+TEACHER_COMPLETE="$TEACHER_RUN/teacher_training.complete.json"
+TEACHER_METRICS="$TEACHER_RUN/validation_metrics.json"
+BASELINE_MACRO_F1="0.9123085141"
 
 export TF_GPU_ALLOCATOR="${TF_GPU_ALLOCATOR:-cuda_malloc_async}"
 export TF_CPP_MIN_LOG_LEVEL="${TF_CPP_MIN_LOG_LEVEL:-1}"
@@ -26,18 +29,28 @@ trap 'write_status "failed"' ERR
 
 "$PYTHON_BIN" -c 'import sys, tensorflow as tf; devices = tf.config.list_physical_devices("GPU"); print("GPU devices:", devices); sys.exit(0 if devices else "No TensorFlow GPU detected; CPU training is disabled for this run")'
 
-if [[ ! -f "$TEACHER_RUN/best_teacher.keras" ]]; then
+if [[ ! -f "$TEACHER_COMPLETE" ]]; then
   write_status "training_teacher"
   teacher_args=(
     -u -m ai.training.train_teacher
     --config ai/config/four_class_teacher_gpu.json
+    --status-file "$STATUS_FILE"
   )
-  if [[ -f "$TEACHER_RUN/resnet101_ssl_pretrained.keras" ]]; then
+  if [[ -f "$TEACHER_RUN/best_teacher.keras" && -f "$TEACHER_RUN/teacher_finetune_history.json" ]]; then
+    teacher_args+=(--resume-finetune)
+  elif [[ -f "$TEACHER_RUN/resnet101_ssl_pretrained.keras" ]]; then
     teacher_args+=(--resume-ssl)
   elif compgen -G "$TEACHER_RUN/${SSL_INTERMEDIATE_GLOB}" > /dev/null; then
     teacher_args+=(--resume-ssl-intermediate)
   fi
   "$PYTHON_BIN" "${teacher_args[@]}"
+fi
+
+# Do not distill from a teacher that is weaker than the validation baseline.
+if ! "$PYTHON_BIN" -c 'import json, sys; value = float(json.load(open(sys.argv[1], encoding="utf-8"))["value"]); threshold = float(sys.argv[2]); print(f"Teacher validation macro-F1: {value:.5f}; required: > {threshold:.5f}"); raise SystemExit(0 if value > threshold else 1)' "$TEACHER_METRICS" "$BASELINE_MACRO_F1"; then
+  write_status "blocked_teacher_below_baseline"
+  echo "Knowledge distillation was not started. Run ai/training/run_enhanced_supervised_gpu.sh instead." >&2
+  exit 2
 fi
 
 cp "$TEACHER_RUN/best_teacher.keras" "$TEACHER_SELECTED/best_teacher.keras"

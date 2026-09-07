@@ -11,18 +11,39 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#173f35"
+      "backgroundColor": "#f4f7f2"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.dahonmd.field"
+      "bundleIdentifier": "com.dahonmd.field",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": false
+        }
+      },
+      "entitlements": {
+        "com.apple.developer.default-data-protection": "NSFileProtectionComplete"
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.dahonmd.field",
       "versionCode": 1,
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.VIBRATE"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#173f35"
+        "backgroundColor": "#f4f7f2"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -40,6 +61,12 @@
         }
       ],
       [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
+      [
         "expo-asset",
         {
           "assets": [
@@ -48,7 +75,8 @@
         }
       ],
       "expo-font",
-      "./modules/dahonmd-tflite/plugin"
+      "./modules/dahonmd-tflite/plugin",
+      "expo-background-task"
     ]
   }
 }

@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Contracts\Repositories\DiagnosisRepositoryInterface;
 use App\Models\Diagnosis;
 use App\Models\DiagnosisReview;
+use App\Models\DiagnosisSyncChange;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -60,7 +61,7 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
 
     public function findBySyncUuid(string $syncUuid): ?Diagnosis
     {
-        return Diagnosis::query()->where('sync_uuid', $syncUuid)->first();
+        return Diagnosis::query()->withTrashed()->where('sync_uuid', $syncUuid)->first();
     }
 
     public function findOwnedBySyncUuid(string $syncUuid, int $userId): Diagnosis
@@ -69,6 +70,31 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
             ->where('sync_uuid', $syncUuid)
             ->where('user_id', $userId)
             ->firstOrFail();
+    }
+
+    public function findOwnedWithTrashed(int $diagnosisId, int $userId): ?Diagnosis
+    {
+        return Diagnosis::query()
+            ->withTrashed()
+            ->whereKey($diagnosisId)
+            ->where('user_id', $userId)
+            ->first();
+    }
+
+    public function findWithTrashed(int $diagnosisId): ?Diagnosis
+    {
+        return Diagnosis::query()->withTrashed()->find($diagnosisId);
+    }
+
+    public function syncChanges(User $user, int $lastChangeId, int $limit): Collection
+    {
+        return DiagnosisSyncChange::query()
+            ->with(['diagnosis.disease', 'diagnosis.review.expert'])
+            ->where('user_id', $user->id)
+            ->where('id', '>', $lastChangeId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
     }
 
     public function withDetails(Diagnosis $diagnosis, bool $includeUser = false): Diagnosis

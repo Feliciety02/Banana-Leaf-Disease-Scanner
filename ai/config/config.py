@@ -113,7 +113,7 @@ class TeacherConfig:
     projection_dim: int = 256
     projection_hidden_dim: int = 1024
     predictor_hidden_dim: int = 512
-    dropout_rate: float = 0.30
+    dropout_rate: float = 0.40
     ssl_epochs: int = 100
     # Save recoverable SSL state (weights, EMA target, optimizer slots) after every epoch so a
     # stopped run loses at most the unfinished epoch. Rolling retention bounds disk use while
@@ -122,9 +122,15 @@ class TeacherConfig:
     max_recent_checkpoints: int = 3
     milestone_interval: int = 10
     finetune_epochs: int = 100
+    # Optional stable transfer-learning schedule. Warm up the new classifier
+    # head before unfreezing convolution weights, and keep BatchNorm statistics
+    # fixed when micro-batches are too small to estimate them reliably.
+    head_warmup_epochs: int = 0
+    head_warmup_learning_rate: float = 1e-3
+    freeze_batch_norm_during_finetune: bool = False
     ssl_learning_rate: float = 3e-4
-    finetune_learning_rate: float = 1e-4
-    weight_decay: float = 1e-5
+    finetune_learning_rate: float = 3e-5
+    weight_decay: float = 1e-4
     contrastive_temperature: float = 0.10
     byol_ema_decay: float = 0.996
     # SSL loss weights: tune these; zero disables an objective for ablation.
@@ -148,6 +154,9 @@ class StudentConfig:
     learning_rate: float = 3e-4
     pretrained_warmup_epochs: int = 0
     pretrained_warmup_learning_rate: float = 1e-3
+    # Keep transferred ImageNet BatchNorm statistics fixed during fine-tuning.
+    # This is especially important for the small batches used by KD runs.
+    freeze_batch_norm_during_finetune: bool = False
     weight_decay: float = 1e-5
 
 
@@ -274,11 +283,16 @@ class ExperimentConfig:
                 raise ValueError(f"{name} must be positive")
         if self.student.pretrained_warmup_epochs < 0:
             raise ValueError("student.pretrained_warmup_epochs cannot be negative")
+        if self.teacher.head_warmup_epochs < 0:
+            raise ValueError("teacher.head_warmup_epochs cannot be negative")
+        if self.teacher.head_warmup_epochs >= self.teacher.finetune_epochs:
+            raise ValueError("teacher.head_warmup_epochs must be smaller than teacher.finetune_epochs")
         for name, value in {
             "baseline.frozen_backbone_learning_rate": self.baseline.frozen_backbone_learning_rate,
             "baseline.fine_tune_learning_rate": self.baseline.fine_tune_learning_rate,
             "baseline.weight_decay": self.baseline.weight_decay,
             "student.pretrained_warmup_learning_rate": self.student.pretrained_warmup_learning_rate,
+            "teacher.head_warmup_learning_rate": self.teacher.head_warmup_learning_rate,
         }.items():
             if value <= 0:
                 raise ValueError(f"{name} must be positive")

@@ -121,6 +121,7 @@ SOURCE_RULES: tuple[dict[str, str], ...] = (
     {"prefix": "cordana-v4-", "dataset": "banana-leaf-disease-dataset-v4", "label": "Cordana", "location": UNKNOWN},
     {"prefix": "healthy-nutrient-", "dataset": "nutrient-deficient-banana-plant-leaves", "label": "healthy", "location": UNKNOWN},
     {"prefix": "cordana-bananalsd-", "dataset": "bananalsd", "label": "cordana", "location": UNKNOWN},
+    {"prefix": "cordana-abcgmp-", "dataset": "abcgmp-six-crop-v2", "label": "Banana cordana", "location": "India (source-level)"},
     {"prefix": "cordana-ecuador-", "dataset": "deep-learning-banana-diseases-ecuador", "label": "Cordana", "location": "Ecuador (source-level)"},
     {"prefix": "panama-kaggle-", "dataset": "banana-disease-recognition-dataset", "label": "Panama disease", "location": UNKNOWN},
     {"prefix": "black sigatoka disease", "dataset": "banana-disease-recognition-dataset", "label": "Black Sigatoka Disease", "location": UNKNOWN},

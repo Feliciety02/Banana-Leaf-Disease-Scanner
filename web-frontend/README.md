@@ -62,6 +62,11 @@ VITE_WEB_API_URL=/api
 
 The browser uses the same-origin `/api` path. During development, Vite proxies it to Laravel at `http://127.0.0.1:8001`; Docker's Nginx proxy handles the same path in a container. Restart Vite after changing `.env`.
 
+Website authentication uses Sanctum's first-party session cookie. The session
+credential is `HttpOnly` and is never written to Local Storage or IndexedDB;
+unsafe requests use Laravel's CSRF cookie/header handshake. Keep `/api` and
+`/sanctum` on the same HTTPS origin in production.
+
 ## Experiences by Role
 
 | Role | Main capabilities |
@@ -69,6 +74,33 @@ The browser uses the same-origin `/api` path. During development, Vite proxies i
 | Farmer | Scan, history, disease guide, profile, and review requests |
 | Agricultural reviewer | Prioritized diagnosis review, content verification, and dataset candidates |
 | Administrator | Overview analytics, users, diseases, diagnoses, settings, and model comparison |
+
+## Offline history and retry
+
+Authenticated farmer history is cached in browser IndexedDB. If the network
+drops after a classification has completed, saving writes an outbox item first
+and keeps it visible as **Waiting to sync**. Reconnect flushes the outbox through
+the UUID-idempotent `/api/sync` route and refreshes the central SQL history.
+Validation failures remain visible for retry instead of being silently removed.
+
+The browser stores an opaque incremental cursor and applies server upserts and
+deletion tombstones rather than downloading the full history on every refresh.
+Deletes are queued offline and synchronized with the same per-item
+acknowledgement contract. Long offline queues are uploaded in 100-record batches
+to stay inside the server rate-limit profile. The production build includes a web app manifest and
+service-worker app shell; authenticated `/api/*` responses are intentionally
+excluded from Cache Storage because account data belongs in the user-scoped
+IndexedDB stores.
+
+Signing out first attempts a final synchronization. If changes remain, DahonMD
+warns that they will be discarded and lets the user cancel. A completed logout,
+an expired session, or account deletion removes that account's cached and queued
+browser data. If the server cannot revoke the session, logout stops and asks the
+user to reconnect rather than presenting a false local-only logout.
+
+The browser still needs the configured inference service to classify a new
+image; the offline outbox guarantees persistence and retry, not browser-side
+model inference.
 
 ## Image Upload Contract
 

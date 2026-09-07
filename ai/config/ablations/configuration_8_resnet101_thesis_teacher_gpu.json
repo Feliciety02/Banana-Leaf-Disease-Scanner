@@ -1,0 +1,40 @@
+{
+  "experiment_name": "configuration_8_resnet101_thesis_teacher_gpu",
+  "teacher": {
+    "backbone": "ResNet101",
+    "imagenet_weights": true,
+    "ssl_enabled": true,
+    "feature_dim": 2048,
+    "projection_dim": 256,
+    "projection_hidden_dim": 1024,
+    "predictor_hidden_dim": 512,
+    "dropout_rate": 0.40,
+    "ssl_epochs": 8,
+    "finetune_epochs": 30,
+    "ssl_learning_rate": 3e-4,
+    "finetune_learning_rate": 3e-5,
+    "weight_decay": 1e-4,
+    "contrastive_temperature": 0.10,
+    "byol_ema_decay": 0.996,
+    "lambda_byol": 1.0,
+    "lambda_mim": 1.0,
+    "lambda_cl": 1.0
+  },
+  "distillation": {
+    "enabled": false
+  },
+  "data": {
+    "dataset_dir": "/mnt/c/Users/Admin/Documents/Project Fe/DahonMD/datasets/banana_leaf_thesis_4class",
+    "metadata_manifest": "datasets/metadata/image_metadata.json",
+    "near_duplicate_review_manifest": "datasets/reviews/near-duplicates/near_duplicate_adjudication.reviewed.json",
+    "group_manifest": "datasets/metadata/group_manifest.reviewed.json",
+    "batch_size": 2,
+    "cache_dataset": true
+  },
+  "runtime": {
+    "output_dir": "ai/artifacts/configuration_8_gpu",
+    "early_stopping_patience": 4,
+    "reduce_lr_patience": 2,
+    "min_learning_rate": 1e-7
+  }
+}

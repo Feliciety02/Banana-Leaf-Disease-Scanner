@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiagnosisController;
+use App\Http\Controllers\DiagnosisMediaController;
 use App\Http\Controllers\DiseaseController;
 use App\Http\Controllers\Expert\DashboardController as ExpertDashboardController;
 use App\Http\Controllers\Expert\DatasetCandidateController;
@@ -32,6 +33,9 @@ Route::middleware('throttle:auth')->group(function () {
 Route::apiResource('diseases', DiseaseController::class)->only(['index', 'show'])->middleware('throttle:public-api');
 
 Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(function () {
+    Route::get('/diagnosis-media/{diagnosis}/{kind}', DiagnosisMediaController::class)
+        ->where('kind', 'image|gradcam')
+        ->name('diagnosis-media.show');
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/verification-notification', [AuthController::class, 'resendVerification'])->middleware('throttle:6,1');
@@ -47,7 +51,16 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
         Route::delete('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'withdrawResearchConsent']);
         Route::post('/inference', InferenceController::class);
         Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
+        Route::get('/mobile/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
         Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
+        Route::post('/sync', MobileSyncController::class)->middleware('throttle:sync');
+        Route::get('/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
+        Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
+        Route::prefix('v1')->group(function () {
+            Route::post('/sync', MobileSyncController::class)->middleware('throttle:sync');
+            Route::get('/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
+            Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
+        });
     });
 
     Route::prefix('admin')->middleware('role:'.User::ROLE_ADMIN)->group(function () {

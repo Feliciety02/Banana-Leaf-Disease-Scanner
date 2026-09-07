@@ -22,13 +22,18 @@ from ai.data.records import ImageRecord
 from ai.training.common import make_optimizer
 from ai.training.train_teacher import (
     FINAL_SSL_MODEL_NAME,
+    TRAINING_COMPLETE_NAME,
     _ssl_history_upto,
+    build_finetune_classifier,
     checkpoint_paths,
+    finetune_resume_state,
     latest_valid_ssl_checkpoint,
     load_ssl_checkpoint,
     save_final_ssl_model,
     save_ssl_checkpoint,
     valid_ssl_checkpoint_epochs,
+    write_pipeline_status,
+    write_training_complete_marker,
 )
 
 
@@ -87,6 +92,71 @@ class CheckpointPathsTest(unittest.TestCase):
         self.assertEqual(config.teacher.ssl_checkpoint_interval, 1)
         self.assertEqual(config.teacher.max_recent_checkpoints, 3)
         self.assertEqual(config.teacher.milestone_interval, 10)
+
+
+class FineTuneResumeTest(unittest.TestCase):
+    def test_pipeline_status_is_written_atomically(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            status_file = Path(directory) / "nested" / "training_status.txt"
+
+            write_pipeline_status(status_file, "training_teacher")
+
+            self.assertEqual(status_file.read_text(encoding="utf-8"), "training_teacher\n")
+            self.assertFalse(status_file.with_suffix(status_file.suffix + ".tmp").exists())
+
+    def test_new_finetune_uses_fresh_head_and_configured_dropout(self) -> None:
+        config = ExperimentConfig()
+        config.teacher.dropout_rate = 0.40
+        inputs = tf.keras.Input((8,), name="image")
+        features = tf.keras.layers.Dense(6, name="features_dense")(inputs)
+        feature_map = tf.keras.layers.Reshape((1, 1, 6), name="feature_map_reshape")(features)
+        old_logits = tf.keras.layers.Dense(4, name="old_logits")(features)
+        ssl_model = tf.keras.Model(
+            inputs,
+            {"logits": old_logits, "features": features, "feature_map": feature_map},
+        )
+
+        classifier = build_finetune_classifier(ssl_model, config)
+
+        self.assertEqual(classifier.name, "resnet101_classifier")
+        self.assertAlmostEqual(classifier.get_layer("finetune_dropout").rate, 0.40)
+        self.assertEqual(classifier.output["logits"].shape[-1], 4)
+
+    def test_resume_state_preserves_patience_and_reduced_learning_rate(self) -> None:
+        history = [
+            {"validation_macro_f1": 0.40},
+            {"validation_macro_f1": 0.35},
+            {"validation_macro_f1": 0.34},
+            {"validation_macro_f1": 0.45},
+            {"validation_macro_f1": 0.44},
+        ]
+
+        state = finetune_resume_state(history, 1e-4, reduce_lr_patience=2, min_learning_rate=1e-7)
+
+        self.assertEqual(state[:3], (0.45, 1, 1))
+        self.assertAlmostEqual(state[3], 5e-5)
+
+    def test_completion_marker_is_written_only_by_explicit_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory)
+            marker = write_training_complete_marker(
+                output_dir,
+                selected_epoch=13,
+                completed_epochs=28,
+                validation_macro_f1=0.71,
+            )
+
+            self.assertEqual(marker.name, TRAINING_COMPLETE_NAME)
+            self.assertEqual(json.loads(marker.read_text(encoding="utf-8"))["status"], "complete")
+            self.assertFalse(marker.with_suffix(marker.suffix + ".tmp").exists())
+
+    def test_completed_ssl_history_can_be_carried_into_finetune_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory)
+            rows = [{"epoch": epoch} for epoch in range(1, 4)]
+            (output_dir / "teacher_ssl_history.json").write_text(json.dumps(rows), encoding="utf-8")
+
+            self.assertEqual(_ssl_history_upto(output_dir, 3), rows)
 
 
 class CheckpointRoundTripTest(unittest.TestCase):

@@ -34,11 +34,15 @@ def difference_hash(image: Image.Image) -> int:
 
 def flip_aware_difference_hash(image: Image.Image) -> int:
     """Return the minimum dHash across original, flipped, and rotated views."""
+    # dHash only consumes a 9x8 grayscale image. Resize once before creating
+    # orientation variants so multi-megapixel inputs do not allocate three
+    # additional full-resolution images merely to calculate 64 bits.
+    resized = image.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
     variants = (
-        image,
-        image.transpose(Image.Transpose.FLIP_LEFT_RIGHT),
-        image.transpose(Image.Transpose.FLIP_TOP_BOTTOM),
-        image.transpose(Image.Transpose.ROTATE_180),
+        resized,
+        resized.transpose(Image.Transpose.FLIP_LEFT_RIGHT),
+        resized.transpose(Image.Transpose.FLIP_TOP_BOTTOM),
+        resized.transpose(Image.Transpose.ROTATE_180),
     )
     return min(difference_hash(variant) for variant in variants)
 

@@ -9,12 +9,16 @@
   "teacher": {
     "backbone": "ResNet101",
     "imagenet_weights": true,
+    "dropout_rate": 0.40,
     "ssl_enabled": true,
     "ssl_epochs": 100,
     "ssl_checkpoint_interval": 1,
     "max_recent_checkpoints": 3,
     "milestone_interval": 10,
-    "finetune_epochs": 100
+    "finetune_epochs": 30,
+    "ssl_learning_rate": 3e-4,
+    "finetune_learning_rate": 3e-5,
+    "weight_decay": 1e-4
   },
   "distillation": {
     "enabled": false
@@ -22,8 +26,8 @@
   "runtime": {
     "seed": 42,
     "output_dir": "ai/artifacts/four_class/teacher/runs/20260829_seed42_run01",
-    "early_stopping_patience": 15,
-    "reduce_lr_patience": 6,
+    "early_stopping_patience": 4,
+    "reduce_lr_patience": 2,
     "min_learning_rate": 1e-7
   }
 }

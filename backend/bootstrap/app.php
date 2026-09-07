@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->statefulApi();
         $middleware->api(prepend: [NormalizeApiInput::class, AssignRequestContext::class]);
         $middleware->alias(['role' => EnsureRole::class]);
     })
@@ -27,4 +28,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(fn (ValidationException $e, Request $request) => $request->is('api/*') ? response()->json(['success' => false, 'message' => 'The given data was invalid.', 'errors' => $e->errors()], 422) : null);
         $exceptions->render(fn (AuthenticationException $e, Request $request) => $request->is('api/*') ? response()->json(['success' => false, 'message' => 'Unauthenticated.', 'errors' => (object) []], 401) : null);
         $exceptions->render(fn (AuthorizationException $e, Request $request) => $request->is('api/*') ? response()->json(['success' => false, 'message' => 'This action is forbidden.', 'errors' => (object) []], 403) : null);
+        $exceptions->respond(function ($response) {
+            if (request()->is('api/*')) {
+                $response->headers->set('Cache-Control', 'no-store, private');
+                $response->headers->set('Pragma', 'no-cache');
+                $response->headers->set('X-Content-Type-Options', 'nosniff');
+            }
+
+            return $response;
+        });
     })->create();

@@ -17,7 +17,7 @@ class UpdateUserRequest extends ApiRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users')->ignore($id)],
             'role' => ['sometimes', 'required', Rule::in(User::ROLES)],
-            'password' => ['nullable', 'confirmed', Password::min(8)],
+            'password' => ['nullable', 'confirmed', Password::defaults()],
         ];
     }
 }
