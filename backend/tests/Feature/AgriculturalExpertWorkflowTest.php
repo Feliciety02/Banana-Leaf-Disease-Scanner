@@ -88,8 +88,8 @@ class AgriculturalExpertWorkflowTest extends TestCase
             'name' => 'Plant Health Reviewer',
             'email' => 'reviewer@example.test',
             'role' => 'agricultural_expert',
-            'password' => 'secret123',
-            'password_confirmation' => 'secret123',
+            'password' => 'Secret123!',
+            'password_confirmation' => 'Secret123!',
         ])->assertCreated()->assertJsonPath('data.role', 'agricultural_expert');
         $this->getJson('/api/admin/experts')->assertOk()->assertJsonCount(1, 'data.items');
 

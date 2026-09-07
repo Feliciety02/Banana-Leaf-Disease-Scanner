@@ -60,7 +60,7 @@ cd android && ./gradlew connectedAndroidTest
 
 The plugin at `modules/dahonmd-tflite/plugin` modifies the generated Android project during `expo prebuild`:
 
-1. Adds `org.tensorflow:tensorflow-lite:2.16.1` to the app-level `build.gradle` dependencies
+1. Adds the 16 KB page-size compatible LiteRT `1.4.0` runtime and classic Interpreter API to the app-level `build.gradle` dependencies
 2. Configures NDK ABI filters for ARM and x86 targets
 
 This happens automatically — no manual Gradle editing is required.

@@ -12,7 +12,7 @@ class InferenceController extends Controller
 
     public function __invoke(Request $request): JsonResponse
     {
-        $request->validate(['image' => ['required', 'image', 'max:10240']]);
+        $request->validate(['image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240', 'dimensions:max_width=5000,max_height=5000']]);
 
         return response()->json([
             'success' => true,

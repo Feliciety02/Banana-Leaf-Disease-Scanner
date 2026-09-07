@@ -19,6 +19,12 @@ interface DiagnosisRepositoryInterface
 
     public function findOwnedBySyncUuid(string $syncUuid, int $userId): Diagnosis;
 
+    public function findOwnedWithTrashed(int $diagnosisId, int $userId): ?Diagnosis;
+
+    public function findWithTrashed(int $diagnosisId): ?Diagnosis;
+
+    public function syncChanges(User $user, int $lastChangeId, int $limit): Collection;
+
     public function withDetails(Diagnosis $diagnosis, bool $includeUser = false): Diagnosis;
 
     public function update(Diagnosis $diagnosis, array $attributes): Diagnosis;

@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Models\User;
 use App\Services\AuthenticationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password as PasswordRule;
@@ -18,32 +20,52 @@ class AuthController extends Controller
 
     public function register(RegisterRequest $request): JsonResponse
     {
+        $statefulWeb = $this->isStatefulWebRequest($request);
         $authentication = $this->auth->register(
             $request->validated(),
             $request->string('device_name', 'web')->toString(),
+            $request->boolean('remember'),
+            ! $statefulWeb,
         );
+        if ($statefulWeb) {
+            $this->startWebSession($request, $authentication['user'], $request->boolean('remember'));
+        }
 
-        return response()->json(['success' => true, 'message' => 'Registration successful.', 'data' => [
+        $data = [
             'user' => new UserResource($authentication['user']),
-            'token' => $authentication['token'],
-        ]], 201);
+        ];
+        if ($authentication['token']) {
+            $data['token'] = $authentication['token'];
+        }
+
+        return response()->json(['success' => true, 'message' => 'Registration successful.', 'data' => $data], 201);
     }
 
     public function login(LoginRequest $request): JsonResponse
     {
+        $statefulWeb = $this->isStatefulWebRequest($request);
         $authentication = $this->auth->authenticate(
             $request->string('email')->toString(),
             $request->password,
             $request->string('device_name', 'web')->toString(),
+            $request->boolean('remember'),
+            ! $statefulWeb,
         );
         if (! $authentication) {
             return response()->json(['success' => false, 'message' => 'The provided credentials are incorrect.', 'errors' => ['email' => ['The provided credentials are incorrect.']]], 422);
         }
 
-        return response()->json(['success' => true, 'message' => 'Login successful.', 'data' => [
+        if ($statefulWeb) {
+            $this->startWebSession($request, $authentication['user'], $request->boolean('remember'));
+        }
+        $data = [
             'user' => new UserResource($authentication['user']),
-            'token' => $authentication['token'],
-        ]]);
+        ];
+        if ($authentication['token']) {
+            $data['token'] = $authentication['token'];
+        }
+
+        return response()->json(['success' => true, 'message' => 'Login successful.', 'data' => $data]);
     }
 
     public function forgotPassword(Request $request): JsonResponse
@@ -63,7 +85,7 @@ class AuthController extends Controller
         $credentials = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', PasswordRule::min(8)],
+            'password' => ['required', 'confirmed', PasswordRule::defaults()],
         ]);
         $status = $this->auth->resetPassword($credentials);
 
@@ -81,6 +103,11 @@ class AuthController extends Controller
     public function logout(Request $request): JsonResponse
     {
         $this->auth->logout($request->user());
+        if ($request->hasSession()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(['success' => true, 'message' => 'Logout successful.', 'data' => (object) []]);
     }
@@ -99,5 +126,17 @@ class AuthController extends Controller
             'message' => $sent ? 'A verification link has been sent.' : 'Your email address is already verified.',
             'data' => (object) [],
         ]);
+    }
+
+    private function isStatefulWebRequest(Request $request): bool
+    {
+        return $request->string('device_name', 'web')->toString() === 'web'
+            && $request->attributes->get('sanctum') === true;
+    }
+
+    private function startWebSession(Request $request, User $user, bool $remember): void
+    {
+        Auth::guard('web')->login($user, $remember);
+        $request->session()->regenerate();
     }
 }

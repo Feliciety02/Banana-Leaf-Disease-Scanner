@@ -2,18 +2,18 @@
 
 This record documents the sources, licenses, admission checks, and flattening
 for the four-class thesis inventory. The
-August 23, 2026 validator report is authoritative for current counts; older
+September 4, 2026 validator report is authoritative for current counts; older
 admission narratives below are retained as history.
 
 ## Current composition
 
 | Model class | Working images | Primary sources |
 | --- | ---: | --- |
-| `healthy` | 4,000 active | Zenodo Tanzania; v4 compilation (Healthy); Nutrient Deficient Banana Plant Leaves; earlier original imports |
-| `sigatoka` | 4,000 active | Zenodo Tanzania (Black Sigatoka); v4 compilation (Yellow and Black Sigatoka); BananaLSD; earlier Banana Disease Recognition originals |
-| `panama-disease` | 4,000 active | Zenodo Tanzania (Fusarium Wilt); Banana Disease Recognition Dataset originals |
-| `cordana-leaf-spot` | 670 active | BananaLSD originals; v4 compilation (Cordana); Ecuador Cordana field originals |
-| **Files on disk** | **12,670** | **12,670 active** |
+| `healthy` | 3,000 active | Zenodo Tanzania; v4 compilation (Healthy); Nutrient Deficient Banana Plant Leaves; earlier original imports |
+| `sigatoka` | 3,000 active | Zenodo Tanzania (Black Sigatoka); v4 compilation (Yellow and Black Sigatoka); BananaLSD; earlier Banana Disease Recognition originals |
+| `panama-disease` | 3,000 active | Zenodo Tanzania (Fusarium Wilt); Banana Disease Recognition Dataset originals |
+| `cordana-leaf-spot` | 881 active | BananaLSD; v4 compilation; Ecuador originals; ABCGMP; later local additions |
+| **Files on disk** | **9,881** | **9,881 active** |
 
 ## Filename prefixes and provenance
 
@@ -29,6 +29,7 @@ The class folders are flat. Filename prefixes identify the source batch:
 | `cordana-v4-*` | v4 compilation `Cordana` | cordana-leaf-spot |
 | `cordana-bananalsd-*` | BananaLSD `OriginalSet/cordana` | cordana-leaf-spot |
 | `cordana-ecuador-*` | Deep Learning Banana Diseases (Ecuador) `Data-Tesis/Cordana` | cordana-leaf-spot |
+| `cordana-abcgmp-*` | ABCGMP Fruit and Leaf Disease Six Crop Dataset v2 | cordana-leaf-spot |
 | `panama-*` | Zenodo Fusarium Wilt + Banana Disease Recognition Panama | panama-disease |
 
 The numeric suffix preserves ordering only; it does not necessarily map to the
@@ -107,15 +108,70 @@ dimension of 1024 px on admission.
   companion MDPI article is CC BY 4.0
 - **Used here:** original `Data-Tesis/Cordana` captures (300 files, none
   augmented)
-- **Excluded:** all 9,003 source-provided augmented images under
-  `Imagenes-aumentadas/`; 28 files byte-identical to existing active images;
-  6 files matching existing cordana originals at dHash distance 0
+- **Inactive archive:** 3,000 source-provided augmented Cordana images are kept
+  under `datasets/augmentation-derived/cordana-ecuador/`, outside the active
+  four-class root; the remaining source augmentations were not imported
+- **Excluded from the original-image import:** 28 files byte-identical to
+  existing active images; 6 files matching existing Cordana originals at
+  dHash distance 0
 
 > [!CAUTION]
 > The repository itself carries no license, so reuse terms rest on the
 > companion CC BY 4.0 article statement. It was admitted at the project
 > owner's explicit request to balance the cordana class. For any publication
 > or redistribution, verify current upstream terms.
+
+### September 4, 2026 Cordana balancing acquisition
+
+The acquisition added 331 screened ABCGMP images to the active Cordana folder.
+It also downloaded 3,000 published Ecuador Cordana augmentation derivatives,
+but those derivatives are now archived outside the four-class dataset and are
+not active samples. A cache-to-disk reconciliation found nine previously active
+v4 files absent; eight were recovered from the current v4 source archive. The
+acquisition inventory was therefore 1,000 non-augmentation files. Before the
+later non-Cordana reduction, external folder changes left 881 Cordana files;
+that reduction did not move or modify any of them.
+
+- **ABCGMP Fruit and Leaf Disease Six Crop Dataset v2:** canonical source
+  [Mendeley Data DOI 10.17632/fhbvmpcyy2.2](https://data.mendeley.com/datasets/fhbvmpcyy2/2),
+  CC BY 4.0. The acquisition used the
+  [Kaggle `abcgmpvers1` mirror](https://www.kaggle.com/datasets/mdmuntasirahmed/abcgmpvers1),
+  recorded there as Apache 2.0. Of 739 Cordana-labeled files, 331 were admitted;
+  408 exact or flip-aware near matches against the existing inventory or an
+  earlier candidate were rejected at 64-bit dHash distance <= 6.
+- **Ecuador augmentation batch:** 3,000 files from
+  [`Imagenes-aumentadas/Cordana`](https://github.com/NixonJimenez02/deep-learning-banana-diseases/tree/main/Imagenes-aumentadas/Cordana),
+  ten derivatives for each of 300 source images. All decoded successfully and
+  none were byte-identical to the pre-import inventory or each other. The
+  repository declares no license; its companion article is CC BY 4.0. These
+  files are stored only in `datasets/augmentation-derived/cordana-ecuador/`.
+- The generated acquisition manifest is
+  `datasets/workflows/cordana-acquisition-2026-09-04/manifest.json`. It records
+  source paths, target paths, SHA-256, flip-aware dHash, dimensions, rejection
+  reasons, augmentation parent IDs, and group IDs.
+
+> [!CAUTION]
+> The 3,000 Ecuador augmentation files are derived examples, not new biological
+> samples, and are excluded from the active dataset. For a formal experiment,
+> freeze the original-image split first and generate augmentation only while
+> reading the training partition.
+
+### September 4, 2026 non-Cordana reduction
+
+The active Healthy, Sigatoka, and Panama Disease folders were reduced to 3,000
+files each. A multi-method scan used SHA-256, flip-aware 64-bit and 256-bit
+dHash, 64-bit pHash, and grayscale correlation/MAE confirmation. It found and
+quarantined three byte-identical Healthy copies. To meet the requested counts,
+it also quarantined 126 broad perceptual candidates as surplus and 2,836
+deterministically selected files from the dominant Zenodo source batches.
+Those surplus categories are not claimed to be confirmed duplicates.
+
+All 2,965 files remain recoverable under
+`datasets/reductions/non-cordana-to-3000-2026-09-04/`. Cordana appeared in zero
+planned moves and matched its protected 881-file SHA-256 baseline immediately
+after application. The post-reduction validator accepted all 9,881 active
+files, found zero exact duplicate copies, and retained 109 broad perceptual
+candidates for human review.
 
 ## Admission checks (August 16, 2026)
 

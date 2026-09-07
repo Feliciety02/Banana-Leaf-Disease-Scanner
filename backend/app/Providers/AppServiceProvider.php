@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +25,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Password::defaults(function () {
+            $password = Password::min(8)
+                ->letters()
+                ->mixedCase()
+                ->numbers()
+                ->symbols();
+
+            if (! app()->environment('testing')) {
+                $password->uncompromised();
+            }
+
+            return $password;
+        });
+
         ResetPassword::createUrlUsing(fn (object $notifiable, string $token): string => url('/reset-password').'?'.http_build_query([
             'token' => $token,
             'email' => $notifiable->getEmailForPasswordReset(),

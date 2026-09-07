@@ -4,14 +4,20 @@ FROM php:8.3-cli-alpine
 
 RUN apk add --no-cache \
         curl \
+        libjpeg-turbo-dev \
+        libpng-dev \
+        libwebp-dev \
         icu-dev \
         libxml2-dev \
         libzip-dev \
         oniguruma-dev \
         sqlite-dev \
         su-exec \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" \
         dom \
+        exif \
+        gd \
         intl \
         mbstring \
         pcntl \

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Diagnosis;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -9,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -19,7 +21,7 @@ class SecurityReliabilityTest extends TestCase
 
     public function test_api_normalizes_identity_input_without_mutating_passwords(): void
     {
-        $password = '  secret123  ';
+        $password = '  Secret123!  ';
 
         $registration = $this->postJson('/api/auth/register', [
             'name' => '  Field Farmer  ',
@@ -39,7 +41,9 @@ class SecurityReliabilityTest extends TestCase
     public function test_role_gate_rejects_non_farmers_from_farmer_workflows(): void
     {
         Sanctum::actingAs(User::factory()->admin()->create());
-        $this->getJson('/api/diagnoses')->assertForbidden();
+        $this->getJson('/api/diagnoses')->assertForbidden()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
         $this->postJson('/api/inference')->assertForbidden();
 
         Sanctum::actingAs(User::factory()->agriculturalExpert()->create());
@@ -52,6 +56,7 @@ class SecurityReliabilityTest extends TestCase
 
         $response->assertOk()
             ->assertHeader('X-Request-ID', 'health-check-123')
+            ->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('status', 'ok')
             ->assertJsonPath('checks.database', 'ok');
     }
@@ -98,18 +103,31 @@ class SecurityReliabilityTest extends TestCase
         $this->postJson('/api/auth/reset-password', [
             'email' => $user->email,
             'token' => Password::createToken($user),
-            'password' => 'new-password-123',
-            'password_confirmation' => 'new-password-123',
+            'password' => 'New-Password-123!',
+            'password_confirmation' => 'New-Password-123!',
         ])->assertOk();
 
-        $this->assertTrue(Hash::check('new-password-123', $user->fresh()->password));
+        $this->assertTrue(Hash::check('New-Password-123!', $user->fresh()->password));
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
     public function test_public_account_deletion_requires_credentials_and_deletes_account(): void
     {
+        Storage::fake('public');
         $user = User::factory()->create(['email' => 'delete@example.test', 'password' => 'correct-password']);
         $user->createToken('mobile');
+        Storage::disk('public')->put('diagnoses/delete-leaf.jpg', 'leaf');
+        Storage::disk('public')->put('diagnoses/delete-gradcam.jpg', 'gradcam');
+        $diagnosis = Diagnosis::query()->create([
+            'user_id' => $user->id,
+            'predicted_class' => 'healthy',
+            'confidence' => 98.5,
+            'image_path' => 'diagnoses/delete-leaf.jpg',
+            'gradcam_path' => 'diagnoses/delete-gradcam.jpg',
+            'source' => 'mobile',
+            'is_simulated' => false,
+            'diagnosed_at' => now(),
+        ]);
 
         $this->get('/privacy')->assertOk()->assertSee('DahonMD privacy policy');
         $this->get('/account-deletion')->assertOk()->assertSee('Permanently delete account');
@@ -124,7 +142,12 @@ class SecurityReliabilityTest extends TestCase
             'password' => 'correct-password',
         ])->assertRedirect('/account-deletion')->assertSessionHas('status');
         $this->assertDatabaseMissing('users', ['id' => $user->id]);
+        $this->assertDatabaseMissing('diagnoses', ['id' => $diagnosis->id]);
         $this->assertDatabaseCount('personal_access_tokens', 0);
+        Storage::disk('public')->assertMissing([
+            'diagnoses/delete-leaf.jpg',
+            'diagnoses/delete-gradcam.jpg',
+        ]);
     }
 
     public function test_signed_email_verification_link_marks_the_account_verified(): void
@@ -142,12 +165,13 @@ class SecurityReliabilityTest extends TestCase
     public function test_changing_email_requires_verification_again(): void
     {
         Notification::fake();
-        $user = User::factory()->create(['email' => 'before@example.test']);
+        $user = User::factory()->create(['email' => 'before@example.test', 'password' => 'Current-Password-123!']);
         Sanctum::actingAs($user);
 
         $this->putJson('/api/profile', [
             'name' => $user->name,
             'email' => 'after@example.test',
+            'current_password' => 'Current-Password-123!',
         ])->assertOk()->assertJsonPath('data.user.email_verified_at', null);
 
         $this->assertNull($user->fresh()->email_verified_at);

@@ -1,0 +1,31 @@
+{
+  "experiment_name": "ca_mobilenetv3_supervised_imagenet_seed42",
+  "data": {
+    "dataset_dir": "/home/feanne/dahonmd-data/banana_leaf_thesis_4class",
+    "final_split_dir": "ai/artifacts/final_split",
+    "batch_size": 32,
+    "cache_dataset": true
+  },
+  "student": {
+    "backbone": "MobileNetV3SmallCoordinateAttention",
+    "coordinate_attention": true,
+    "imagenet_weights": true,
+    "epochs": 30,
+    "learning_rate": 1e-5,
+    "pretrained_warmup_epochs": 20,
+    "pretrained_warmup_learning_rate": 1e-3,
+    "freeze_batch_norm_during_finetune": true,
+    "dropout_rate": 0.2,
+    "weight_decay": 1e-5
+  },
+  "distillation": {
+    "enabled": false
+  },
+  "runtime": {
+    "seed": 42,
+    "output_dir": "ai/artifacts/four_class/enhanced/diagnostics/supervised_imagenet_seed42",
+    "early_stopping_patience": 15,
+    "reduce_lr_patience": 6,
+    "min_learning_rate": 1e-7
+  }
+}

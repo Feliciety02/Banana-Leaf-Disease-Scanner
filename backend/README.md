@@ -45,7 +45,7 @@ Use this folder when your task involves Laravel, API routes, authentication, the
 | Route | A URL and HTTP method handled by the API |
 | Migration | A versioned change to the database structure |
 | Seeder | Code that creates safe development records |
-| Sanctum token | The login credential sent by an authenticated client |
+| Sanctum session/token | `HttpOnly` session cookie for the same-origin website; expiring bearer token for mobile |
 | SQLite | The file-based database used for local development |
 
 ## Quick Start
@@ -128,11 +128,15 @@ Production also requires real mail transport, sender details, HTTPS, protected s
 | --- | --- | --- |
 | `GET /api/health` | Application and database readiness | Public |
 | `POST /api/auth/register` | Create an account | Public |
-| `POST /api/auth/login` | Issue a Sanctum token | Public |
+| `POST /api/auth/login` | Start a CSRF-protected web session or issue a mobile bearer token | Public |
 | `GET /api/diseases` | Read verified disease-guide content | Public |
 | `GET, POST /api/diagnoses` | List or create diagnoses | Farmer |
 | `POST /api/inference` | Submit an image for the normal screening flow | Farmer |
-| `POST /api/mobile/sync` | Synchronize queued mobile records | Farmer |
+| `POST /api/sync` | Synchronize queued mobile or web records (UUID-idempotent) | Farmer |
+| `GET /api/sync` | Pull incremental upserts and deletion tombstones using an opaque cursor | Farmer |
+| `POST /api/sync/{syncUuid}/image` | Upload an explicitly consented queued image | Record owner |
+| `GET, POST /api/mobile/sync` | Backward-compatible mobile sync aliases | Farmer |
+| `GET, POST /api/v1/sync` | Versioned sync aliases for future client migration | Farmer |
 | `POST /api/diagnoses/{diagnosis}/review-request` | Request agricultural review | Record owner |
 | `POST /api/research/model-comparison` | Run an unsaved research comparison | Authenticated |
 | `/api/expert/diagnosis-reviews/*` | Review uncertain or requested diagnoses | Reviewer |
@@ -142,7 +146,22 @@ Production also requires real mail transport, sender details, HTTPS, protected s
 
 ## Image and Inference Contract
 
-Stored diagnosis images accept JPG/JPEG, PNG, and WEBP up to 10 MB. BMP is accepted by the offline Python training decoder but not by the diagnosis-upload contract.
+Stored diagnosis images accept JPG/JPEG, PNG, and WEBP up to 10 MB, 5000 × 5000 pixels, and 13 megapixels. They are decoded, resized when needed, re-encoded to remove embedded metadata/content, and stored on Laravel's private disk. Media is served only through an authorization-checked API endpoint with private, non-cacheable responses.
+
+The same-origin website must obtain `/sanctum/csrf-cookie` before unsafe API
+requests. Production must set `SESSION_SECURE_COOKIE=true`, serve the public
+site through HTTPS, keep `APP_DEBUG=false`, and avoid publishing the local API
+port. The supplied Compose workflow binds both services to loopback and is for
+development only.
+
+`POST /api/sync` accepts up to 100 `diagnoses` and/or 100 `deletions` per
+request. Each result is acknowledged independently. `GET /api/sync` uses an
+opaque monotonic cursor backed by `diagnosis_sync_changes`, avoiding lost
+same-second updates. Diagnosis deletes are soft deletes so authenticated clients
+can receive durable tombstones. Deletion accepts a server ID, a sync UUID, or
+both; UUID-only deletion resolves the case where creation succeeded but its
+acknowledgement was lost. Sync logs record counts and request IDs without
+logging diagnosis payloads or images.
 
 `POST /api/inference` remains an explicitly simulated development boundary until a validated production model service is connected. A real service must:
 

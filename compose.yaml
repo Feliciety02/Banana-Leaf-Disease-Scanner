@@ -19,7 +19,7 @@ services:
       DEV_USER_PASSWORD: ${DEV_USER_PASSWORD:-DahonMD@2026}
     init: true
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     volumes:
       - backend_data:/var/www/html/.docker-data
     healthcheck:
@@ -41,7 +41,7 @@ services:
         condition: service_healthy
     init: true
     ports:
-      - "4173:80"
+      - "127.0.0.1:4173:80"
     restart: unless-stopped
 
 volumes:

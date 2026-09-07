@@ -13,7 +13,7 @@ class StoreDiagnosisRequest extends ApiRequest
             'disease_id' => ['nullable', 'integer', 'exists:diseases,id'],
             'predicted_class' => ['required', 'string', 'max:100', Rule::in(config('banana.class_labels', []))],
             'confidence' => ['required', 'numeric', 'between:0,100'],
-            'image' => [Rule::requiredIf(fn () => $this->boolean('research_consent')), 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
+            'image' => [Rule::requiredIf(fn () => $this->boolean('research_consent')), 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240', 'dimensions:max_width=5000,max_height=5000'],
             'farmer_notes' => ['nullable', 'string', 'max:1000'],
             'research_consent' => ['sometimes', 'boolean'],
             'model_version' => ['nullable', 'string', 'max:100'],

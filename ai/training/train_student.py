@@ -14,7 +14,7 @@ from ai.losses.classification_loss import classification_loss
 from ai.losses.distillation_loss import feature_distillation_loss, logit_distillation_loss, total_distillation_loss
 from ai.models.coordinate_attention import CoordinateAttention
 from ai.models.mobilenetv3_baseline import build_distillable_baseline
-from ai.models.mobilenetv3_student import HardSwish, build_student, initialize_shared_backbone_from_mobilenetv3, shared_backbone_layer_names
+from ai.models.mobilenetv3_student import HardSwish, build_student, configure_pretrained_student_stage, initialize_shared_backbone_from_mobilenetv3, shared_backbone_layer_names
 from ai.models.teacher import ResNet101Preprocessing
 from ai.training.common import add_common_arguments, configured_experiment, macro_f1_from_predictions, make_optimizer, reduce_learning_rate, save_history, validate_model_input
 
@@ -92,14 +92,24 @@ def train(args: argparse.Namespace) -> Path:
         print(f"Transferred ImageNet weights into {len(transferred_layers)} shared backbone layers")
     warmup_epochs = min(config.student.pretrained_warmup_epochs, config.student.epochs) if transferred_layers and not args.initial_student_model else 0
     if warmup_epochs:
-        for layer_name in transferred_layers:
-            student.get_layer(layer_name).trainable = False
+        configure_pretrained_student_stage(
+            student,
+            transferred_layers,
+            head_only=True,
+            freeze_batch_norm=config.student.freeze_batch_norm_during_finetune,
+        )
         print(f"Frozen transferred backbone for {warmup_epochs} warm-up epochs")
-    elif args.initial_student_model:
-        for layer_name in transferred_layers:
-            layer = student.get_layer(layer_name)
-            layer.trainable = not isinstance(layer, tf.keras.layers.BatchNormalization)
-        print("Enabled convolution fine-tuning while keeping transferred BatchNorm layers frozen")
+    elif transferred_layers:
+        stage = configure_pretrained_student_stage(
+            student,
+            transferred_layers,
+            head_only=False,
+            freeze_batch_norm=config.student.freeze_batch_norm_during_finetune,
+        )
+        print(
+            "Enabled convolution fine-tuning; "
+            f"frozen transferred BatchNorm layers={stage['frozen_batch_norm_layers']}"
+        )
     def make_train_step(optimizer: tf.keras.optimizers.Optimizer):
         @tf.function
         def train_step(images: tf.Tensor, labels: tf.Tensor) -> dict[str, tf.Tensor]:
@@ -161,9 +171,12 @@ def train(args: argparse.Namespace) -> Path:
     total_batches = dataset_batches(train_dataset)
     for epoch in range(1, config.student.epochs + 1):
         if warmup_epochs and epoch == warmup_epochs + 1:
-            for layer_name in transferred_layers:
-                layer = student.get_layer(layer_name)
-                layer.trainable = not isinstance(layer, tf.keras.layers.BatchNormalization)
+            configure_pretrained_student_stage(
+                student,
+                transferred_layers,
+                head_only=False,
+                freeze_batch_norm=config.student.freeze_batch_norm_during_finetune,
+            )
             optimizer = make_optimizer(config.student.learning_rate, config.student.weight_decay)
             train_step = make_train_step(optimizer)
             epochs_without_improvement = 0

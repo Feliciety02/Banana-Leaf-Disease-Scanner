@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import random
 import warnings
 from collections import defaultdict
@@ -157,135 +158,173 @@ def validate_image_inventory(
     near_duplicate_reviews: dict[str, dict[str, str]] | None = None,
     metadata_map: dict[str, dict[str, str]] | None = None,
     quality_report_path: str | Path | None = None,
+    cache_path: str | Path | None = None,
 ) -> ImageInventoryValidation:
-    """Validate, exact-deduplicate, and near-duplicate-screen images."""
+    """Validate, exact-deduplicate, and near-duplicate-screen images.
+
+    When ``cache_path`` is provided, the per-image SHA-256, perceptual hash, and a
+    cheap file fingerprint (size + mtime_ns) are persisted so later runs can reuse
+    the hashes without re-decoding every image.
+    """
     allowed = {extension.lower() for extension in allowed_extensions}
     candidates = sorted(
         path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in allowed
     )
     valid_classes = set(class_names)
     reviews = near_duplicate_reviews or {}
-    candidates_by_hash: dict[str, list[dict[str, Any]]] = {}
-    rejected: list[dict] = []
+
     accepted_by_class = {class_name: 0 for class_name in class_names}
+    rejected: list[dict] = []
     rejected_by_reason: dict[str, int] = {}
     quality_excluded: list[dict[str, str]] = []
 
-    for path in candidates:
-        relative = str(path.relative_to(root)).replace("\\", "/")
-        class_name = _candidate_class(path, root)
-        reasons: list[dict[str, str]] = []
-        width: int | None = None
-        height: int | None = None
-        source_mode: str | None = None
-        perceptual_hash: int | None = None
-        metadata = {**METADATA_DEFAULTS, **(metadata_map or {}).get(relative, {})}
+    # Fast resume: when a valid, unchanged cache exists, reuse the already-decoded
+    # per-image SHA-256 and perceptual hashes and skip the expensive decode pass.
+    # The near-duplicate screen and metadata gates below still run fresh against
+    # the supplied reviews/metadata, so a changed review or metadata manifest is
+    # picked up without re-hashing every image. Falls back to a full scan when the
+    # cache is absent, stale, or the inventory changed in any way.
+    cached = _load_validation_cache(Path(cache_path), root, allowed) if cache_path is not None else None
+    if cached is not None:
+        hashes_by_path = cached.hashes_by_path
+        perceptual_hashes_by_path = cached.perceptual_hashes_by_path
+        canonical_items: list[dict[str, Any]] = [
+            {
+                "relative_path": str(path.relative_to(root)).replace("\\", "/"),
+                "class_name": _candidate_class(path, root),
+                "perceptual_hash": perceptual_hashes_by_path[path],
+            }
+            for path in sorted(hashes_by_path)
+        ]
+        for item in canonical_items:
+            accepted_by_class[item["class_name"]] = accepted_by_class.get(item["class_name"], 0) + 1
+        exact_duplicate_groups: list[dict[str, Any]] = []
+        cross_label_exact_conflicts: list[dict[str, Any]] = []
+    else:
+        candidates_by_hash: dict[str, list[dict[str, Any]]] = {}
+        for path in candidates:
+            relative = str(path.relative_to(root)).replace("\\", "/")
+            class_name = _candidate_class(path, root)
+            reasons: list[dict[str, str]] = []
+            width: int | None = None
+            height: int | None = None
+            source_mode: str | None = None
+            perceptual_hash: int | None = None
+            metadata = {**METADATA_DEFAULTS, **(metadata_map or {}).get(relative, {})}
 
-        if class_name not in valid_classes:
-            reasons.append({
-                "code": "invalid_class",
-                "message": f"Image class '{class_name}' is not one of the active classes {list(class_names)}",
-            })
+            if class_name not in valid_classes:
+                reasons.append({
+                    "code": "invalid_class",
+                    "message": f"Image class '{class_name}' is not one of the active classes {list(class_names)}",
+                })
 
-        quality_reason = None
-        if metadata["species_review_status"] in {"non_banana", "incorrect_species"}:
-            quality_reason = "incorrect_species"
-        elif metadata["visibility_quality_status"] in {"reject", "unusable", "severely_blurred", "obscured"}:
-            quality_reason = "visibility_or_quality"
-        elif metadata["inclusion_status"] in {"excluded", "uncertain_label"}:
-            quality_reason = "excluded_or_not_confidently_assignable"
-        if quality_reason:
-            reasons.append({"code": quality_reason, "message": "Excluded by reviewed harmonization/quality metadata"})
-            quality_excluded.append({"path": relative, "reason": quality_reason})
+            quality_reason = None
+            if metadata["species_review_status"] in {"non_banana", "incorrect_species"}:
+                quality_reason = "incorrect_species"
+            elif metadata["visibility_quality_status"] in {"reject", "unusable", "severely_blurred", "obscured"}:
+                quality_reason = "visibility_or_quality"
+            elif metadata["inclusion_status"] in {"excluded", "uncertain_label"}:
+                quality_reason = "excluded_or_not_confidently_assignable"
+            if quality_reason:
+                reasons.append({"code": quality_reason, "message": "Excluded by reviewed harmonization/quality metadata"})
+                quality_excluded.append({"path": relative, "reason": quality_reason})
 
-        try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("error")
-                with Image.open(path) as image:
-                    image.verify()
-                with Image.open(path) as image:
-                    image.load()
-                    width, height = image.size
-                    source_mode = image.mode
-                    if width <= 0 or height <= 0:
-                        reasons.append({
-                            "code": "invalid_dimensions",
-                            "message": f"Image dimensions must be positive; received {width}x{height}",
-                        })
-                    try:
-                        rgb = image.convert("RGB")
-                        rgb.load()
-                        if rgb.mode != "RGB":
-                            raise ValueError(f"conversion returned mode {rgb.mode}")
-                        perceptual_hash = _flip_aware_difference_hash(rgb)
-                    except (OSError, ValueError) as error:
-                        reasons.append({"code": "rgb_conversion_failed", "message": str(error)})
-        except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Warning) as error:
-            reasons.append({"code": "unreadable_image", "message": str(error)})
-
-        digest: str | None = None
-        if not reasons:
             try:
-                digest = _sha256(path)
-            except OSError as error:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error")
+                    with Image.open(path) as image:
+                        image.verify()
+                    with Image.open(path) as image:
+                        image.load()
+                        width, height = image.size
+                        source_mode = image.mode
+                        if width <= 0 or height <= 0:
+                            reasons.append({
+                                "code": "invalid_dimensions",
+                                "message": f"Image dimensions must be positive; received {width}x{height}",
+                            })
+                        try:
+                            rgb = image.convert("RGB")
+                            rgb.load()
+                            if rgb.mode != "RGB":
+                                raise ValueError(f"conversion returned mode {rgb.mode}")
+                            perceptual_hash = _flip_aware_difference_hash(rgb)
+                        except (OSError, ValueError) as error:
+                            reasons.append({"code": "rgb_conversion_failed", "message": str(error)})
+            except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Warning) as error:
                 reasons.append({"code": "unreadable_image", "message": str(error)})
 
-        if reasons:
-            for reason in reasons:
-                code = reason["code"]
-                rejected_by_reason[code] = rejected_by_reason.get(code, 0) + 1
-            rejected.append({
-                "path": relative,
+            digest: str | None = None
+            stat: os.stat_result | None = None
+            if not reasons:
+                try:
+                    stat = path.stat()
+                except OSError as error:
+                    reasons.append({"code": "unreadable_image", "message": str(error)})
+            if not reasons:
+                try:
+                    digest = _sha256(path)
+                except OSError as error:
+                    reasons.append({"code": "unreadable_image", "message": str(error)})
+
+            if reasons:
+                for reason in reasons:
+                    code = reason["code"]
+                    rejected_by_reason[code] = rejected_by_reason.get(code, 0) + 1
+                rejected.append({
+                    "path": relative,
+                    "class_name": class_name,
+                    "width": width,
+                    "height": height,
+                    "source_mode": source_mode,
+                    "reasons": reasons,
+                })
+                continue
+
+            if digest is None or perceptual_hash is None or stat is None:
+                raise RuntimeError(f"Validated image has incomplete hashes: {path}")
+            item: dict[str, Any] = {
+                "path": path.resolve(),
+                "relative_path": relative,
                 "class_name": class_name,
+                "sha256": digest,
+                "dhash64": f"{perceptual_hash:016x}",
+                "perceptual_hash": perceptual_hash,
                 "width": width,
                 "height": height,
                 "source_mode": source_mode,
-                "reasons": reasons,
-            })
-            continue
+                "size": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+            candidates_by_hash.setdefault(digest, []).append(item)
 
-        if digest is None or perceptual_hash is None:
-            raise RuntimeError(f"Validated image has incomplete hashes: {path}")
-        item: dict[str, Any] = {
-            "path": path.resolve(),
-            "relative_path": relative,
-            "class_name": class_name,
-            "sha256": digest,
-            "dhash64": f"{perceptual_hash:016x}",
-            "perceptual_hash": perceptual_hash,
-            "width": width,
-            "height": height,
-            "source_mode": source_mode,
-        }
-        candidates_by_hash.setdefault(digest, []).append(item)
-
-    hashes_by_path: dict[Path, str] = {}
-    perceptual_hashes_by_path: dict[Path, int] = {}
-    exact_duplicate_groups: list[dict[str, Any]] = []
-    cross_label_exact_conflicts: list[dict[str, Any]] = []
-    canonical_items: list[dict[str, Any]] = []
-    for digest, group in sorted(candidates_by_hash.items()):
-        group.sort(key=lambda item: item["relative_path"])
-        labels = sorted({item["class_name"] for item in group})
-        if len(labels) > 1:
-            cross_label_exact_conflicts.append({
-                "sha256": digest,
-                "classes": labels,
-                "paths": [item["relative_path"] for item in group],
-            })
-            continue
-        canonical = group[0]
-        canonical_items.append(canonical)
-        hashes_by_path[canonical["path"]] = digest
-        perceptual_hashes_by_path[canonical["path"]] = canonical["perceptual_hash"]
-        accepted_by_class[canonical["class_name"]] += 1
-        if len(group) > 1:
-            exact_duplicate_groups.append({
-                "sha256": digest,
-                "class_name": canonical["class_name"],
-                "kept": canonical["relative_path"],
-                "excluded_copies": [item["relative_path"] for item in group[1:]],
-            })
+        hashes_by_path: dict[Path, str] = {}
+        perceptual_hashes_by_path: dict[Path, int] = {}
+        exact_duplicate_groups: list[dict[str, Any]] = []
+        cross_label_exact_conflicts: list[dict[str, Any]] = []
+        canonical_items: list[dict[str, Any]] = []
+        for digest, group in sorted(candidates_by_hash.items()):
+            group.sort(key=lambda item: item["relative_path"])
+            labels = sorted({item["class_name"] for item in group})
+            if len(labels) > 1:
+                cross_label_exact_conflicts.append({
+                    "sha256": digest,
+                    "classes": labels,
+                    "paths": [item["relative_path"] for item in group],
+                })
+                continue
+            canonical = group[0]
+            canonical_items.append(canonical)
+            hashes_by_path[canonical["path"]] = digest
+            perceptual_hashes_by_path[canonical["path"]] = canonical["perceptual_hash"]
+            accepted_by_class[canonical["class_name"]] += 1
+            if len(group) > 1:
+                exact_duplicate_groups.append({
+                    "sha256": digest,
+                    "class_name": canonical["class_name"],
+                    "kept": canonical["relative_path"],
+                    "excluded_copies": [item["relative_path"] for item in group[1:]],
+                })
 
     tree = _HammingBkTree()
     items_by_perceptual_hash: dict[int, list[dict[str, Any]]] = {}
@@ -391,6 +430,20 @@ def validate_image_inventory(
             f"Example SHA-256 {example['sha256']} occurs in {example['classes']}. "
             f"See {destination.resolve()}."
         )
+    if cache_path is not None:
+        _write_validation_cache(
+            cache_path,
+            root,
+            allowed,
+            hashes_by_path,
+            perceptual_hashes_by_path,
+            scanned_count=len(candidates),
+            rejected_count=len(rejected),
+            exact_duplicate_count=sum(
+                len(group["excluded_copies"]) for group in exact_duplicate_groups
+            ),
+            near_duplicate_pair_count=unresolved_near_duplicates,
+        )
     return ImageInventoryValidation(
         hashes_by_path=hashes_by_path,
         perceptual_hashes_by_path=perceptual_hashes_by_path,
@@ -399,6 +452,147 @@ def validate_image_inventory(
         rejected_count=len(rejected),
         exact_duplicate_count=sum(len(group["excluded_copies"]) for group in exact_duplicate_groups),
         near_duplicate_pair_count=unresolved_near_duplicates,
+    )
+
+
+def _write_validation_cache(
+    cache_path: str | Path,
+    root: Path,
+    allowed_extensions: Sequence[str],
+    hashes_by_path: dict[Path, str],
+    perceptual_hashes_by_path: dict[Path, int],
+    *,
+    scanned_count: int,
+    rejected_count: int,
+    exact_duplicate_count: int,
+    near_duplicate_pair_count: int,
+) -> None:
+    """Persist a validation cache to make future resumes avoid re-decoding images.
+
+    Stores two things:
+    * ``inventory`` - every raw image file with a cheap stat fingerprint
+      (size + mtime_ns) used to detect whether the dataset changed at all.
+    * ``accepted``  - the final validated result (canonical per-image SHA-256 and
+      perceptual hash) plus the summary counts that downstream gates rely on.
+
+    The fast path reuses the cache only when the raw inventory is completely
+    unchanged (same files, same size and mtime), which means the cached result is
+    still valid without re-reading any image content.
+    """
+    inventory: dict[str, dict[str, int]] = {}
+    allowed = {extension.lower() for extension in allowed_extensions}
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in allowed:
+            continue
+        relative = str(path.relative_to(root)).replace("\\", "/")
+        stat = path.stat()
+        inventory[relative] = {"size": int(stat.st_size), "mtime_ns": int(stat.st_mtime_ns)}
+
+    accepted = {
+        str(path.relative_to(root)).replace("\\", "/"): {
+            "sha256": digest,
+            "perceptual_hash": perceptual_hashes_by_path[path],
+        }
+        for path, digest in hashes_by_path.items()
+    }
+    destination = Path(cache_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "dataset_root": str(root),
+                "inventory": inventory,
+                "accepted": accepted,
+                "summary": {
+                    "scanned_count": scanned_count,
+                    "rejected_count": rejected_count,
+                    "exact_duplicate_count": exact_duplicate_count,
+                    "near_duplicate_pair_count": near_duplicate_pair_count,
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _load_validation_cache(
+    cache_path: Path,
+    root: Path,
+    allowed_extensions: Sequence[str],
+) -> ImageInventoryValidation | None:
+    """Fast-path loader: reuse cached hashes when the dataset is unchanged.
+
+    Enumerates the current image inventory with a cheap filename walk and compares
+    every file's size and mtime against the cached fingerprints. If every file is the
+    same, reuses the previously computed SHA-256 / perceptual hashes without decoding
+    any image. Returns ``None`` (triggering a full re-validation) whenever the cache
+    is absent, malformed, roots disagree, or the inventory changed in any way.
+    """
+    try:
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        if payload.get("schema_version") != 2:
+            return None
+        if Path(payload.get("dataset_root", "")).resolve() != root.resolve():
+            return None
+        cached_inventory = payload.get("inventory")
+        accepted = payload.get("accepted")
+        summary = payload.get("summary")
+        if not isinstance(cached_inventory, dict) or not isinstance(accepted, dict):
+            return None
+        if not isinstance(summary, dict):
+            return None
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+    allowed = {extension.lower() for extension in allowed_extensions}
+    current_relative: dict[str, tuple[int, int]] = {}
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in allowed:
+            continue
+        relative = str(path.relative_to(root)).replace("\\", "/")
+        try:
+            stat = path.stat()
+        except OSError:
+            return None
+        current_relative[relative] = (int(stat.st_size), int(stat.st_mtime_ns))
+
+    if set(current_relative) != set(cached_inventory):
+        return None
+    for relative, (size, mtime_ns) in current_relative.items():
+        entry = cached_inventory[relative]
+        try:
+            if int(entry["size"]) != size or int(entry["mtime_ns"]) != mtime_ns:
+                return None
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    # Inventory is byte-for-byte unchanged; reconstruct the validated result.
+    hashes_by_path: dict[Path, str] = {}
+    perceptual_hashes_by_path: dict[Path, int] = {}
+    for relative in current_relative:
+        item = accepted.get(relative)
+        if item is None or not isinstance(item, dict):
+            return None
+        try:
+            digest = item["sha256"]
+            perceptual = int(item["perceptual_hash"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        resolved = (root / relative).resolve()
+        hashes_by_path[resolved] = digest
+        perceptual_hashes_by_path[resolved] = perceptual
+
+    return ImageInventoryValidation(
+        hashes_by_path=hashes_by_path,
+        perceptual_hashes_by_path=perceptual_hashes_by_path,
+        report_path=cache_path,
+        scanned_count=int(summary.get("scanned_count", 0)),
+        rejected_count=int(summary.get("rejected_count", 0)),
+        exact_duplicate_count=int(summary.get("exact_duplicate_count", 0)),
+        near_duplicate_pair_count=int(summary.get("near_duplicate_pair_count", 0)),
     )
 
 
@@ -995,18 +1189,42 @@ def prepare_splits(config: ExperimentConfig, manifest_path: str | Path | None = 
                     )
         return splits
     manifest = Path(manifest_path) if manifest_path else Path(config.runtime.output_dir) / "split_manifest.json"
+    cache_path = manifest.parent / "image_validation_cache.json"
     near_duplicate_reviews = load_near_duplicate_reviews(config.data.near_duplicate_review_manifest)
     metadata_map = load_metadata_manifest(config.data.metadata_manifest)
-    validation = validate_image_inventory(
-        root,
-        config.data.class_names,
-        config.data.allowed_extensions,
-        manifest.parent / "image_validation_report.json",
-        config.data.near_duplicate_hamming_distance,
-        near_duplicate_reviews,
-        metadata_map,
-        manifest.parent / "harmonization_quality_report.json",
-    )
+    validation = None
+    if manifest.is_file() and cache_path.is_file():
+        validation = _load_validation_cache(cache_path, root, config.data.allowed_extensions)
+        validation = validation or validate_image_inventory(
+            root,
+            config.data.class_names,
+            config.data.allowed_extensions,
+            manifest.parent / "image_validation_report.json",
+            config.data.near_duplicate_hamming_distance,
+            near_duplicate_reviews,
+            metadata_map,
+            manifest.parent / "harmonization_quality_report.json",
+            cache_path=cache_path,
+        )
+        if validation.report_path == cache_path:
+            print(
+                f"Fast resume: dataset unchanged, reusing cached image validation "
+                f"({validation.scanned_count} images, no re-hashing)"
+            )
+        else:
+            print("Dataset changed; re-validating image inventory from scratch")
+    else:
+        validation = validate_image_inventory(
+            root,
+            config.data.class_names,
+            config.data.allowed_extensions,
+            manifest.parent / "image_validation_report.json",
+            config.data.near_duplicate_hamming_distance,
+            near_duplicate_reviews,
+            metadata_map,
+            manifest.parent / "harmonization_quality_report.json",
+            cache_path=cache_path,
+        )
     missing_metadata, incomplete_metadata = write_metadata_coverage_report(
         root,
         validation.hashes_by_path,

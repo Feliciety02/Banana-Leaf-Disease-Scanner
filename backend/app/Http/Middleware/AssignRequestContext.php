@@ -23,6 +23,9 @@ class AssignRequestContext
 
         $response = $next($request);
         $response->headers->set('X-Request-ID', $requestId);
+        $response->headers->set('Cache-Control', 'no-store, private');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
 
         if ($response->getStatusCode() >= 400) {
             Log::warning('API request failed.', [

@@ -7,12 +7,13 @@ use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthenticationService
 {
     public function __construct(private readonly UserRepositoryInterface $users) {}
 
-    public function register(array $attributes, string $deviceName): array
+    public function register(array $attributes, string $deviceName, bool $remember = false, bool $issueToken = true): array
     {
         $user = $this->users->create([
             ...$attributes,
@@ -21,17 +22,17 @@ class AuthenticationService
         ]);
         $user->sendEmailVerificationNotification();
 
-        return ['user' => $user, 'token' => $this->createToken($user, $deviceName)];
+        return ['user' => $user, 'token' => $issueToken ? $this->createToken($user, $deviceName, $remember) : null];
     }
 
-    public function authenticate(string $email, string $password, string $deviceName): ?array
+    public function authenticate(string $email, string $password, string $deviceName, bool $remember = false, bool $issueToken = true): ?array
     {
         $user = $this->users->findByEmail(Str::lower($email));
         if (! $user || ! Hash::check($password, $user->password)) {
             return null;
         }
 
-        return ['user' => $user, 'token' => $this->createToken($user, $deviceName)];
+        return ['user' => $user, 'token' => $issueToken ? $this->createToken($user, $deviceName, $remember) : null];
     }
 
     public function resetPassword(array $credentials): string
@@ -49,7 +50,10 @@ class AuthenticationService
 
     public function logout(User $user): void
     {
-        $user->currentAccessToken()?->delete();
+        $token = $user->currentAccessToken();
+        if ($token instanceof PersonalAccessToken) {
+            $token->delete();
+        }
     }
 
     public function resendVerification(User $user): bool
@@ -63,8 +67,12 @@ class AuthenticationService
         return true;
     }
 
-    private function createToken(User $user, string $deviceName): string
+    private function createToken(User $user, string $deviceName, bool $remember = false): string
     {
-        return $user->createToken($deviceName)->plainTextToken;
+        $expiresAt = $remember
+            ? now()->addDays((int) config('sanctum.remember_days', 30))
+            : now()->addMinutes((int) config('sanctum.expiration', 1440));
+
+        return $user->createToken($deviceName, ['*'], $expiresAt)->plainTextToken;
     }
 }

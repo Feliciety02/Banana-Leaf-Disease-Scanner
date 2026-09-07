@@ -1,0 +1,32 @@
+{
+  "experiment_name": "diagnostic_resnet101_ssl_frozen_bn_seed42",
+  "data": {
+    "dataset_dir": "/home/feanne/dahonmd-data/banana_leaf_thesis_4class",
+    "final_split_dir": "ai/artifacts/final_split",
+    "batch_size": 2,
+    "cache_dataset": true
+  },
+  "teacher": {
+    "backbone": "ResNet101",
+    "imagenet_weights": true,
+    "ssl_enabled": true,
+    "ssl_epochs": 100,
+    "dropout_rate": 0.2,
+    "finetune_epochs": 20,
+    "head_warmup_epochs": 5,
+    "head_warmup_learning_rate": 0.001,
+    "freeze_batch_norm_during_finetune": true,
+    "finetune_learning_rate": 0.00001,
+    "weight_decay": 0.00001
+  },
+  "distillation": {
+    "enabled": false
+  },
+  "runtime": {
+    "seed": 42,
+    "output_dir": "ai/artifacts/four_class/teacher/diagnostics/ssl_frozen_bn_seed42",
+    "early_stopping_patience": 5,
+    "reduce_lr_patience": 2,
+    "min_learning_rate": 1e-7
+  }
+}

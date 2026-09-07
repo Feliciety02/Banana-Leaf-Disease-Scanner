@@ -41,7 +41,7 @@ class AuthenticationCrudTest extends TestCase
     public function test_registration_login_duplicate_credentials_and_logout(): void
     {
         $this->getJson('/api/profile')->assertUnauthorized();
-        $payload = ['name' => 'Field Farmer', 'email' => 'field@example.test', 'password' => 'secret123', 'password_confirmation' => 'secret123', 'role' => 'admin'];
+        $payload = ['name' => 'Field Farmer', 'email' => 'field@example.test', 'password' => 'Secret123!', 'password_confirmation' => 'Secret123!', 'role' => 'admin'];
         $response = $this->postJson('/api/auth/register', $payload)->assertCreated()->assertJsonPath('data.user.role', 'farmer');
         $this->postJson('/api/auth/register', $payload)->assertUnprocessable()->assertJsonPath('success', false);
         $this->postJson('/api/auth/login', ['email' => $payload['email'], 'password' => 'wrong-password'])->assertUnprocessable();
@@ -52,13 +52,45 @@ class AuthenticationCrudTest extends TestCase
         $this->assertNotEmpty($response->json('data.token'));
     }
 
+    public function test_first_party_web_login_uses_csrf_protected_session_without_exposing_bearer_token(): void
+    {
+        $user = User::factory()->create(['email' => 'browser@example.test', 'password' => 'Secret123!']);
+
+        $response = $this->withHeader('Origin', 'http://localhost')
+            ->withSession(['_token' => 'known-csrf-token'])
+            ->postJson('/api/auth/login', [
+                'email' => $user->email,
+                'password' => 'Secret123!',
+                'device_name' => 'web',
+            ], ['X-CSRF-TOKEN' => 'known-csrf-token'])
+            ->assertOk()
+            ->assertJsonMissingPath('data.token');
+
+        $this->assertAuthenticatedAs($user, 'web');
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $response->assertCookie(config('session.cookie'), null, false);
+    }
+
     public function test_profile_update_and_password_require_current_password(): void
     {
-        $user = User::factory()->create(['password' => 'secret123']);
+        $user = User::factory()->create(['password' => 'Secret123!']);
         Sanctum::actingAs($user);
-        $this->putJson('/api/profile', ['name' => 'Updated Name', 'email' => 'updated@example.test'])->assertOk()->assertJsonPath('data.user.name', 'Updated Name');
-        $this->putJson('/api/profile/password', ['current_password' => 'wrong', 'password' => 'changed123', 'password_confirmation' => 'changed123'])->assertUnprocessable();
-        $this->putJson('/api/profile/password', ['current_password' => 'secret123', 'password' => 'changed123', 'password_confirmation' => 'changed123'])->assertOk();
+        $this->putJson('/api/profile', ['name' => 'Updated Name', 'email' => 'updated@example.test'])->assertUnprocessable()->assertJsonValidationErrors('current_password');
+        $this->putJson('/api/profile', ['name' => 'Updated Name', 'email' => 'updated@example.test', 'current_password' => 'Secret123!'])->assertOk()->assertJsonPath('data.user.name', 'Updated Name');
+        $this->putJson('/api/profile/password', ['current_password' => 'wrong', 'password' => 'Changed123!', 'password_confirmation' => 'Changed123!'])->assertUnprocessable();
+        $this->putJson('/api/profile/password', ['current_password' => 'Secret123!', 'password' => 'Changed123!', 'password_confirmation' => 'Changed123!'])->assertOk();
+    }
+
+    public function test_api_account_deletion_requires_current_password(): void
+    {
+        $user = User::factory()->create(['password' => 'Secret123!']);
+        Sanctum::actingAs($user);
+
+        $this->deleteJson('/api/profile')->assertUnprocessable()->assertJsonValidationErrors('current_password');
+        $this->deleteJson('/api/profile', ['current_password' => 'wrong-password'])->assertUnprocessable();
+        $this->assertDatabaseHas('users', ['id' => $user->id]);
+        $this->deleteJson('/api/profile', ['current_password' => 'Secret123!'])->assertNoContent();
+        $this->assertDatabaseMissing('users', ['id' => $user->id]);
     }
 
     public function test_farmers_only_access_and_delete_their_own_diagnoses(): void
@@ -89,7 +121,7 @@ class AuthenticationCrudTest extends TestCase
 
     public function test_research_consent_requires_an_image_and_records_the_current_consent_version(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $user = User::factory()->create();
         Sanctum::actingAs($user);
         $payload = [
@@ -103,6 +135,11 @@ class AuthenticationCrudTest extends TestCase
             ...$payload,
             'image' => UploadedFile::fake()->image('leaf.jpg'),
         ])->assertCreated()->assertJsonPath('data.research_consent', true);
+
+        $mediaUrl = $response->json('data.image_url');
+        $this->get($mediaUrl)->assertOk()->assertHeader('Cache-Control', 'no-store, private');
+        Sanctum::actingAs(User::factory()->farmer()->create());
+        $this->get($mediaUrl)->assertForbidden();
 
         $this->assertDatabaseHas('diagnoses', [
             'id' => $response->json('data.id'),
@@ -131,13 +168,13 @@ class AuthenticationCrudTest extends TestCase
         $this->getJson('/api/admin/farmers')->assertForbidden();
         $this->postJson('/api/admin/users', [
             'name' => 'Escalated', 'email' => 'escalated@example.test', 'role' => 'admin',
-            'password' => 'secret123', 'password_confirmation' => 'secret123',
+            'password' => 'Secret123!', 'password_confirmation' => 'Secret123!',
         ])->assertForbidden();
 
         Sanctum::actingAs(User::factory()->admin()->create());
         $created = $this->postJson('/api/admin/farmers', [
             'name' => 'New Farmer', 'email' => 'new-farmer@example.test', 'role' => 'admin',
-            'password' => 'secret123', 'password_confirmation' => 'secret123',
+            'password' => 'Secret123!', 'password_confirmation' => 'Secret123!',
         ])->assertCreated()->assertJsonPath('data.role', 'farmer');
         $this->getJson('/api/admin/farmers')->assertOk()->assertJsonPath('data.items.0.role', 'farmer');
         $this->putJson('/api/admin/farmers/'.$created->json('data.id'), [
@@ -221,7 +258,7 @@ class AuthenticationCrudTest extends TestCase
 
     public function test_mobile_uploads_only_an_explicitly_consented_research_image(): void
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $user = User::factory()->create();
         Sanctum::actingAs($user);
         $syncUuid = 'c68fdf7b-b2ab-464f-bde4-f1df128b69d8';
@@ -241,7 +278,7 @@ class AuthenticationCrudTest extends TestCase
         $diagnosis = Diagnosis::query()->where('sync_uuid', $syncUuid)->firstOrFail();
         $this->assertTrue($diagnosis->hasActiveResearchConsent());
         $this->assertNotNull($diagnosis->image_path);
-        Storage::disk('public')->assertExists($diagnosis->image_path);
+        Storage::disk('local')->assertExists($diagnosis->image_path);
     }
 
     public function test_one_identity_mobile_sync_web_history_admin_analytics_and_cross_user_authorization(): void
@@ -249,8 +286,8 @@ class AuthenticationCrudTest extends TestCase
         $credentials = [
             'name' => 'Cross Platform User',
             'email' => 'shared@example.test',
-            'password' => 'secret123',
-            'password_confirmation' => 'secret123',
+            'password' => 'Secret123!',
+            'password_confirmation' => 'Secret123!',
         ];
 
         $registration = $this->postJson('/api/auth/register', $credentials)->assertCreated();

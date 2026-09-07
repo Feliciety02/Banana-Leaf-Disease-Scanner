@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class DiagnosisResource extends JsonResource
 {
@@ -14,8 +13,8 @@ class DiagnosisResource extends JsonResource
             'id' => $this->id, 'user' => new UserResource($this->whenLoaded('user')),
             'disease' => new DiseaseResource($this->whenLoaded('disease')),
             'predicted_class' => $this->predicted_class, 'confidence' => $this->confidence,
-            'image_url' => $this->image_path ? Storage::disk('public')->url($this->image_path) : null,
-            'gradcam_url' => $this->gradcam_path ? Storage::disk('public')->url($this->gradcam_path) : null,
+            'image_url' => $this->mediaUrl('image', $this->image_path),
+            'gradcam_url' => $this->mediaUrl('gradcam', $this->gradcam_path),
             'farmer_notes' => $this->farmer_notes,
             'research_consent' => $this->hasActiveResearchConsent(),
             'research_consented_at' => $this->research_consented_at,
@@ -28,5 +27,14 @@ class DiagnosisResource extends JsonResource
             'review_priority' => $this->when($this->review_priority !== null, $this->review_priority),
             'review_reasons' => $this->when($this->review_reasons !== null, $this->review_reasons),
         ];
+    }
+
+    private function mediaUrl(string $kind, ?string $path): ?string
+    {
+        return $path ? route(
+            'diagnosis-media.show',
+            ['diagnosis' => $this->id, 'kind' => $kind],
+            absolute: false,
+        ) : null;
     }
 }

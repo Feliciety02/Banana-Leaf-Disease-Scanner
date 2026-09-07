@@ -8,25 +8,25 @@ changes labels, groups, or image files.
 
 | Measure | Count |
 | --- | ---: |
-| Candidate pairs | 1,011 |
-| Candidate images | 436 |
-| Transitive candidate components | 60 |
-| Same-class pairs | 449 |
-| Cross-class high-priority pairs | 562 |
+| Candidate pairs | 109 |
+| Candidate images | 143 |
+| Transitive candidate components | 47 |
+| Same-class pairs | 31 |
+| Cross-class high-priority pairs | 78 |
 | Resolved decisions | 0 |
-| Requires review | 1,011 |
-| Largest candidate component | 291 images |
+| Requires review | 109 |
+| Largest candidate component | 21 images |
 
 Cross-class distribution:
 
 | Classes | Pairs |
 | --- | ---: |
-| Panama Disease / Sigatoka | 293 |
-| Healthy / Sigatoka | 167 |
-| Healthy / Panama Disease | 70 |
-| Cordana Leaf Spot / Sigatoka | 17 |
-| Cordana Leaf Spot / Panama Disease | 9 |
-| Cordana Leaf Spot / Healthy | 6 |
+| Panama Disease / Sigatoka | 29 |
+| Healthy / Sigatoka | 18 |
+| Healthy / Panama Disease | 14 |
+| Cordana Leaf Spot / Sigatoka | 10 |
+| Cordana Leaf Spot / Panama Disease | 5 |
+| Cordana Leaf Spot / Healthy | 2 |
 
 The unusually large candidate component and high cross-label count show that
 the 64-bit dHash screen is intentionally broad. Its similarity score is a
@@ -82,9 +82,9 @@ conflict summary have been checked. No final split is authorized by this file.
 ## Reproducibility evidence
 
 - Review JSON SHA-256:
-  `bdd0207978a408e83381fe8be8ac42374a47c1e36ac1a740e3d7ade7629496ca`
+  `2a52d00ab31e1690938aa4e215f10a556adc34d73d5c12b51f3f6269c54f4833`
 - Review CSV SHA-256:
-  `8c8d470bf2b08b6af5f7738794fa64dbaaf24241923f2a06c83bac86333ca22a`
+  `d53a5c653f9fe5dd55b2c38f7d45e0f4de599eab69aac64e1220bd995d3e77b6`
 - Repeating generation with unchanged inputs produced byte-identical outputs.
 - Applying the current all-pending queue exits nonzero and writes no proposed
-  group manifest because 562 high-risk cross-label pairs remain unresolved.
+  group manifest because 78 high-risk cross-label pairs remain unresolved.

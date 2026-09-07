@@ -166,6 +166,32 @@ def shared_backbone_layer_names() -> tuple[str, ...]:
     return tuple(target_name for _, target_name in _shared_backbone_layer_pairs())
 
 
+def configure_pretrained_student_stage(
+    student: tf.keras.Model,
+    transferred_layers: tuple[str, ...],
+    *,
+    head_only: bool,
+    freeze_batch_norm: bool,
+) -> dict[str, int | str]:
+    """Configure ImageNet warm-up or stable convolution fine-tuning.
+
+    Coordinate Attention and classifier layers are not part of
+    ``transferred_layers`` and therefore remain trainable in both stages.
+    """
+    frozen_batch_norm = 0
+    for layer_name in transferred_layers:
+        layer = student.get_layer(layer_name)
+        layer.trainable = not head_only
+        if not head_only and freeze_batch_norm and isinstance(layer, tf.keras.layers.BatchNormalization):
+            layer.trainable = False
+            frozen_batch_norm += 1
+    return {
+        "stage": "attention_head_warmup" if head_only else "backbone_finetune",
+        "trainable_variables": len(student.trainable_variables),
+        "frozen_batch_norm_layers": frozen_batch_norm,
+    }
+
+
 def initialize_shared_backbone_from_mobilenetv3(
     student: tf.keras.Model,
     config: ExperimentConfig,

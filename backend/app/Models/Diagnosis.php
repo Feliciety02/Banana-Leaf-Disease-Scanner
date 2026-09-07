@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Diagnosis extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id', 'disease_id', 'predicted_class', 'confidence', 'image_path', 'gradcam_path', 'farmer_notes',
@@ -31,12 +32,18 @@ class Diagnosis extends Model
 
     protected static function booted(): void
     {
+        static::created(fn (Diagnosis $diagnosis) => $diagnosis->recordSyncChange('upsert'));
+
         static::updating(function (Diagnosis $diagnosis) {
             $immutable = ['predicted_class', 'confidence', 'model_version', 'inference_time_ms', 'diagnosed_at', 'is_simulated'];
             if (collect($immutable)->contains(fn ($field) => $diagnosis->isDirty($field))) {
                 throw new \LogicException('Original model prediction fields are immutable.');
             }
         });
+
+        static::updated(fn (Diagnosis $diagnosis) => $diagnosis->recordSyncChange('upsert'));
+        static::deleted(fn (Diagnosis $diagnosis) => $diagnosis->recordSyncChange('delete'));
+        static::restored(fn (Diagnosis $diagnosis) => $diagnosis->recordSyncChange('upsert'));
     }
 
     public function disease(): BelongsTo
@@ -62,5 +69,15 @@ class Diagnosis extends Model
     public function hasActiveResearchConsent(): bool
     {
         return $this->research_consented_at !== null && $this->research_consent_withdrawn_at === null;
+    }
+
+    public function recordSyncChange(string $changeType): void
+    {
+        DiagnosisSyncChange::query()->create([
+            'user_id' => $this->user_id,
+            'diagnosis_id' => $this->id,
+            'sync_uuid' => $this->sync_uuid,
+            'change_type' => $changeType,
+        ]);
     }
 }

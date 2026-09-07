@@ -2,9 +2,9 @@
 
 #  DahonMD
 
-**Stateless On-Device Banana Leaf Classification System**
+**Offline-First Banana Leaf Classification System**
 
-A thesis mobile application that classifies supported banana leaf conditions locally, plus archived web/backend research utilities.
+A thesis Android application that classifies banana leaf conditions on-device, keeps local history, and can optionally synchronize signed-in records.
 
 **Course:** CCE 106L – Applications Development and Emerging Technologies
 
@@ -40,16 +40,39 @@ A user captures or chooses a leaf photo, and the Android application runs the bu
 | 🔴 Panama disease | Fusarium wilt symptoms |
 | 🟠 Cordana leaf spot | Fungal leaf spotting |
 
-The production thesis path does not upload the image, call an API, require an account, or save scan history. Model confidence is displayed locally.
+The classification path does not upload the image, call an API, or require an account. Results are also written to an app-private SQLite history; signed-in farmer records synchronize to the shared Laravel SQL store when connectivity returns. Images remain local unless the farmer explicitly opts into research upload.
 
 ### The Platform
 
 | Component | Stack | Purpose |
 | --- | --- | --- |
-| 📱 Mobile application | Expo / React Native + native TFLite | **Active thesis client:** stateless offline classification |
+| 📱 Mobile application | Expo / React Native + native TFLite + SQLite | **Active thesis client:** offline classification with local-first history |
 | 🌐 Web application | React / Vite | Legacy/demo client; outside thesis production scope |
 | ⚙️ Backend API | Laravel + Eloquent + SQLite | Legacy/demo server and relational store; outside thesis production scope |
 | 🤖 AI research pipeline | Python / TensorFlow | Reproducible training, evaluation, deployment |
+
+---
+
+## Technologies Used and Deployment Status
+
+| Area | Technologies used in this repository | Role |
+| --- | --- | --- |
+| Mobile application | React Native 0.81, Expo SDK 54, TypeScript 5.9 | Camera/gallery workflow, interface, preprocessing coordination, local history, and optional synchronization |
+| Native Android inference | Kotlin and LiteRT/TensorFlow Lite | Loads the bundled model, verifies the INT8 tensor contract, and runs inference locally on Android |
+| AI development | Python, TensorFlow, and Keras | Dataset preparation, model training, evaluation, knowledge distillation, and model conversion |
+| Teacher model | ResNet-101 | Research/training-only teacher; never deployed to the phone |
+| Baseline model | MobileNetV3-Small | Plain supervised control used for the thesis comparison |
+| Proposed mobile student | Coordinate Attention–enhanced MobileNetV3-Small | Compact model intended for on-device classification |
+| Emerging technologies | Self-supervised learning, knowledge distillation, edge AI, and full-integer INT8 quantization | Training and deployment pipeline for producing the mobile model |
+| Local persistence | Expo SQLite and app-private file storage | Offline-first diagnosis history after local inference |
+| Optional connected services | Laravel 12, Eloquent, SQLite, and React/Vite | Accounts, synchronization, agricultural review, and administration; not required for classification |
+| Version control | Git and GitHub | Source history and collaboration |
+
+> [!IMPORTANT]
+> The architectures and conversion/runtime checks are implemented in source,
+> but the final trained `ca_mobilenetv3_small_int8.tflite` asset is not yet
+> bundled. On-device inference therefore remains pending experimental and
+> physical-device validation.
 
 ---
 
@@ -58,7 +81,7 @@ The production thesis path does not upload the image, call an API, require an ac
 | Area | What it provides |
 | --- | --- |
 | 🧑‍🌾 Thesis mobile experience | Camera/gallery input, 224 × 224 RGB preparation, four-class prediction, and confidence |
-| 📡 Field reliability | Classification without Internet, backend, account, database, upload, or persistence |
+| 📡 Field reliability | On-device classification without Internet, backend, or account; local history does not control inference |
 | 🔬 Legacy research/demo | Optional accounts, reviews, synchronization, and content administration; not a thesis dependency |
 | 🧠 AI research | Controlled MobileNetV3 baseline and Coordinate Attention enhanced model on one fixed split |
 
@@ -77,7 +100,7 @@ flowchart LR
     Model --> Result[Four-class result + confidence]
 ```
 
-This flow is fully local and stateless. The mobile production entry point does not use the legacy SQLite, authentication, HTTP, synchronization, or comparison modules.
+Inference remains fully local and continues when SQLite initialization or network access fails. After a result is produced, the app separately stores it in local SQLite and, for a signed-in farmer, places metadata in a retry-safe outbox. This persistence/sync layer never substitutes a server result for on-device inference.
 
 ### Flow B — optional legacy/demo functionality
 
@@ -89,7 +112,7 @@ flowchart LR
     API -->|HTTP response| Web
 ```
 
-Flow B demonstrates client–server–database separation but is not required by, and must not be inserted into, Flow A. See [the architecture document](docs/architecture.md) and [the dated audit](docs/architecture-audit-2026-08-28.md).
+Flow B demonstrates client–server–database separation but is not required by, and must not be inserted into, Flow A. See [the architecture overview](docs/architecture/overview.md) and [the dated audit](docs/archive/audits/architecture-audit-2026-08-28.md).
 
 ---
 
@@ -99,65 +122,162 @@ Flow B demonstrates client–server–database separation but is not required by
 | --- | --- | --- |
 | `backend/` | Legacy/demo Laravel API and relational persistence | [Backend README](backend/README.md) |
 | `web-frontend/` | Legacy/demo React browser client | [Web README](web-frontend/README.md) |
-| `mobile-frontend/` | Active stateless thesis app; unused legacy modules remain archived under `src/` | [Mobile README](mobile-frontend/README.md) |
+| `mobile-frontend/` | Active offline classifier plus optional local-first history/account sync | [Mobile README](mobile-frontend/README.md) |
 | `ai/` | Training, evaluation, comparison, and TFLite tooling | [AI README](ai/README.md) |
 | `datasets/` | Four-class dataset and label-review workspace | [Dataset README](datasets/README.md) |
 | `docs/` | Architecture, governance, experiments, and team checklists | [Documentation](#📚-documentation) |
 
 ---
 
-## 🚀 Optional Legacy/Demo Stack with Docker
+## 🚀 Step-by-Step Setup and Running
 
-This stack starts Flow B only. It is not needed to build, launch, or use the thesis classifier.
+This guide uses **Windows PowerShell**. First, open PowerShell in the main `DahonMD` folder.
 
-### Requirements
+> [!IMPORTANT]
+> Choose only the part you need:
+>
+> - For the main thesis Android app, follow **Option A**.
+> - For the old web demo, follow **Option B** (easiest) or **Option C** (without Docker).
+> - The AI comparison service is optional and is not needed for normal classification.
 
-- 🐳 Docker Desktop
-- 📦 Git
+> [!TIP]
+> When a server command looks "stuck," it is usually running correctly. Keep that terminal open and use a new PowerShell terminal for the next service.
 
-From the repository root:
+### Already installed? Run this next time
+
+If you already completed the first-time setup, use only the command for the part you want to open.
+
+#### Main Android app
+
+Start an Android emulator in Android Studio or connect an Android phone with USB debugging enabled. Then run:
+
+```powershell
+cd mobile-frontend
+npx expo run:android
+```
+
+#### Legacy web demo with Docker
+
+Open Docker Desktop, then run from the main `DahonMD` folder:
+
+```powershell
+docker compose up
+```
+
+Open <http://localhost:4173>. Press `Ctrl+C` when finished, then run `docker compose down`.
+
+#### Legacy web demo without Docker
+
+Make sure Docker is stopped:
+
+```powershell
+docker compose down
+```
+
+Open two PowerShell terminals in the main `DahonMD` folder.
+
+```powershell
+# Terminal 1: API
+cd backend
+php artisan config:clear
+php artisan serve --host=0.0.0.0 --port=8001
+```
+
+```powershell
+# Terminal 2: web app
+cd web-frontend
+npm run dev -- --host 127.0.0.1 --port 4173
+```
+
+Open <http://127.0.0.1:4173>.
+
+---
+
+## 💻 First-Time Setup
+
+### Option A — Main thesis Android app
+
+Install these first:
+
+- Git
+- Node.js (includes npm)
+- Android Studio with an Android emulator, or an Android phone with USB debugging enabled
+
+The app uses a native TFLite module, so it does not run in Expo Go.
+
+1. Open PowerShell in the main `DahonMD` folder.
+2. Install the mobile dependencies:
+
+```powershell
+cd mobile-frontend
+npm install
+```
+
+3. Check whether the required model is ready:
+
+```powershell
+npm run release:status
+```
+
+If the check reports a missing model, copy the final validated model to:
+
+```text
+mobile-frontend/assets/models/ca_mobilenetv3_small_int8.tflite
+```
+
+Do not replace it with a simulated or unvalidated model.
+
+4. Start an Android emulator or connect your Android phone.
+5. Create the native Android project and run the app:
+
+```powershell
+npx expo prebuild --platform android
+npx expo run:android
+```
+
+After this first setup, use the shorter **Main Android app** instructions under “Already installed?” above.
+
+The classifier does not need a `.env` file, API URL, backend server, account, LAN connection, or Internet connection.
+
+### Option B — Legacy web demo with Docker (easiest)
+
+This option is only for the old web/API demo. It is not required for the Android classifier.
+
+1. Install and open Docker Desktop.
+2. Open PowerShell in the main `DahonMD` folder.
+3. Build and start the demo:
 
 ```powershell
 docker compose up --build
 ```
 
-> [!IMPORTANT]
-> Choose either Docker or native development for the API and web client. Do not run `docker compose up` and `php artisan serve` on port `8001` at the same time.
-
-Open the web app at <http://localhost:4173>. The shared API is available at <http://localhost:8001/api>.
-
-The Docker stack does not start Expo or the optional Python comparison service. Use the native workflow below when working on those components.
-
-Stop the stack with:
+4. Wait until both services are ready, then open <http://localhost:4173>.
+5. When finished, press `Ctrl+C`, then run:
 
 ```powershell
 docker compose down
 ```
 
-Docker preserves application data in the `dahonmd_backend_data` volume. Only use `docker compose down --volumes` when you intentionally want to reset Docker-managed application data.
+Your local demo data is kept for the next run. Do not add `--volumes` unless you intentionally want to erase the Docker demo data.
 
 > [!TIP]
-> Set `$env:DEV_USER_PASSWORD = "your-local-password"` before the first startup to change the seeded development password.
+> To choose a different seeded password, run `$env:DEV_USER_PASSWORD = "your-local-password"` before the first `docker compose up --build`.
 
----
+### Option C — Legacy web demo without Docker
 
-## 💻 Native Development
+Use this option only if you need to run the old API and web app directly on your computer.
 
-> [!NOTE]
-> This guide assumes **Windows PowerShell**. Install PHP 8.2+, Composer, Node.js, npm, and Android Studio. The thesis classifier uses a local native module and therefore does not run in Expo Go.
+Install these first:
 
-Stop Docker before starting the optional legacy API/web services:
+- PHP 8.2 or newer
+- Composer
+- Node.js (includes npm)
 
-```powershell
-docker compose down
-```
+Do not use Option B and Option C at the same time because both use port `8001`.
 
-> [!TIP]
-> A command that starts a server keeps running and may look "stuck." That is normal. Leave that terminal open and use a new terminal for the next component.
+#### 1. Prepare the API
 
-### 1️⃣ Start the API
-
-For the first run, prepare the backend and create its local settings file:
+Open PowerShell in the main `DahonMD` folder, then run:
 
 ```powershell
 cd backend
@@ -165,7 +285,7 @@ composer install
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Open `backend/.env` and confirm that it contains:
+Open `backend/.env` and set these values:
 
 ```dotenv
 APP_URL=http://127.0.0.1:8001
@@ -173,7 +293,7 @@ WEB_FRONTEND_ORIGINS=http://127.0.0.1:4173,http://localhost:4173,http://localhos
 AI_COMPARISON_URL=http://127.0.0.1:8100/compare
 ```
 
-Then continue in the same terminal:
+Continue in the same terminal:
 
 ```powershell
 php artisan key:generate
@@ -183,23 +303,11 @@ php artisan config:clear
 php artisan serve --host=0.0.0.0 --port=8001
 ```
 
-Keep this terminal open. Check <http://127.0.0.1:8001/api/health>; it should report `"status": "ok"`.
+Keep this terminal open. Visit <http://127.0.0.1:8001/api/health> and check that it reports `"status": "ok"`.
 
-### 2️⃣ Start the optional AI comparison service
+#### 2. Prepare the web app
 
-Open a second terminal from the repository root:
-
-```powershell
-.venv\Scripts\python.exe -m uvicorn ai.deployment.comparison_service:app `
-  --host 127.0.0.1 `
-  --port 8100
-```
-
-Check <http://127.0.0.1:8100/health>. This service is required only for the thesis comparison panel, not for ordinary API and interface development.
-
-### 3️⃣a Start the web client
-
-Open another terminal from the repository root:
+Open a second PowerShell terminal in the main `DahonMD` folder, then run:
 
 ```powershell
 cd web-frontend
@@ -208,58 +316,65 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 npm run dev -- --host 127.0.0.1 --port 4173
 ```
 
-Visit <http://127.0.0.1:4173>.
+Keep this terminal open, then visit <http://127.0.0.1:4173>.
 
-### 3️⃣b Build the thesis mobile client
+After this first setup, use the shorter **Legacy web demo without Docker** instructions under “Already installed?” above.
 
-Open another terminal from the repository root:
+### Optional — AI comparison service
 
-```powershell
-cd mobile-frontend
-npm install
-npm run release:status
-```
-
-The release status remains blocked until the final validated model is copied to `assets/models/ca_mobilenetv3_small_int8.tflite`. After that artifact is present, create and run the native Android project:
+This is needed only for the thesis comparison panel. It is not needed for the Android classifier or ordinary web development. Complete the Python environment setup in the [AI guide](ai/README.md), then run this command from the main `DahonMD` folder:
 
 ```powershell
-npx expo prebuild --platform android
-npx expo run:android
-```
-
-No `.env`, API URL, LAN connection, backend process, or Internet connection is required for classification.
-
-### Later runs
-
-For the optional legacy/demo stack, run these server commands in separate terminals:
-
-```powershell
-# Terminal 1
-cd backend
-php artisan config:clear
-php artisan serve --host=0.0.0.0 --port=8001
-```
-
-```powershell
-# Optional terminal 2: thesis comparison
 .venv\Scripts\python.exe -m uvicorn ai.deployment.comparison_service:app --host 127.0.0.1 --port 8100
 ```
 
+Check <http://127.0.0.1:8100/health>.
+
+### Optional — GPU model training
+
+GPU training uses WSL and Linux Python. Do not run a second trainer if one is
+already active.
+
+Open WSL from PowerShell:
+
 ```powershell
-# Terminal 2 or 3: legacy web
-cd web-frontend
-npm run dev -- --host 127.0.0.1 --port 4173
+wsl
 ```
 
-The thesis mobile build remains independent of all of those processes.
+In WSL, start or resume the recommended enhanced supervised run:
 
-```powershell
-# Optional terminal: watch AI training graphs live (see the AI guide)
-.venv\Scripts\python.exe -m ai.visualization.live_history `
-  --output-dir ai\artifacts\source_labeled_enhanced_cpu_pilot
+```bash
+cd "/mnt/c/Users/Admin/Documents/Project Fe/DahonMD"
+
+pgrep -af 'ai[.]training[.]train_enhanced_supervised'
+
+RUN_DIR="ai/artifacts/four_class/enhanced/diagnostics/supervised_imagenet_seed42"
+mkdir -p "$RUN_DIR"
+
+bash ai/training/run_enhanced_supervised_gpu.sh \
+  > >(tee -a "$RUN_DIR/training.out.log") \
+  2> >(tee -a "$RUN_DIR/training.err.log" >&2)
 ```
 
-Run the live viewer beside any training command (`train_teacher`, `train_student`, `train_baseline`). It redraws the metric curves and current batch progress every few seconds and never writes to the output directory. See [Watch training live](ai/README.md#watch-training-live) in the [AI guide](ai/README.md) for details.
+The process check must show no existing trainer before you launch. The command
+automatically starts a new run or resumes the latest completed epoch and shows
+a live percentage in WSL. It trains without the weak teacher and compares its
+best validation macro-F1 with the 0.91231 baseline target.
+
+To monitor the current epoch in a separate PowerShell window, run:
+
+```powershell
+cd "C:\Users\Admin\Documents\Project Fe\DahonMD"
+
+& ".\ai\training\monitor_training.ps1" `
+  -RunDir ".\ai\artifacts\four_class\enhanced\diagnostics\supervised_imagenet_seed42"
+```
+
+The monitor shows the phase, epoch and batch numbers, epoch percentage, phase
+percentage, loss, accuracy, learning rate, and available validation metrics.
+See the [enhanced model runbook](ai/training/ENHANCED_MODEL_RUNBOOK.md) for the
+copy-paste commands or the [complete GPU guide](ai/training/GPU_TRAINING_GUIDE.md)
+for teacher diagnostics and troubleshooting.
 
 ---
 
@@ -275,6 +390,10 @@ Run the live viewer beside any training command (`train_teacher`, `train_student
 
 These accounts are never seeded when `APP_ENV=production`.
 
+**Password policy.** Registration, password reset, and account-management routes enforce a strong default policy: at least 8 characters with a mix of upper/lowercase letters, numbers, and symbols, plus a HaveIBeenPwned breach check (the breach check is skipped in the `testing` environment only).
+
+**Authentication lifetime.** The same-origin website uses a CSRF-protected `HttpOnly` Sanctum session cookie and never stores its credential in browser storage. Mobile bearer tokens remain in the operating system's secure keystore and expire: normal tokens use `SANCTUM_TOKEN_TTL_MINUTES` (default 24h), while remember-me mobile tokens use `SANCTUM_TOKEN_REMEMBER_DAYS` (default 30 days). Both clients log out automatically after an invalid or expired session.
+
 ---
 
 ## ⚙️ Configuration
@@ -283,6 +402,8 @@ These accounts are never seeded when `APP_ENV=production`.
 | --- | --- | --- |
 | Laravel | `APP_URL` | `http://127.0.0.1:8001` |
 | Laravel CORS | `WEB_FRONTEND_ORIGINS` | `http://127.0.0.1:4173,http://localhost:4173,http://localhost:5173` |
+| Laravel (tokens) | `SANCTUM_TOKEN_TTL_MINUTES` | `1440` (normal sessions) |
+| Laravel (tokens) | `SANCTUM_TOKEN_REMEMBER_DAYS` | `30` (remember-me sessions) |
 | Web | `VITE_WEB_API_URL` | `/api` (Vite/Nginx proxies it to Laravel) |
 | Thesis mobile | None | Bundled model and local native runtime only |
 | Research comparison | `AI_COMPARISON_URL` | `http://127.0.0.1:8100/compare` |
@@ -298,13 +419,15 @@ The AI pipeline trains and evaluates two models on one fixed, leakage-free four-
 
 | Model | Description |
 | --- | --- |
+| ResNet-101 teacher | Self-supervised pretraining followed by supervised fine-tuning |
 | MobileNetV3-Small baseline | Plain supervised control model |
-| CA-MobileNetV3-Small (proposed) | Coordinate Attention–enhanced model distilled from a self-supervised ResNet-101 teacher |
+| CA-MobileNetV3-Small (proposed) | Coordinate Attention–enhanced model; supervised recovery first, then KD only from a teacher that beats the baseline |
 
 > [!WARNING]
 > Earlier archived artifacts output separate Black and Yellow Sigatoka classes and have no Panama disease output. They are rejected by the current runtime and must be retrained after the new Panama candidates complete expert review. The historical `dead` label is quarantined and excluded from the four-class thesis model.
 
-See the [AI pipeline guide](ai/README.md) for reproducible training and evaluation commands.
+See the [model experiment roadmap](MODEL_EXPERIMENTS.md) for the numbered tests
+and the [AI pipeline guide](ai/README.md) for implementation details.
 
 ---
 
@@ -370,11 +493,11 @@ npm run release:status
 
 | Document | Purpose |
 | --- | --- |
-| [System architecture](docs/architecture.md) | Components, boundaries, and data flow |
-| [Engineering quality attributes](docs/quality-attributes.md) | Maintainability, tests, security boundaries, and concurrent module work |
-| [Scientific content governance](docs/scientific-content-governance.md) | Evidence, review, and regulatory rules |
-| [Dataset/model checklist](docs/dataset-model-trainer-todo.md) | Required experiment gates and evidence |
-| [Backend consolidation](docs/backend-consolidation.md) | Record of the single-backend architecture |
+| [System architecture](docs/architecture/overview.md) | Components, boundaries, and data flow |
+| [Engineering quality attributes](docs/architecture/quality-attributes.md) | Maintainability, tests, security boundaries, and concurrent module work |
+| [Scientific content governance](docs/research/scientific-content-governance.md) | Evidence, review, and regulatory rules |
+| [Dataset/model checklist](docs/research/dataset-model-trainer-checklist.md) | Required experiment gates and evidence |
+| [Backend consolidation](docs/archive/historical-documents/backend-consolidation.md) | Historical record of the backend architecture |
 
 ---
 

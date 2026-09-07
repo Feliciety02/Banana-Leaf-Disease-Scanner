@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 class AccountService
 {
@@ -31,8 +33,23 @@ class AccountService
 
     public function delete(User $user): void
     {
-        $user->tokens()->delete();
-        $this->users->delete($user);
+        $storedPaths = $user->diagnoses()
+            ->withTrashed()
+            ->get(['image_path', 'gradcam_path'])
+            ->flatMap(fn ($diagnosis) => [$diagnosis->image_path, $diagnosis->gradcam_path])
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        DB::transaction(function () use ($user): void {
+            $user->tokens()->delete();
+            $this->users->delete($user);
+        });
+
+        if ($storedPaths) {
+            Storage::disk('public')->delete($storedPaths);
+        }
     }
 
     public function credentialsMatch(string $email, string $password): ?User

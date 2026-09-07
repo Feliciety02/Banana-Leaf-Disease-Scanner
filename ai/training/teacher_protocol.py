@@ -22,6 +22,8 @@ TEACHER_CHECKPOINT_NAME = "best_teacher.keras"
 TRAINING_ARTIFACT_NAMES = (
     SSL_CHECKPOINT_NAME,
     TEACHER_CHECKPOINT_NAME,
+    "latest_teacher.keras",
+    "initialization.json",
     "teacher_ssl_history.json",
     "teacher_finetune_history.json",
     "teacher_history.json",
@@ -82,11 +84,15 @@ def selected_teacher_hyperparameters(config: ExperimentConfig) -> dict[str, Any]
     return {
         "backbone": config.teacher.backbone,
         "imagenet_weights": config.teacher.imagenet_weights,
+        "ssl_enabled": config.teacher.ssl_enabled,
         "ssl_epochs": config.teacher.ssl_epochs,
         "ssl_checkpoint_interval": config.teacher.ssl_checkpoint_interval,
         "max_recent_checkpoints": config.teacher.max_recent_checkpoints,
         "milestone_interval": config.teacher.milestone_interval,
         "finetune_epochs": config.teacher.finetune_epochs,
+        "head_warmup_epochs": config.teacher.head_warmup_epochs,
+        "head_warmup_learning_rate": config.teacher.head_warmup_learning_rate,
+        "freeze_batch_norm_during_finetune": config.teacher.freeze_batch_norm_during_finetune,
         "ssl_learning_rate": config.teacher.ssl_learning_rate,
         "finetune_learning_rate": config.teacher.finetune_learning_rate,
         "weight_decay": config.teacher.weight_decay,
@@ -108,13 +114,21 @@ def selected_teacher_hyperparameters(config: ExperimentConfig) -> dict[str, Any]
 
 def _record_fingerprint(records: Sequence[ImageRecord]) -> str:
     identities = sorted(
-        {
-            "sha256": record.sha256,
-            "group_id": record.group_id,
-            "class_name": record.class_name,
-            "label": record.label,
-        }
-        for record in records
+        [
+            {
+                "sha256": record.sha256,
+                "group_id": record.group_id,
+                "class_name": record.class_name,
+                "label": record.label,
+            }
+            for record in records
+        ],
+        key=lambda identity: (
+            identity["sha256"],
+            identity["group_id"],
+            identity["class_name"],
+            identity["label"],
+        ),
     )
     return _json_fingerprint(identities)
 
@@ -212,8 +226,17 @@ def write_reproducibility_manifest(
         "experiment_name": config.experiment_name,
         "architecture": {
             "encoder": "ImageNet-pretrained ResNet-101",
-            "ssl_objectives": ["BYOL", "masked_image_modeling", "InfoNCE"],
-            "post_ssl_model": "ResNet-101 encoder plus four-class classifier; SSL-only heads removed",
+            "ssl_enabled": config.teacher.ssl_enabled,
+            "ssl_objectives": (
+                ["BYOL", "masked_image_modeling", "InfoNCE"]
+                if config.teacher.ssl_enabled
+                else []
+            ),
+            "post_ssl_model": (
+                "ResNet-101 encoder plus four-class classifier; SSL-only heads removed"
+                if config.teacher.ssl_enabled
+                else "ImageNet-initialized ResNet-101 plus four-class classifier"
+            ),
         },
         "determinism": {
             "seed": config.runtime.seed,

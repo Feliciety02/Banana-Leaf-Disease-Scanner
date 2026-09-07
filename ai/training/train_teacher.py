@@ -1,4 +1,4 @@
-"""Stage 2: self-supervise ResNet-101, then fine-tune it for four classes."""
+"""Train or diagnose the ResNet-101 teacher and fine-tune it for four classes."""
 
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ from ai.training.common import add_common_arguments, configured_experiment, macr
 from ai.training.teacher_protocol import (
     assert_teacher_partition_isolation,
     selected_teacher_hyperparameters,
+    sha256_file,
     write_reproducibility_manifest,
 )
 
@@ -42,6 +43,133 @@ LIVE_FILE = "teacher_live.json"
 CHECKPOINT_PREFIX = "ssl_checkpoint_epoch_"
 CHECKPOINT_MARKER_SUFFIX = ".complete"
 FINAL_SSL_MODEL_NAME = "resnet101_ssl_pretrained.keras"
+TRAINING_COMPLETE_NAME = "teacher_training.complete.json"
+LATEST_FINETUNE_NAME = "latest_teacher.keras"
+
+
+def write_pipeline_status(status_file: str | Path | None, status: str) -> None:
+    """Atomically update an optional shared pipeline status file."""
+    if status_file is None:
+        return
+    destination = Path(status_file)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(f"{status}\n", encoding="utf-8")
+    temporary.replace(destination)
+
+
+def finetune_resume_state(
+    history: list[dict],
+    initial_learning_rate: float,
+    reduce_lr_patience: int,
+    min_learning_rate: float,
+) -> tuple[float, int, int, float]:
+    """Reconstruct early-stopping and LR state from completed fine-tune epochs."""
+    best_macro_f1 = -1.0
+    epochs_without_improvement = 0
+    lr_wait = 0
+    learning_rate = initial_learning_rate
+    for row in history:
+        current_macro_f1 = float(row.get("validation_macro_f1", -1.0))
+        if current_macro_f1 > best_macro_f1:
+            best_macro_f1 = current_macro_f1
+            epochs_without_improvement = 0
+            lr_wait = 0
+        else:
+            epochs_without_improvement += 1
+            lr_wait += 1
+            if lr_wait >= reduce_lr_patience:
+                learning_rate = max(learning_rate * 0.5, min_learning_rate)
+                lr_wait = 0
+    return best_macro_f1, epochs_without_improvement, lr_wait, learning_rate
+
+
+def write_training_complete_marker(
+    output_dir: Path,
+    *,
+    selected_epoch: int,
+    completed_epochs: int,
+    validation_macro_f1: float,
+) -> Path:
+    """Commit the marker that distinguishes a best checkpoint from a finished run."""
+    destination = output_dir / TRAINING_COMPLETE_NAME
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(
+            {
+                "status": "complete",
+                "selected_epoch": selected_epoch,
+                "completed_epochs": completed_epochs,
+                "validation_macro_f1": validation_macro_f1,
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    temporary.replace(destination)
+    return destination
+
+
+def build_finetune_classifier(
+    ssl_model: tf.keras.Model,
+    config: ExperimentConfig,
+) -> tf.keras.Model:
+    """Attach a fresh configured classification head to the SSL encoder outputs."""
+    features = ssl_model.output["features"]
+    dropped = tf.keras.layers.Dropout(
+        config.teacher.dropout_rate,
+        name="finetune_dropout",
+    )(features)
+    logits = tf.keras.layers.Dense(
+        config.data.num_classes,
+        name="finetune_logits",
+    )(dropped)
+    return tf.keras.Model(
+        ssl_model.input,
+        {
+            "logits": logits,
+            "features": features,
+            "feature_map": ssl_model.output["feature_map"],
+        },
+        name="resnet101_classifier",
+    )
+
+
+def _teacher_backbone(classifier: tf.keras.Model) -> tf.keras.Model:
+    candidates = [
+        layer
+        for layer in classifier.layers
+        if isinstance(layer, tf.keras.Model) and layer.name.lower().startswith("resnet101")
+    ]
+    if len(candidates) != 1:
+        raise ValueError(
+            "Expected exactly one nested ResNet-101 backbone in the fine-tuning classifier; "
+            f"found {[layer.name for layer in candidates]}"
+        )
+    return candidates[0]
+
+
+def configure_finetune_stage(
+    classifier: tf.keras.Model,
+    *,
+    head_only: bool,
+    freeze_batch_norm: bool,
+) -> dict[str, int | str]:
+    """Configure a stable head-warm-up or convolution fine-tuning stage."""
+    backbone = _teacher_backbone(classifier)
+    backbone.trainable = not head_only
+    frozen_batch_norm = 0
+    if not head_only and freeze_batch_norm:
+        for layer in backbone.layers:
+            if isinstance(layer, tf.keras.layers.BatchNormalization):
+                layer.trainable = False
+                frozen_batch_norm += 1
+    return {
+        "stage": "head_warmup" if head_only else "backbone_finetune",
+        "trainable_variables": len(classifier.trainable_variables),
+        "frozen_batch_norm_layers": frozen_batch_norm,
+    }
 
 
 def write_live_progress(output_dir: Path, payload: dict) -> None:
@@ -402,45 +530,116 @@ def _run_ssl_pretraining(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     add_common_arguments(parser)
-    parser.add_argument(
+    resume_group = parser.add_mutually_exclusive_group()
+    resume_group.add_argument(
         "--resume-ssl",
         action="store_true",
         help="Skip self-supervised pretraining and load resnet101_ssl_pretrained.keras from the output directory if present",
     )
-    parser.add_argument(
+    resume_group.add_argument(
         "--resume-ssl-intermediate",
         action="store_true",
         help="Resume self-supervised pretraining from the latest valid periodic SSL checkpoint in the output directory",
     )
-    parser.add_argument(
+    resume_group.add_argument(
         "--resume-finetune",
         action="store_true",
-        help="Skip SSL and load best_teacher.keras to continue supervised fine-tuning from the saved history",
+        help="Skip initialization and continue supervised fine-tuning from latest_teacher.keras (or best_teacher.keras)",
+    )
+    resume_group.add_argument(
+        "--initial-ssl-model",
+        help="Start a new fine-tuning diagnostic from an existing completed SSL .keras model",
+    )
+    resume_group.add_argument(
+        "--imagenet-only",
+        action="store_true",
+        help="Start a new supervised diagnostic directly from ImageNet ResNet-101 weights without SSL",
+    )
+    parser.add_argument(
+        "--status-file",
+        help="Optional pipeline status file updated for direct and launcher-driven runs",
     )
     return parser.parse_args()
 
 
 def train(args: argparse.Namespace) -> Path:
     config = configured_experiment(args, "teacher_experiment_config.json")
-    if not config.teacher.ssl_enabled:
+    if not config.teacher.ssl_enabled and not (args.imagenet_only or args.resume_finetune):
         raise ValueError(
-            "This entry point implements ImageNet -> banana-domain SSL -> supervised fine-tuning. "
-            "Use train_supervised_ablation.py for configuration 5."
+            "A configuration with teacher.ssl_enabled=false requires --imagenet-only for a new run "
+            "or --resume-finetune for an interrupted run."
         )
+    if args.imagenet_only and config.teacher.ssl_enabled:
+        raise ValueError("--imagenet-only requires teacher.ssl_enabled=false")
+    if args.initial_ssl_model and not config.teacher.ssl_enabled:
+        raise ValueError("--initial-ssl-model requires teacher.ssl_enabled=true")
     output_dir = Path(config.runtime.output_dir)
     splits = prepare_splits(config, output_dir / "split_manifest.json")
     write_label_map(splits.class_names, output_dir / "label_map.json")
 
     ssl_path = output_dir / FINAL_SSL_MODEL_NAME
     best_path = output_dir / "best_teacher.keras"
-    if args.resume_finetune and best_path.is_file():
-        online = tf.keras.models.load_model(best_path)
-        print(f"Resumed fine-tuned ResNet-101 classifier from {best_path}")
-        ssl_history: list[dict] = []
-    elif args.resume_ssl and ssl_path.is_file():
+    latest_path = output_dir / LATEST_FINETUNE_NAME
+    history_path = output_dir / "teacher_finetune_history.json"
+    if args.resume_finetune and not best_path.is_file():
+        raise FileNotFoundError(
+            f"Cannot resume supervised fine-tuning: missing checkpoint {best_path}"
+        )
+    if args.resume_finetune and not history_path.is_file():
+        raise FileNotFoundError(
+            f"Cannot resume supervised fine-tuning: missing history {history_path}"
+        )
+    if args.resume_ssl and not ssl_path.is_file():
+        raise FileNotFoundError(
+            f"Cannot resume from completed SSL: missing checkpoint {ssl_path}"
+        )
+
+    if args.resume_finetune:
+        resume_path = latest_path if latest_path.is_file() else best_path
+        try:
+            online = tf.keras.models.load_model(resume_path)
+        except (OSError, ValueError, EOFError) as error:
+            if resume_path == best_path:
+                raise
+            print(
+                f"Latest fine-tuning checkpoint could not be loaded ({error}); "
+                f"falling back to validation-best checkpoint {best_path}"
+            )
+            resume_path = best_path
+            online = tf.keras.models.load_model(resume_path)
+        print(f"Resumed fine-tuned ResNet-101 classifier from {resume_path}")
+        ssl_history = _ssl_history_upto(output_dir, config.teacher.ssl_epochs)
+    elif args.initial_ssl_model:
+        initial_ssl_path = Path(args.initial_ssl_model)
+        if not initial_ssl_path.is_file():
+            raise FileNotFoundError(f"Initial SSL model not found: {initial_ssl_path}")
+        online = tf.keras.models.load_model(initial_ssl_path)
+        print(f"Loaded diagnostic SSL initialization from {initial_ssl_path}")
+        ssl_history = []
+        (output_dir / "initialization.json").write_text(
+            json.dumps(
+                {
+                    "mode": "existing_ssl_model",
+                    "source_model": str(initial_ssl_path.resolve()),
+                    "source_model_sha256": sha256_file(initial_ssl_path),
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+    elif args.imagenet_only:
+        online = build_teacher(config)
+        print("Started diagnostic teacher directly from ImageNet ResNet-101 weights (SSL skipped)")
+        ssl_history = []
+        (output_dir / "initialization.json").write_text(
+            json.dumps({"mode": "imagenet_only"}, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+    elif args.resume_ssl:
         online = tf.keras.models.load_model(ssl_path)
         print(f"Resumed ResNet-101 from self-supervised checkpoint {ssl_path}")
-        ssl_history: list[dict] = []
+        ssl_history = _ssl_history_upto(output_dir, config.teacher.ssl_epochs)
     else:
         # Leakage boundary: SSL sees the internal training partition plus only an
         # explicitly designated, overlap-screened unlabeled inventory. Validation,
@@ -512,62 +711,95 @@ def train(args: argparse.Namespace) -> Path:
         del target, online_ssl, online_mim, target_projector, ssl_optimizer
     gc.collect()
 
-    # Phase 2: all ResNet-101 encoder weights and the classifier are supervised-fine-tuned.
-    # When resuming fine-tuning, best_teacher.keras is already the lean classifier, so reuse it.
+    # Phase 2: warm up the new classification head, then fine-tune convolution
+    # weights while optionally keeping BatchNorm in inference mode.
     if args.resume_finetune:
         classifier = online
     else:
-        # Build a lean classifier exposing only the outputs downstream consumers need (logits and
-        # features), then drop the full multi-head teacher so the SSL projection/prediction heads
-        # and the heavy MIM decoder are freed before fine-tuning backprop peaks in memory.
-        classifier = tf.keras.Model(
-            online.input,
-            {
-                "logits": online.output["logits"],
-                "features": online.output["features"],
-                "feature_map": online.output["feature_map"],
-            },
-            name="resnet101_classifier",
-        )
+        # The SSL classifier head was never trained. Attach a fresh head so adjusted
+        # fine-tuning settings (especially dropout) take effect when SSL is reused.
+        classifier = build_finetune_classifier(online, config)
     del online
     gc.collect()
     finetune_dataset = make_supervised_dataset(splits.train, config, training=True)
     validation_dataset = make_supervised_dataset(splits.validation, config, training=False)
-    finetune_optimizer = make_optimizer(config.teacher.finetune_learning_rate, config.teacher.weight_decay)
 
-    @tf.function
-    def finetune_step(images: tf.Tensor, labels: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
-        with tf.GradientTape() as tape:
-            logits = classifier(images, training=True)["logits"]
-            loss_value = classification_loss(labels, logits)
-            if classifier.losses:
-                loss_value += tf.add_n(classifier.losses)
-        gradients = tape.gradient(loss_value, classifier.trainable_variables)
-        finetune_optimizer.apply_gradients(
-            [(gradient, variable) for gradient, variable in zip(gradients, classifier.trainable_variables) if gradient is not None]
-        )
-        return loss_value, logits
+    def make_finetune_step(optimizer: tf.keras.optimizers.Optimizer):
+        @tf.function
+        def finetune_step(images: tf.Tensor, labels: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
+            with tf.GradientTape() as tape:
+                logits = classifier(images, training=True)["logits"]
+                loss_value = classification_loss(labels, logits)
+                if classifier.losses:
+                    loss_value += tf.add_n(classifier.losses)
+            variables = classifier.trainable_variables
+            gradients = tape.gradient(loss_value, variables)
+            optimizer.apply_gradients(
+                (gradient, variable)
+                for gradient, variable in zip(gradients, variables)
+                if gradient is not None
+            )
+            return loss_value, logits
+
+        return finetune_step
 
     @tf.function
     def validation_step(images: tf.Tensor, labels: tf.Tensor) -> tuple[tf.Tensor, tf.Tensor]:
         logits = classifier(images, training=False)["logits"]
         return classification_loss(labels, logits), logits
 
-    best_path = output_dir / "best_teacher.keras"
     best_macro_f1 = -1.0
-    epochs_without_improvement = 0
-    lr_wait = 0
     finetune_history: list[dict] = []
-    history_path = output_dir / "teacher_finetune_history.json"
-    if args.resume_finetune and history_path.is_file():
+    if args.resume_finetune:
         finetune_history = json.loads(history_path.read_text(encoding="utf-8"))
+        if not finetune_history:
+            raise ValueError(f"Cannot resume supervised fine-tuning: {history_path} is empty")
         best_macro_f1 = max(float(row.get("validation_macro_f1", -1.0)) for row in finetune_history)
         print(
             f"Resuming fine-tuning from epoch {len(finetune_history) + 1} "
             f"with best validation macro F1 {best_macro_f1:.5f}"
         )
     total_finetune_batches = dataset_batches(finetune_dataset)
+    current_stage: str | None = None
+    finetune_optimizer: tf.keras.optimizers.Optimizer | None = None
+    finetune_step = None
+    stage_best_macro_f1 = -1.0
+    epochs_without_improvement = 0
+    lr_wait = 0
     for epoch in range(1 + len(finetune_history), config.teacher.finetune_epochs + 1):
+        head_only = epoch <= config.teacher.head_warmup_epochs
+        desired_stage = "head_warmup" if head_only else "backbone_finetune"
+        if desired_stage != current_stage:
+            stage_info = configure_finetune_stage(
+                classifier,
+                head_only=head_only,
+                freeze_batch_norm=config.teacher.freeze_batch_norm_during_finetune,
+            )
+            initial_stage_lr = (
+                config.teacher.head_warmup_learning_rate
+                if head_only
+                else config.teacher.finetune_learning_rate
+            )
+            stage_rows = [
+                row
+                for row in finetune_history
+                if row.get("finetune_stage", "backbone_finetune") == desired_stage
+            ]
+            stage_best_macro_f1, epochs_without_improvement, lr_wait, stage_lr = finetune_resume_state(
+                stage_rows,
+                initial_stage_lr,
+                config.runtime.reduce_lr_patience,
+                config.runtime.min_learning_rate,
+            )
+            finetune_optimizer = make_optimizer(stage_lr, config.teacher.weight_decay)
+            finetune_step = make_finetune_step(finetune_optimizer)
+            current_stage = desired_stage
+            print(
+                f"Fine-tuning stage={desired_stage}; learning_rate={stage_lr:.8f}; "
+                f"trainable_variables={stage_info['trainable_variables']}; "
+                f"frozen_batch_norm_layers={stage_info['frozen_batch_norm_layers']}"
+            )
+
         train_loss = tf.keras.metrics.Mean()
         train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
         train_progress = tqdm(
@@ -589,6 +821,7 @@ def train(args: argparse.Namespace) -> Path:
                     output_dir,
                     {
                         "phase": "supervised_finetuning",
+                        "finetune_stage": desired_stage,
                         "epoch": epoch,
                         "total_epochs": config.teacher.finetune_epochs,
                         "batch": batch_index,
@@ -613,37 +846,76 @@ def train(args: argparse.Namespace) -> Path:
             validation_accuracy.update_state(labels, logits)
             validation_true.extend(labels.numpy().astype(int).tolist())
             validation_predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
+        validation_macro_f1 = macro_f1_from_predictions(
+            validation_true, validation_predicted, config.data.num_classes
+        )
         row = {
             "phase": "supervised_finetuning",
+            "finetune_stage": desired_stage,
             "epoch": epoch,
             "train_loss": float(train_loss.result()),
             "train_accuracy": float(train_accuracy.result()),
             "validation_loss": float(validation_loss.result()),
             "validation_accuracy": float(validation_accuracy.result()),
-            "validation_macro_f1": macro_f1_from_predictions(
-                validation_true, validation_predicted, config.data.num_classes
-            ),
+            "validation_macro_f1": validation_macro_f1,
             "learning_rate": float(tf.keras.backend.get_value(finetune_optimizer.learning_rate)),
         }
         finetune_history.append(row)
+        write_live_progress(
+            output_dir,
+            {
+                "phase": "supervised_finetuning",
+                "finetune_stage": desired_stage,
+                "epoch": epoch,
+                "total_epochs": config.teacher.finetune_epochs,
+                "batch": total_finetune_batches,
+                "total_batches": total_finetune_batches,
+                "metrics": {
+                    "train_loss": float(train_loss.result()),
+                    "train_accuracy": float(train_accuracy.result()),
+                },
+                "validation_metrics": {
+                    "validation_loss": float(validation_loss.result()),
+                    "validation_accuracy": float(validation_accuracy.result()),
+                    "validation_macro_f1": validation_macro_f1,
+                },
+                "best_validation_macro_f1": max(
+                    max(best_macro_f1, validation_macro_f1),
+                    max((r["validation_macro_f1"] for r in finetune_history), default=-1.0),
+                ),
+                "learning_rate": float(tf.keras.backend.get_value(finetune_optimizer.learning_rate)),
+                "timestamp": time.time(),
+            },
+        )
         print(" - ".join(f"{name}={value:.5f}" if isinstance(value, float) else f"{name}={value}" for name, value in row.items()))
 
         current_macro_f1 = row["validation_macro_f1"]
         if current_macro_f1 > best_macro_f1:
             best_macro_f1 = current_macro_f1
+            classifier.save(best_path)
+
+        should_stop = False
+        if current_macro_f1 > stage_best_macro_f1:
+            stage_best_macro_f1 = current_macro_f1
             epochs_without_improvement = 0
             lr_wait = 0
-            classifier.save(best_path)
         else:
             epochs_without_improvement += 1
             lr_wait += 1
             if lr_wait >= config.runtime.reduce_lr_patience:
                 reduce_learning_rate(finetune_optimizer, 0.5, config.runtime.min_learning_rate)
                 lr_wait = 0
-            if epochs_without_improvement >= config.runtime.early_stopping_patience:
-                print(f"Supervised fine-tuning stopped after epoch {epoch}")
-                break
+            if (
+                desired_stage == "backbone_finetune"
+                and epochs_without_improvement >= config.runtime.early_stopping_patience
+            ):
+                should_stop = True
+
+        classifier.save(latest_path)
         save_history(finetune_history, output_dir / "teacher_finetune_history.json")
+        if should_stop:
+            print(f"Supervised fine-tuning stopped after epoch {epoch}")
+            break
 
     save_history(finetune_history, output_dir / "teacher_finetune_history.json")
     save_history(ssl_history + finetune_history, output_dir / "teacher_history.json")
@@ -691,10 +963,30 @@ def train(args: argparse.Namespace) -> Path:
     )
     assert_teacher_partition_isolation(splits)
 
+    completion_marker = write_training_complete_marker(
+        output_dir,
+        selected_epoch=selected_epoch,
+        completed_epochs=len(finetune_history),
+        validation_macro_f1=final_macro_f1,
+    )
+
     print(f"Best fine-tuned ResNet-101 saved to {best_path} (validation macro F1={best_macro_f1:.5f})")
     print(f"Reproducibility manifest written to {output_dir / 'reproducibility_manifest.json'}")
+    print(f"Teacher training completion marker written to {completion_marker}")
     return best_path
 
 
+def main() -> None:
+    args = parse_args()
+    write_pipeline_status(args.status_file, "training_teacher")
+    try:
+        train(args)
+    except BaseException:
+        write_pipeline_status(args.status_file, "failed")
+        raise
+    else:
+        write_pipeline_status(args.status_file, "teacher_complete")
+
+
 if __name__ == "__main__":
-    train(parse_args())
+    main()
