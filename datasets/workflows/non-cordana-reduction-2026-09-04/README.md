@@ -41,3 +41,24 @@ deleted. The post-reduction exploratory report is under
 `datasets/outputs/non-cordana-reduction-validation-2026-09-04/` and accepted all
 9,881 active files with zero exact duplicates. Its 109 remaining perceptual
 pairs require human review before formal thesis reporting.
+
+## September 9, 2026 Sigatoka restoration
+
+Fifteen images were copied back from
+`source_stratified_surplus/sigatoka/`, while the older exact duplicate
+`sigatoka n10.png` was moved to `confirmed_duplicate_copy/sigatoka/`. This
+restored the active Sigatoka folder from 2,986 to exactly 3,000 unique, readable
+files. The restored images had originally been removed
+only to satisfy the earlier size target; none came from the confirmed-duplicate,
+perceptual-candidate, malformed, or label-uncertain quarantines.
+
+Before restoration, each selected image was decoded, checked against its
+original SHA-256 in the reduction manifest, and compared with the active image
+inventory. There were no exact matches, and every selected image had a
+flip-aware dHash distance of at least 17 from the active inventory (the review
+threshold is 6). The selected paths and checksums are recorded in
+`restoration-manifest-2026-09-09.json`.
+
+This restoration establishes the raw file count only. Expert review, metadata
+completion, grouping, and the frozen split remain required before formal
+training.
