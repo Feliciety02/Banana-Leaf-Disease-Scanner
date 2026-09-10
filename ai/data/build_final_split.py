@@ -408,7 +408,13 @@ def build_final_split(
         if sha256_file(root / relative) != record["sha256"]:
             raise ValueError(f"Selected image changed after cohort creation: {relative}")
 
-    unresolved_pairs = [pair for pair in adjudication["pairs"] if pair["decision"] == "requires_review"]
+    selected_path_set = set(selected_paths)
+    unresolved_pairs = [
+        pair for pair in adjudication["pairs"]
+        if pair["decision"] == "requires_review"
+        and pair["path_a"] in selected_path_set
+        and pair["path_b"] in selected_path_set
+    ]
     if unresolved_pairs:
         gate["blockers"].append(f"{len(unresolved_pairs)} near-duplicate pairs remain unresolved")
         gate["gate_fingerprint"] = _json_fingerprint(gate)

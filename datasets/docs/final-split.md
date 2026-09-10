@@ -4,29 +4,31 @@ The final 70/15/15 split is an atomic, post-cohort quality gate. It is not
 generated from raw class folders and it never weakens a biological grouping
 constraint to improve class balance.
 
-## Current result (August 26, 2026)
+## Current result (September 9, 2026)
 
-The real split is **blocked**, so no `train_manifest.json`,
-`validation_manifest.json`, or `test_manifest.json` exists. The only generated
-artifact is `splits/banana-leaf-thesis-split-v1/final_split_gate.blocked.json`.
-Its fingerprint is
-`65f52e3873b8ec9649c776c705ac1b3f276c9d1edb50c3d99494eef66b784ce6`.
+The official split is **ready** and contains 11,512 expert-validated original
+images: 2,878 per class. The partition counts are exactly:
 
-The upstream cohort reports these blockers:
+| Partition | Per class | Total | Achieved fraction |
+| --- | ---: | ---: | ---: |
+| Train | 2,014 | 8,056 | 69.9792% |
+| Validation | 432 | 1,728 | 15.0104% |
+| Test | 432 | 1,728 | 15.0104% |
 
-- 1,011 unresolved near-duplicate candidate pairs;
-- 562 unresolved cross-label candidates, all high priority;
-- only 670 raw Cordana Leaf Spot images for the 700 target; and
-- zero formally eligible images in each class while human metadata/QC/group
-  review is pending.
+All cross-partition leakage assertions are zero. No grouping constraint was
+relaxed, and the maximum class-fraction deviation is 0.00020848, below the
+configured 0.02 tolerance.
 
-Generating empty or provisional partition manifests would make the state easy
-to misuse, so a blocked run writes only the signed diagnostic and exits
-nonzero.
+The project owner declared the locally added data, including Cordana images,
+to be team-owned local originals. As a conservative substitute for manual
+near-duplicate adjudication, all 167 images appearing in the unresolved dHash
+candidate queue were excluded. The 40 unreadable files and 28 exact duplicate
+copies also remain excluded. The limitations and declaration are recorded in
+`datasets/reviews/labels/local-original-split-attestation-2026-09-09.json`.
 
 ## Algorithm and constraints
 
-Configuration lives in `ai/config/final_split_v1.json`. The implementation is
+Configuration lives in `ai/config/final_split_2878_v1.json`. The implementation is
 `ai/data/build_final_split.py`.
 
 For a ready, fingerprinted cohort, the builder forms the transitive closure of:
@@ -80,18 +82,18 @@ Run this only after the upstream cohort has `status=ready`:
 ```powershell
 .venv\Scripts\python.exe -m ai.data.build_final_split `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --cohort-manifest datasets\outputs\cohorts\banana-leaf-thesis-labeled-v1.json `
-  --metadata-manifest datasets\metadata\image_metadata.json `
-  --adjudication-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.json `
-  --split-config ai\config\final_split_v1.json `
-  --output-dir datasets\outputs\splits\banana-leaf-thesis-split-v1
+  --cohort-manifest datasets\outputs\cohorts\banana-leaf-thesis-labeled-2878-v1.json `
+  --metadata-manifest datasets\metadata\image_metadata.split-ready-2026-09-09.json `
+  --adjudication-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.2026-09-09.json `
+  --split-config ai\config\final_split_2878_v1.json `
+  --output-dir datasets\outputs\final-split\banana-leaf-thesis-split-2878-v1
 ```
 
 Training, evaluation, and export commands must then use:
 
 ```powershell
 --dataset-dir datasets\banana_leaf_thesis_4class `
---final-split-dir datasets\outputs\splits\banana-leaf-thesis-split-v1
+--final-split-dir datasets\outputs\final-split\banana-leaf-thesis-split-2878-v1
 ```
 
 When `final_split_dir` is configured, `prepare_splits` bypasses all legacy
