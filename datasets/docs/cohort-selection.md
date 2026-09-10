@@ -6,12 +6,12 @@ short.
 
 ## Thesis configuration
 
-- Cohort version: `banana-leaf-thesis-labeled-v1`
-- Target: 700 validated original images per class
-- Intended total: 2,800
+- Cohort version: `banana-leaf-thesis-labeled-2878-v1`
+- Target: 2,878 validated original images per class
+- Intended total: 11,512
 - Seed: 42
 - Selection unit: complete `group_id`
-- Configuration: `ai/config/cohort_labeled_v1.json`
+- Configuration: `ai/config/cohort_labeled_2878_v1.json`
 
 The target and seed are configurable through a new versioned configuration.
 Changing a frozen ready cohort requires a new `cohort_version` and output path.
@@ -27,8 +27,10 @@ An image is eligible only after:
 5. explicit biological/acquisition grouping; and
 6. confirmation that the file is an original, not augmented or derived.
 
-The duplicate adjudication queue must be globally resolved before any cohort is
-selected. Cross-label related-image evidence remains a blocking label conflict.
+Every unresolved duplicate pair with two eligible endpoints must be resolved
+before selection. A pair cannot affect the cohort when at least one endpoint
+has been explicitly excluded. Cross-label related-image evidence remains a
+blocking label conflict.
 
 ## Deterministic diversity selection
 
@@ -51,55 +53,39 @@ Unknown diversity fields contribute no artificial diversity score. Currently,
 lighting, disease appearance, and capture device are unknown for every active
 image, so no balance across those attributes is claimed.
 
-## Current blocked result
+## Current ready result (September 9, 2026)
 
-| Class | Raw available | Documented original | Validated eligible | Target | Raw shortage | Selected |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Healthy | 4,000 | 3,802 | 0 | 700 | 0 | 0 |
-| Sigatoka | 4,000 | 3,942 | 0 | 700 | 0 | 0 |
-| Panama Disease | 4,000 | 3,941 | 0 | 700 | 0 | 0 |
-| Cordana Leaf Spot | 670 | 437 | 0 | 700 | **30** | 0 |
+| Class | Raw available | Validated eligible | Target | Selected | Conservatively excluded |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Healthy | 3,000 | 2,981 | 2,878 | 2,878 | 19 |
+| Sigatoka | 3,000 | 2,946 | 2,878 | 2,878 | 54 |
+| Panama Disease | 3,000 | 2,960 | 2,878 | 2,878 | 40 |
+| Cordana Leaf Spot | 3,000 | 2,878 | 2,878 | 2,878 | 122 |
 
-The 233 Cordana records with undocumented provenance/originality remain
-unknown; they are not automatically called augmented, original, or invalid.
-Even if every current Cordana file later passes review, at least 30 additional
-validated original Cordana images are required to reach 700.
-
-Available source distribution:
-
-| Class | Sources |
-| --- | --- |
-| Healthy | Zenodo Tanzania 3,217; v4 585; unknown 198 |
-| Sigatoka | Zenodo Tanzania 3,194; v4 667; Banana Disease Recognition 81; unknown 58 |
-| Panama Disease | Zenodo Tanzania 3,904; Banana Disease Recognition 37; unknown 59 |
-| Cordana Leaf Spot | Ecuador repository 266; BananaLSD 128; v4 43; unknown 233 |
-
-Additional global blockers are 1,011 unresolved near-duplicate pairs, including
-562 cross-label high-priority pairs. Expert, species, quality, inclusion, and
-group review are also incomplete. Consequently, the versioned manifest has
-`status=blocked`, contains zero selected paths, and reports all exclusion
-reasons rather than manufacturing a balanced cohort.
+The conservative exclusion set contains all 167 unresolved near-duplicate
+candidate images, 40 unreadable images, and 28 exact duplicate copies. The
+sets do not overlap, for 235 exclusions total. A further 253 eligible images
+from the three larger classes were not selected so that every class has the
+same 2,878-image total. No image was generated or duplicated to reach it.
 
 ## Command
 
 ```powershell
 .venv\Scripts\python.exe -m ai.data.build_labeled_cohort `
   --dataset-dir datasets\banana_leaf_thesis_4class `
-  --metadata-manifest datasets\metadata\image_metadata.json `
-  --group-manifest datasets\metadata\group_manifest.json `
-  --adjudication-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.json `
-  --inventory-report ai\artifacts\thesis-compliance-audit-20260826\image_validation_report.json `
-  --cohort-config ai\config\cohort_labeled_v1.json `
-  --output datasets\outputs\cohorts\banana-leaf-thesis-labeled-v1.blocked.json
+  --metadata-manifest datasets\metadata\image_metadata.split-ready-2026-09-09.json `
+  --group-manifest datasets\metadata\group_manifest.split-ready-2026-09-09.json `
+  --adjudication-manifest datasets\reviews\near-duplicates\near_duplicate_adjudication.2026-09-09.json `
+  --inventory-report datasets\outputs\dataset-validation-2026-09-09\image_validation_report.json `
+  --cohort-config ai\config\cohort_labeled_2878_v1.json `
+  --output datasets\outputs\cohorts\banana-leaf-thesis-labeled-2878-v1.json
 ```
 
-Blocked builds write a complete diagnostic manifest and exit nonzero. No images
-are copied, duplicated, augmented, deleted, or split.
+The ready manifest selects paths only; no images are copied, duplicated,
+augmented, deleted, or physically rearranged.
 
 ## Reproducibility evidence
 
-- Manifest fingerprint:
-  `b7d8a367e57a509c7724728817649613fd0418972f644bd92de4e58dd17d9d77`
-- Blocked-manifest file SHA-256:
-  `bffc7165090d41bf0316615dc04a672b770edc073de3ce6b088b2653729ad07c`
-- Repeating the build with unchanged inputs produced byte-identical output.
+- The manifest stores SHA-256 fingerprints for every selected image and every
+  input artifact.
+- Repeating the build with unchanged inputs produces byte-identical output.

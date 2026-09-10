@@ -101,7 +101,11 @@ def _load_groups(path: str | Path) -> dict[str, str]:
     return {_normalize(key): value.strip() for key, value in groups.items()}
 
 
-def _inventory_report_blockers(path: str | Path, inventory_count: int) -> tuple[list[str], set[str], dict[str, Any]]:
+def _inventory_report_blockers(
+    path: str | Path,
+    inventory_count: int,
+    metadata: dict[str, dict[str, Any]],
+) -> tuple[list[str], set[str], dict[str, Any]]:
     report = json.loads(Path(path).read_text(encoding="utf-8"))
     summary = report.get("summary", {})
     blockers: list[str] = []
@@ -111,17 +115,39 @@ def _inventory_report_blockers(path: str | Path, inventory_count: int) -> tuple[
         )
     if summary.get("cross_label_exact_conflicts", 0):
         blockers.append(f"{summary['cross_label_exact_conflicts']} cross-label exact conflicts remain")
-    if summary.get("exact_duplicate_copies_excluded", 0):
+    exact_duplicate_copies = {
+        _normalize(relative)
+        for group in report.get("exact_duplicate_groups", [])
+        for relative in group.get("excluded_copies", [])
+    }
+    duplicate_copies_without_exclusion = sorted(
+        relative for relative in exact_duplicate_copies
+        if metadata.get(relative, {}).get("inclusion_status") != "excluded"
+    )
+    if duplicate_copies_without_exclusion:
         blockers.append(
-            f"{summary['exact_duplicate_copies_excluded']} exact duplicate copies require explicit metadata exclusion"
+            f"{len(duplicate_copies_without_exclusion)} exact duplicate copies require explicit metadata exclusion"
         )
-    rejected = {_normalize(item["path"]) for item in report.get("rejected_images", [])}
+    rejected = {
+        _normalize(item["path"]) for item in report.get("rejected_images", [])
+    } | exact_duplicate_copies
     return blockers, rejected, report
 
 
-def _duplicate_blockers(adjudication: dict[str, Any]) -> tuple[list[str], dict[str, int]]:
+def _duplicate_blockers(
+    adjudication: dict[str, Any],
+    metadata: dict[str, dict[str, Any]],
+) -> tuple[list[str], dict[str, int]]:
     pairs = adjudication["pairs"]
-    unresolved = [pair for pair in pairs if pair["decision"] == "requires_review"]
+    # An unresolved candidate cannot leak when at least one endpoint has already
+    # been explicitly excluded from the labeled cohort. Keep the original queue
+    # intact for auditability while gating only pairs that could be admitted.
+    unresolved = [
+        pair for pair in pairs
+        if pair["decision"] == "requires_review"
+        and metadata.get(pair["path_a"], {}).get("inclusion_status") == "included"
+        and metadata.get(pair["path_b"], {}).get("inclusion_status") == "included"
+    ]
     unresolved_cross = [pair for pair in unresolved if not pair["same_class"]]
     confirmed_cross = [
         pair for pair in pairs
@@ -256,10 +282,10 @@ def build_cohort(
     metadata = load_manifest_payload(metadata_manifest)
     groups = _load_groups(group_manifest)
     report_blockers, rejected_paths, report = _inventory_report_blockers(
-        inventory_report, len(all_disk_images)
+        inventory_report, len(all_disk_images), metadata
     )
     adjudication = load_and_validate_adjudication(adjudication_manifest, root)
-    duplicate_blockers, duplicate_summary = _duplicate_blockers(adjudication)
+    duplicate_blockers, duplicate_summary = _duplicate_blockers(adjudication, metadata)
     global_blockers = report_blockers + duplicate_blockers
 
     group_labels: dict[str, set[str]] = defaultdict(set)

@@ -84,16 +84,16 @@ Formal validation fails until every admitted image has the required species, vis
 
 After those gates pass, `ai.data.build_labeled_cohort` creates the exact
 versioned, group-indivisible labeled cohort before any 70/15/15 split. Its
-configuration is `ai/config/cohort_labeled_v1.json`. A shortage or unresolved
+configuration is `ai/config/cohort_labeled_2878_v1.json`. A shortage or unresolved
 review writes a blocked diagnostic manifest, selects no paths, and exits
 nonzero; augmented or derived records can never fill the quota.
 
 The final split is then created by `ai.data.build_final_split` using
-`ai/config/final_split_v1.json`. It closes exact, adjudicated-related, explicit
+`ai/config/final_split_2878_v1.json`. It closes exact, adjudicated-related, explicit
 group, leaf, plant, and acquisition-session relations transitively before a
 seeded stratified assignment. It writes partition manifests only when all
 gates pass and the configured stratification tolerance is achievable without
-relaxing a group. See `datasets/docs/final-split.md` for the current blocked result.
+relaxing a group. See `datasets/docs/final-split.md` for the current frozen result.
 
 External unlabeled imagery is admitted only through
 `ai.data.build_ssl_manifest`; a raw directory is rejected. The versioned
@@ -123,6 +123,8 @@ See `datasets/docs/davao-field-workflow.md`. The current validated Davao count i
 
 All configurations are under `ai/config/ablations/`. Pass the same frozen
 `--final-split-dir` to every training, evaluation, and export command; never
+use the locked test partition for model selection. The copy-paste GPU baseline
+workflow is in `ai/training/BASELINE_FROZEN_SPLIT_RUNBOOK.md`.
 tune from held-out test results.
 
 The ablation configs are separate experiment definitions. Do not run the old

@@ -9,7 +9,12 @@ from pathlib import Path
 from PIL import Image
 
 from ai.config.labels import CLASS_LABELS
-from ai.data.build_labeled_cohort import build_cohort, load_cohort_config
+from ai.data.build_labeled_cohort import (
+    _duplicate_blockers,
+    _inventory_report_blockers,
+    build_cohort,
+    load_cohort_config,
+)
 from ai.data.metadata_manifest import _record_fingerprint, enrich_metadata, write_manifest
 
 
@@ -143,6 +148,49 @@ class LabeledCohortBuilderTest(unittest.TestCase):
             self.assertEqual(cohort["unresolved_shortages"][class_name]["validated_shortage"], 1)
             self.assertIn("excluded:augmented_or_derived", cohort["excluded_image_summary"][class_name])
             self.assertTrue(all(not paths for paths in cohort["selected_paths"].values()))
+
+    def test_exact_duplicate_blocker_clears_after_explicit_metadata_exclusion(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            report_path = Path(directory) / "inventory.json"
+            report_path.write_text(json.dumps({
+                "summary": {
+                    "scanned": 2,
+                    "cross_label_exact_conflicts": 0,
+                    "exact_duplicate_copies_excluded": 1,
+                },
+                "rejected_images": [],
+                "exact_duplicate_groups": [{
+                    "kept": "healthy/a.jpg",
+                    "excluded_copies": ["healthy/b.jpg"],
+                }],
+            }), encoding="utf-8")
+
+            blockers, rejected, _ = _inventory_report_blockers(
+                report_path,
+                2,
+                {"healthy/b.jpg": {"inclusion_status": "excluded"}},
+            )
+
+            self.assertEqual(blockers, [])
+            self.assertEqual(rejected, {"healthy/b.jpg"})
+
+    def test_unresolved_pair_is_not_a_blocker_when_an_endpoint_is_excluded(self) -> None:
+        pair = {
+            "path_a": "healthy/a.jpg",
+            "path_b": "healthy/b.jpg",
+            "same_class": True,
+            "decision": "requires_review",
+        }
+        blockers, summary = _duplicate_blockers(
+            {"pairs": [pair]},
+            {
+                "healthy/a.jpg": {"inclusion_status": "included"},
+                "healthy/b.jpg": {"inclusion_status": "excluded"},
+            },
+        )
+
+        self.assertEqual(blockers, [])
+        self.assertEqual(summary["unresolved_pairs"], 0)
 
 
 if __name__ == "__main__":
