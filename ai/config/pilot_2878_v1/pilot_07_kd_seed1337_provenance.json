@@ -1,0 +1,7 @@
+{
+  "only_scientific_change_from_selected_config": "runtime.seed",
+  "operational_cache_path_change": "decoded_cache_dir only; decoded tensors are identical",
+  "seed_42_model_sha256": "421e25738bb39fd0f59a6a3578e2eace28452702af45b5bf4182b0278e4fb863",
+  "seed_42_source_run": "ai/artifacts/four_class/pilot_2878_v1/pilot_06_ca_kd_imagenet_teacher_seed42",
+  "selected_configuration": "pilot_06_kd"
+}

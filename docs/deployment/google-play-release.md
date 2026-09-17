@@ -4,7 +4,7 @@ This checklist separates repository readiness from model validation and work
 that can only be completed in the Google Play Console. It is not a substitute
 for reviewing the current Play policies when the release is submitted.
 
-## Repository status while the final model is pending
+## Repository release readiness
 
 The following release blockers are handled in the repository:
 
@@ -20,7 +20,7 @@ The following release blockers are handled in the repository:
 - The app links to public privacy and web account-deletion pages from both the
   signed-out and signed-in workspace.
 - The readiness script checks these controls and refuses to build without the
-  final validated INT8 model.
+  final validated float32 model.
 
 Run the current gate with:
 
@@ -29,10 +29,11 @@ cd mobile-frontend
 npm run release:status
 ```
 
-Until the final model exists, the expected and only reported problem is:
+The validated `ca_mobilenetv3_small_fp32.tflite` model is bundled, so the gate now
+passes. If the model is ever removed, the only reported problem is:
 
 ```text
-PENDING EXPERIMENTAL VALIDATION: final INT8 TFLite model is not bundled.
+PENDING EXPERIMENTAL VALIDATION: final FP32 TFLite model is not bundled.
 ```
 
 ## Production services that can be prepared now
@@ -55,8 +56,9 @@ PENDING EXPERIMENTAL VALIDATION: final INT8 TFLite model is not bundled.
 ## Work after the final ML artifact arrives
 
 1. Audit the model and copy it to
-   `mobile-frontend/assets/models/ca_mobilenetv3_small_int8.tflite`. Do not use a
-   placeholder or simulated model.
+   `mobile-frontend/assets/models/ca_mobilenetv3_small_fp32.tflite`. Keep the
+   `ca_mobilenetv3_small_int8.tflite` export only for the on-device benchmark;
+   production inference uses FP32. Do not use a placeholder or simulated model.
 2. Run `npm run typecheck`, `npm test`, and `npm run release:check`.
 3. Generate a clean native project and test a release build on physical Android
    devices, including at least one Android 15+ 16 KB-page device or emulator.

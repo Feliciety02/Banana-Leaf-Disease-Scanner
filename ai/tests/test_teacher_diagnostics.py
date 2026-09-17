@@ -45,6 +45,11 @@ class TeacherDiagnosticConfigTest(unittest.TestCase):
                 self.assertEqual(config.teacher.head_warmup_epochs, 5)
                 self.assertTrue(config.teacher.freeze_batch_norm_during_finetune)
                 self.assertEqual(config.data.final_split_dir, "ai/artifacts/final_split")
+                if ssl_enabled:
+                    self.assertEqual(
+                        config.data.decoded_cache_dir,
+                        "/home/feanne/dahonmd-data/tf-cache/pilot_04_teacher_fresh_ssl_seed42",
+                    )
 
     def test_invalid_warmup_length_is_rejected(self) -> None:
         config = ExperimentConfig()

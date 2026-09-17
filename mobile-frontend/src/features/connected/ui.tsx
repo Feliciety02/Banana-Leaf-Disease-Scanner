@@ -130,6 +130,20 @@ export function ModalSheet({ visible, title, description, onClose, children }: P
   );
 }
 
+export function ModalCard({ visible, title, description, onClose, children }: PropsWithChildren<{ visible: boolean; title: string; description?: string; onClose: () => void }>) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <KeyboardAvoidingView style={styles.cardModalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.scrim} />
+        <View style={styles.cardModal}>
+          <View style={styles.sheetHeader}><View style={styles.sheetHeaderCopy}><Text style={styles.sheetTitle}>{title}</Text>{description && <Text style={styles.muted}>{description}</Text>}</View><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={22} color={palette.ink} /></Pressable></View>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetBody}>{children}</ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 export function ConfirmSheet({ visible, title, text, confirmLabel, busy, onCancel, onConfirm }: { visible: boolean; title: string; text: string; confirmLabel: string; busy?: boolean; onCancel: () => void; onConfirm: () => void }) {
   return <ModalSheet visible={visible} title={title} description={text} onClose={() => { if (!busy) onCancel(); }}><View style={styles.modalActions}><ActionButton variant="secondary" disabled={busy} onPress={onCancel}>Cancel</ActionButton><ActionButton variant="danger" disabled={busy} onPress={onConfirm}>{busy ? 'Working…' : confirmLabel}</ActionButton></View></ModalSheet>;
 }
@@ -164,5 +178,5 @@ const styles = StyleSheet.create({
   loading: { minHeight: 130, alignItems: 'center', justifyContent: 'center', gap: 10 }, muted: { color: palette.muted, fontSize: 14, lineHeight: 20 }, mutedCenter: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
   empty: { alignItems: 'center', padding: 28, gap: 8 }, emptyTitle: { color: palette.ink, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   sectionHeader: { gap: 12 }, sectionHeaderCopy: { gap: 5 }, eyebrow: { color: palette.green, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, title: { color: palette.ink, fontSize: 27, lineHeight: 32, fontWeight: '900' },
-  modalRoot: { flex: 1, justifyContent: 'flex-end' }, scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.scrim }, sheet: { maxHeight: '91%', backgroundColor: palette.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' }, sheetHandle: { alignSelf: 'center', width: 42, height: 5, borderRadius: 3, backgroundColor: '#b7c4bd', marginTop: 9 }, sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', padding: 18, paddingBottom: 13, gap: 10, borderBottomWidth: 1, borderBottomColor: palette.border }, sheetHeaderCopy: { flex: 1, gap: 4 }, sheetTitle: { color: palette.ink, fontSize: 21, fontWeight: '900' }, closeButton: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#e8eeea', alignItems: 'center', justifyContent: 'center' }, sheetBody: { padding: 18, paddingBottom: 34, gap: 14 }, modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9 },
+  modalRoot: { flex: 1, justifyContent: 'flex-end' }, scrim: { ...StyleSheet.absoluteFill, backgroundColor: palette.scrim }, cardModalRoot: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }, cardModal: { width: '100%', maxWidth: 460, maxHeight: '90%', backgroundColor: palette.background, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: palette.border, shadowColor: '#10251d', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 12 }, sheet: { maxHeight: '91%', backgroundColor: palette.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' }, sheetHandle: { alignSelf: 'center', width: 42, height: 5, borderRadius: 3, backgroundColor: '#b7c4bd', marginTop: 9 }, sheetHeader: { flexDirection: 'row', alignItems: 'flex-start', padding: 18, paddingBottom: 13, gap: 10, borderBottomWidth: 1, borderBottomColor: palette.border }, sheetHeaderCopy: { flex: 1, gap: 4 }, sheetTitle: { color: palette.ink, fontSize: 21, fontWeight: '900' }, closeButton: { width: 42, height: 42, borderRadius: 13, backgroundColor: '#e8eeea', alignItems: 'center', justifyContent: 'center' }, sheetBody: { padding: 18, paddingBottom: 34, gap: 14 }, modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9 },
 });

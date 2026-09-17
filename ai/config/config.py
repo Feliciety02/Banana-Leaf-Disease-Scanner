@@ -77,7 +77,15 @@ class DataConfig:
     validation_fraction: float = 0.15
     test_fraction: float = 0.15
     batch_size: int = 32
+    # Optional larger inference/validation batch. This never changes training
+    # gradients and lets memory-constrained KD use small training micro-batches.
+    evaluation_batch_size: Optional[int] = None
     cache_dataset: bool = False
+    # Optional persistent cache for decoded/resized float32 images. Keep this on
+    # a fast native filesystem (for example WSL ext4) rather than a mounted
+    # Windows drive. Random shuffling and augmentation are applied after this
+    # cache, so they remain fresh for every training epoch.
+    decoded_cache_dir: Optional[str] = None
     verify_images: bool = True
     allowed_extensions: tuple[str, ...] = (".jpg", ".jpeg", ".png", ".bmp", ".webp")
 
@@ -158,6 +166,9 @@ class StudentConfig:
     # This is especially important for the small batches used by KD runs.
     freeze_batch_norm_during_finetune: bool = False
     weight_decay: float = 1e-5
+    # Split one effective optimizer batch across memory-safe micro-batches.
+    # A value of 1 applies gradients after every data batch.
+    gradient_accumulation_steps: int = 1
 
 
 @dataclass
@@ -276,6 +287,7 @@ class ExperimentConfig:
             "data.batch_size": self.data.batch_size,
             "student.width_multiplier": self.student.width_multiplier,
             "student.coordinate_attention_reduction": self.student.coordinate_attention_reduction,
+            "student.gradient_accumulation_steps": self.student.gradient_accumulation_steps,
             "baseline.frozen_backbone_epochs": self.baseline.frozen_backbone_epochs,
             "baseline.fine_tune_epochs": self.baseline.fine_tune_epochs,
         }.items():
@@ -296,6 +308,8 @@ class ExperimentConfig:
         }.items():
             if value <= 0:
                 raise ValueError(f"{name} must be positive")
+        if self.data.evaluation_batch_size is not None and self.data.evaluation_batch_size <= 0:
+            raise ValueError("data.evaluation_batch_size must be positive when configured")
         if self.data.image_height % self.masking.patch_size or self.data.image_width % self.masking.patch_size:
             raise ValueError("image dimensions must be divisible by masking.patch_size")
         for name, value in {

@@ -17,7 +17,7 @@ import numpy as np
 import tensorflow as tf
 
 from ai.config.config import ExperimentConfig
-from ai.data.dataset import make_teacher_dataset
+from ai.data.dataset import make_supervised_dataset, make_teacher_dataset
 from ai.data.records import ImageRecord
 from ai.training.common import make_optimizer
 from ai.training.train_teacher import (
@@ -449,6 +449,120 @@ class TeacherDatasetShuffleEpochTest(unittest.TestCase):
                 self._labels_first_batch(config, records, epoch=seed) for seed in range(2, 7)
             ]
             self.assertTrue(any(labels != first for labels in labels_by_seed))
+
+    def test_persistent_decode_cache_does_not_freeze_epoch_shuffle(self) -> None:
+        config = ExperimentConfig()
+        config.data.image_height = 32
+        config.data.image_width = 32
+        config.data.batch_size = 8
+        config.runtime.num_parallel_calls = 1
+        config.data.cache_dataset = True
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config.data.decoded_cache_dir = str(root / "decoded_cache")
+            images = root / "images"
+            images.mkdir()
+            records = _records(images, count=8)
+
+            first = self._labels_first_batch(config, records, epoch=1)
+            second = self._labels_first_batch(config, records, epoch=2)
+
+            self.assertNotEqual(first, second)
+            cache_markers = list(
+                (root / "decoded_cache").glob("teacher_sharded_*_decoded/complete.json")
+            )
+            self.assertEqual(len(cache_markers), 1)
+            self.assertEqual(
+                len(list(cache_markers[0].parent.joinpath("arrays").glob("*.npy"))),
+                len(records),
+            )
+
+    def test_persistent_decode_cache_is_numerically_identical(self) -> None:
+        config = ExperimentConfig()
+        config.data.image_height = 32
+        config.data.image_width = 32
+        config.data.batch_size = 8
+        config.runtime.num_parallel_calls = 1
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            images = root / "images"
+            images.mkdir()
+            records = _records(images, count=8)
+
+            config.data.cache_dataset = False
+            uncached = make_teacher_dataset(records, config, training=False)
+            expected, _ = uncached.get_single_element()
+
+            config.data.cache_dataset = True
+            config.data.decoded_cache_dir = str(root / "decoded_cache")
+            cached = make_teacher_dataset(records, config, training=False)
+            actual, _ = cached.get_single_element()
+
+            np.testing.assert_array_equal(expected.numpy(), actual.numpy())
+
+
+class SupervisedDatasetCacheTest(unittest.TestCase):
+    def test_validation_can_use_a_larger_batch_without_changing_training_batch(self) -> None:
+        config = ExperimentConfig()
+        config.data.image_height = 32
+        config.data.image_width = 32
+        config.data.batch_size = 2
+        config.data.evaluation_batch_size = 8
+        config.runtime.num_parallel_calls = 1
+        with tempfile.TemporaryDirectory() as directory:
+            images = Path(directory) / "images"
+            images.mkdir()
+            records = _records(images, count=8)
+
+            training = make_supervised_dataset(records, config, training=True)
+            validation = make_supervised_dataset(records, config, training=False)
+
+            self.assertEqual(int(training.cardinality()), 4)
+            self.assertEqual(int(validation.cardinality()), 1)
+            self.assertEqual(next(iter(training))[0].shape[0], 2)
+            self.assertEqual(next(iter(validation))[0].shape[0], 8)
+
+    def test_native_decode_cache_is_numerically_identical(self) -> None:
+        config = ExperimentConfig()
+        config.data.image_height = 32
+        config.data.image_width = 32
+        config.data.batch_size = 8
+        config.runtime.num_parallel_calls = 1
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            images = root / "images"
+            images.mkdir()
+            records = _records(images, count=8)
+
+            config.data.cache_dataset = False
+            expected, expected_labels = make_supervised_dataset(records, config, training=False).get_single_element()
+
+            config.data.cache_dataset = True
+            config.data.decoded_cache_dir = str(root / "decoded_cache")
+            actual, actual_labels = make_supervised_dataset(records, config, training=False).get_single_element()
+
+            np.testing.assert_array_equal(expected.numpy(), actual.numpy())
+            np.testing.assert_array_equal(expected_labels.numpy(), actual_labels.numpy())
+
+    def test_cache_is_before_shuffle_so_training_order_remains_fresh(self) -> None:
+        config = ExperimentConfig()
+        config.data.image_height = 32
+        config.data.image_width = 32
+        config.data.batch_size = 8
+        config.runtime.num_parallel_calls = 1
+        config.data.cache_dataset = True
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config.data.decoded_cache_dir = str(root / "decoded_cache")
+            images = root / "images"
+            images.mkdir()
+            records = _records(images, count=8)
+            dataset = make_supervised_dataset(records, config, training=True)
+
+            first_labels = next(iter(dataset))[1].numpy().tolist()
+            second_labels = next(iter(dataset))[1].numpy().tolist()
+
+            self.assertNotEqual(first_labels, second_labels)
 
 
 if __name__ == "__main__":

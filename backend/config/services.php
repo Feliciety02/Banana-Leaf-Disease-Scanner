@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'groq' => [
+        'key' => env('GROQ_API_KEY'),
+        'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1'),
+        'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
+        'free_only' => filter_var(env('GROQ_FREE_ONLY', true), FILTER_VALIDATE_BOOL),
+        'timeout_seconds' => env('GROQ_TIMEOUT_SECONDS', 20),
+    ],
+
 ];

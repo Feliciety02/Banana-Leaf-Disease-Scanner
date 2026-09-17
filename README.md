@@ -18,7 +18,7 @@ A thesis Android application that classifies banana leaf conditions on-device, k
 
 ![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?logo=laravel&logoColor=white)
 ![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=0B1F2A)
-![Expo](https://img.shields.io/badge/Expo-SDK_54-000020?logo=expo&logoColor=white)
+![Expo](https://img.shields.io/badge/Expo-SDK_57-000020?logo=expo&logoColor=white)
 ![TensorFlow](https://img.shields.io/badge/TensorFlow-2.20-FF6F00?logo=tensorflow&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Local_%2B_Central-003B57?logo=sqlite&logoColor=white)
 
@@ -31,7 +31,7 @@ A thesis Android application that classifies banana leaf conditions on-device, k
 
 ## 📖 About the Project
 
-A user captures or chooses a leaf photo, and the Android application runs the bundled INT8 model locally to classify exactly one of four conditions:
+A user captures or chooses a leaf photo, and the Android application runs the bundled model locally to classify exactly one of four conditions:
 
 | Condition | Description |
 | --- | --- |
@@ -57,22 +57,26 @@ The classification path does not upload the image, call an API, or require an ac
 
 | Area | Technologies used in this repository | Role |
 | --- | --- | --- |
-| Mobile application | React Native 0.81, Expo SDK 54, TypeScript 5.9 | Camera/gallery workflow, interface, preprocessing coordination, local history, and optional synchronization |
-| Native Android inference | Kotlin and LiteRT/TensorFlow Lite | Loads the bundled model, verifies the INT8 tensor contract, and runs inference locally on Android |
+| Mobile application | React Native 0.86, Expo SDK 57, TypeScript 6.0 | Camera/gallery workflow, interface, preprocessing coordination, local history, and optional synchronization |
+| Native Android inference | Kotlin and LiteRT/TensorFlow Lite | Loads the bundled model, verifies the float32 tensor contract, and runs inference locally on Android |
 | AI development | Python, TensorFlow, and Keras | Dataset preparation, model training, evaluation, knowledge distillation, and model conversion |
 | Teacher model | ResNet-101 | Research/training-only teacher; never deployed to the phone |
 | Baseline model | MobileNetV3-Small | Plain supervised control used for the thesis comparison |
 | Proposed mobile student | Coordinate Attention–enhanced MobileNetV3-Small | Compact model intended for on-device classification |
-| Emerging technologies | Self-supervised learning, knowledge distillation, edge AI, and full-integer INT8 quantization | Training and deployment pipeline for producing the mobile model |
+| Emerging technologies | Self-supervised learning, knowledge distillation, edge AI, and post-training quantization (INT8 evaluated) | Training and deployment pipeline for producing the mobile model |
 | Local persistence | Expo SQLite and app-private file storage | Offline-first diagnosis history after local inference |
 | Optional connected services | Laravel 12, Eloquent, SQLite, and React/Vite | Accounts, synchronization, agricultural review, and administration; not required for classification |
 | Version control | Git and GitHub | Source history and collaboration |
 
 > [!IMPORTANT]
-> The architectures and conversion/runtime checks are implemented in source,
-> but the final trained `ca_mobilenetv3_small_int8.tflite` asset is not yet
-> bundled. On-device inference therefore remains pending experimental and
-> physical-device validation.
+> The bundled `ca_mobilenetv3_small_fp32.tflite` is the frozen PILOT-06 seed 42
+> four-class model (locked-test macro-F1 **0.96645**, accuracy **0.96644**). It is
+> shipped as float32 so the on-device result matches the Keras evaluation exactly,
+> and the native module enforces the float32 tensor contract at load time.
+> Full-integer INT8 was evaluated but is not the production format: post-training
+> quantization of this checkpoint collapsed locked-test accuracy to **0.84433**
+> (macro-F1 0.84813), so recovering INT8 would require quantization-aware training
+> as future work. Davao field-condition and physical-device validation remain pending.
 
 ---
 
@@ -96,7 +100,7 @@ flowchart LR
     User --> Mobile[Android mobile client]
     Mobile --> Input[Camera or gallery]
     Input --> Prep[224 x 224 RGB preparation]
-    Prep --> Model[Bundled INT8 CA-MobileNetV3-Small]
+    Prep --> Model[Bundled FP32 CA-MobileNetV3-Small]
     Model --> Result[Four-class result + confidence]
 ```
 
@@ -149,12 +153,28 @@ If you already completed the first-time setup, use only the command for the part
 
 #### Main Android app
 
-Start an Android emulator in Android Studio or connect an Android phone with USB debugging enabled. Then run:
+Start an Android emulator in Android Studio or connect an Android phone with USB debugging enabled. From the repository root, run:
 
 ```powershell
 cd mobile-frontend
-npx expo run:android
+npm run android
 ```
+
+This command builds and installs the DahonMD Android development app, starts Metro, and opens the app on the connected device. Keep the terminal open while using the app.
+
+> [!IMPORTANT]
+> Do not open this project by scanning its QR code in Expo Go when testing classification. Expo Go contains only its precompiled native modules; DahonMD adds the custom Kotlin `DahonMDTFLite` module and LiteRT dependency. SDK 57 alignment lets the standard Expo parts load in Expo Go, but only `npm run android` (or an EAS development/production build) includes the native classifier.
+
+After an Expo SDK upgrade or a native configuration change, rebuild the generated Android project once:
+
+```powershell
+cd mobile-frontend
+npm install
+npx expo prebuild --clean --platform android
+npm run android
+```
+
+The clean rebuild is not needed for ordinary TypeScript or UI changes. Use `npm run android` for normal development.
 
 #### Legacy web demo with Docker
 
@@ -200,10 +220,10 @@ Open <http://127.0.0.1:4173>.
 Install these first:
 
 - Git
-- Node.js (includes npm)
+- Node.js 22.13 or newer (includes npm; required by Expo SDK 57)
 - Android Studio with an Android emulator, or an Android phone with USB debugging enabled
 
-The app uses a native TFLite module, so it does not run in Expo Go.
+The complete app does not run in Expo Go because Expo Go cannot include this repository's custom Kotlin `DahonMDTFLite` module or LiteRT dependency. Use the Android development build commands below so the classifier is compiled into the installed app.
 
 1. Open PowerShell in the main `DahonMD` folder.
 2. Install the mobile dependencies:
@@ -222,20 +242,22 @@ npm run release:status
 If the check reports a missing model, copy the final validated model to:
 
 ```text
-mobile-frontend/assets/models/ca_mobilenetv3_small_int8.tflite
+mobile-frontend/assets/models/ca_mobilenetv3_small_fp32.tflite
 ```
 
 Do not replace it with a simulated or unvalidated model.
 
 4. Start an Android emulator or connect your Android phone.
-5. Create the native Android project and run the app:
+5. Create a clean native Android project, build it, install it on the device, and start Metro:
 
 ```powershell
-npx expo prebuild --platform android
-npx expo run:android
+npx expo prebuild --clean --platform android
+npm run android
 ```
 
 After this first setup, use the shorter **Main Android app** instructions under “Already installed?” above.
+
+On the first run, Gradle may take several minutes to download and compile dependencies. Wait until DahonMD opens on the emulator or phone, and keep the terminal open while developing.
 
 The classifier does not need a `.env` file, API URL, backend server, account, LAN connection, or Internet connection.
 
@@ -335,46 +357,75 @@ Check <http://127.0.0.1:8100/health>.
 GPU training uses WSL and Linux Python. Do not run a second trainer if one is
 already active.
 
-Open WSL from PowerShell:
-
-```powershell
-wsl
-```
-
-In WSL, start or resume the recommended enhanced supervised run:
-
-```bash
-cd "/mnt/c/Users/Admin/Documents/Project Fe/DahonMD"
-
-pgrep -af 'ai[.]training[.]train_enhanced_supervised'
-
-RUN_DIR="ai/artifacts/four_class/enhanced/diagnostics/supervised_imagenet_seed42"
-mkdir -p "$RUN_DIR"
-
-bash ai/training/run_enhanced_supervised_gpu.sh \
-  > >(tee -a "$RUN_DIR/training.out.log") \
-  2> >(tee -a "$RUN_DIR/training.err.log" >&2)
-```
-
-The process check must show no existing trainer before you launch. The command
-automatically starts a new run or resumes the latest completed epoch and shows
-a live percentage in WSL. It trains without the weak teacher and compares its
-best validation macro-F1 with the 0.91231 baseline target.
+The current pilot uses the balanced `banana-leaf-thesis-split-2878-v1` split:
+2,878 images per class, 8,056 training images, 1,728 validation images, and a
+locked 1,728-image test partition. PILOT-01 through PILOT-08 are complete.
+PILOT-04 completed 100 SSL epochs and 20 supervised fine-tuning epochs. Its
+selected epoch is 20, with validation macro-F1 **0.65907** and validation
+accuracy **0.66551**. PILOT-05 selected and froze the stronger PILOT-03 teacher
+at validation macro-F1 **0.98320**. PILOT-06 knowledge distillation completed at
+validation macro-F1 **0.96178** (epoch 29), exceeding PILOT-02 by **0.01228**.
+PILOT-07 confirmed the student across seeds 42, 1337, and 2026 at mean
+validation macro-F1 **0.96229** ± **0.00097** and froze PILOT-06 seed 42 as the
+deployment checkpoint. PILOT-08 evaluated that checkpoint once on the locked
+test partition, reaching macro-F1 **0.96645** and accuracy **0.96644**; no
+further tuning was performed afterward.
 
 To monitor the current epoch in a separate PowerShell window, run:
 
 ```powershell
-cd "C:\Users\Admin\Documents\Project Fe\DahonMD"
+cd "D:\Fe Anne's Repository\Banana Leaf Disease Scanner"
 
 & ".\ai\training\monitor_training.ps1" `
-  -RunDir ".\ai\artifacts\four_class\enhanced\diagnostics\supervised_imagenet_seed42"
+    -RunDir ".\ai\artifacts\four_class\pilot_2878_v1\pilot_04_teacher_fresh_ssl_seed42"
 ```
 
 The monitor shows the phase, epoch and batch numbers, epoch percentage, phase
 percentage, loss, accuracy, learning rate, and available validation metrics.
-See the [enhanced model runbook](ai/training/ENHANCED_MODEL_RUNBOOK.md) for the
-copy-paste commands or the [complete GPU guide](ai/training/GPU_TRAINING_GUIDE.md)
-for teacher diagnostics and troubleshooting.
+
+#### PILOT-04 recovery reference
+
+Do not run a resume command while a trainer is active. From PowerShell, invoke
+the short helper directly to avoid shell paste-control corruption:
+
+```powershell
+wsl.exe -d Ubuntu --cd "/mnt/d/Fe Anne's Repository/Banana Leaf Disease Scanner" --exec bash ai/training/resume_pilot04.sh
+```
+
+The helper first exits without launching training when the completion marker is
+present. For an incomplete run, it checks for an active trainer, validates the
+synchronized native WSL dataset and fine-tuning checkpoint, verifies GPU
+visibility, selects BFC, and uses `--resume-finetune`. It derives the next epoch
+from the durable history and writes `training_bfc_resume.log`.
+
+If the existing process is present but stalled and WSL no longer responds,
+restart only the Ubuntu distro from PowerShell, then launch the helper:
+
+```powershell
+wsl.exe --terminate Ubuntu
+wsl.exe -d Ubuntu --cd "/mnt/d/Fe Anne's Repository/Banana Leaf Disease Scanner" --exec bash ai/training/resume_pilot04.sh
+```
+
+`--terminate Ubuntu` stops every process in that WSL distro. It does not delete
+the dataset, epoch history, or model checkpoints. Do not manually delete any
+training artifacts.
+
+Recovery modes:
+
+| Existing completed artifact | Selected option | What is repeated |
+| --- | --- | --- |
+| `ssl_checkpoint_epoch_*.complete` | `--resume-ssl-intermediate` | Only the unfinished SSL epoch |
+| `resnet101_ssl_pretrained.keras` | `--resume-ssl` | No SSL epochs; supervised fine-tuning starts again |
+| `best_teacher.keras` plus `teacher_finetune_history.json` | `--resume-finetune` | Only the unfinished fine-tuning epoch |
+| `teacher_training.complete.json` | None | The run is already complete |
+
+The guarded helper appends recovery output to `training_bfc_resume.log`.
+Dataset integrity verification occurs before GPU progress appears. Do not start
+another trainer during that verification.
+
+See the [model experiment roadmap](MODEL_EXPERIMENTS.md) for every pilot command
+and decision gate, or the [complete GPU guide](ai/training/GPU_TRAINING_GUIDE.md)
+for troubleshooting.
 
 ---
 
@@ -415,19 +466,29 @@ The optional comparison service is research-only. It runs both models side by si
 
 ## 🧠 AI Research Summary
 
-The AI pipeline trains and evaluates two models on one fixed, leakage-free four-class split:
+The active balanced-dataset pilot uses one fixed, leakage-free four-class split
+with 2,878 images per class. Model selection uses validation macro-F1; the test
+partition remains locked.
 
-| Model | Description |
-| --- | --- |
-| ResNet-101 teacher | Self-supervised pretraining followed by supervised fine-tuning |
-| MobileNetV3-Small baseline | Plain supervised control model |
-| CA-MobileNetV3-Small (proposed) | Coordinate Attention–enhanced model; supervised recovery first, then KD only from a teacher that beats the baseline |
+| Pilot | Model | Best validation result | Status |
+| --- | --- | --- | --- |
+| PILOT-01 | MobileNetV3-Small ImageNet supervised baseline | Macro-F1 **0.92204**, accuracy **0.92245** | Complete |
+| PILOT-02 | Coordinate Attention MobileNetV3-Small, no KD | Macro-F1 **0.94950**, accuracy **0.94965** | Complete |
+| PILOT-03 | ResNet-101 ImageNet-only teacher | Macro-F1 **0.98320**, accuracy **0.98322** | Complete |
+| PILOT-04 | ResNet-101 fresh SSL plus supervised fine-tuning | Macro-F1 **0.65907**, accuracy **0.66551**, epoch 20 | **Complete** |
+| PILOT-05 | Validation-only teacher selection | Selected PILOT-03 ImageNet teacher | **Complete** |
+| PILOT-06 | Coordinate Attention student with KD | Macro-F1 **0.96178**, epoch 29 | **Complete** |
+| PILOT-07 | Multi-seed confirmation (seeds 42, 1337, 2026) | Mean macro-F1 **0.96229** ± **0.00097** | **Complete** |
+| PILOT-08 | One-time locked test evaluation (seed 42) | Test macro-F1 **0.96645**, accuracy **0.96644** | **Complete** |
 
 > [!WARNING]
-> Earlier archived artifacts output separate Black and Yellow Sigatoka classes and have no Panama disease output. They are rejected by the current runtime and must be retrained after the new Panama candidates complete expert review. The historical `dead` label is quarantined and excluded from the four-class thesis model.
+> Results from the deleted 12,670-image exploratory split are not comparable
+> with this pilot. PILOT-04 trained SSL from scratch on the new training
+> partition and did not reuse the previous SSL encoder.
 
-See the [model experiment roadmap](MODEL_EXPERIMENTS.md) for the numbered tests
-and the [AI pipeline guide](ai/README.md) for implementation details.
+See the [model experiment roadmap](MODEL_EXPERIMENTS.md) for the ordered pilot
+commands and decision gates, and the [AI pipeline guide](ai/README.md) for
+implementation details.
 
 ---
 
@@ -474,7 +535,10 @@ npm run release:status
 | The browser says `Failed to fetch` | Confirm the API health URL works, the browser origin appears in `WEB_FRONTEND_ORIGINS`, and Docker is not running beside native Laravel. |
 | Docker and native servers are both running | Press `Ctrl+C` in the native server terminal or run `docker compose down`, then keep only one workflow active. |
 | The web client cannot load data | Confirm both the Laravel and Vite terminals are running. |
-| Mobile release status reports a missing model | Produce and audit the final four-class INT8 artifact, then copy it to `mobile-frontend/assets/models/ca_mobilenetv3_small_int8.tflite`. Do not substitute a simulated model. |
+| Mobile release status reports a missing model | Produce and audit the final four-class artifact, then copy it to `mobile-frontend/assets/models/ca_mobilenetv3_small_fp32.tflite`. Do not substitute a simulated model. |
+| Expo Go opens but classification is unavailable | This is expected because Expo Go does not contain `DahonMDTFLite`. Start an emulator or connect a USB-debugging device, then run `cd mobile-frontend` followed by `npm run android`. |
+| Android reports that no device or emulator is available | Start an emulator from Android Studio's Device Manager or connect an Android phone with USB debugging enabled, then rerun `npm run android`. |
+| Android fails after an Expo SDK or native configuration update | From `mobile-frontend`, run `npm install`, `npx expo prebuild --clean --platform android`, and then `npm run android`. |
 
 ---
 

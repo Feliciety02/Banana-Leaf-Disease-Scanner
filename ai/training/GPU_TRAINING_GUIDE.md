@@ -194,6 +194,20 @@ Also run `nvidia-smi`. GPU memory and usage should be above zero while training.
 This is usually only line wrapping from `tqdm`. Do not restart an active run.
 Use the PowerShell monitor instead.
 
+### A run crashes with `Unexpected Event status: 1` / `IOT instruction`
+
+This is a WSL/TensorFlow GPU failure, not a config error, and it can strike at
+any epoch. The student trainer saves `latest_student.keras` and
+`student_history.json` after every completed epoch, so resume instead of
+starting over. The PILOT-07 seed 2026 driver does that automatically:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File ai\training\run_pilot07_seed2026_auto.ps1
+```
+
+Stop any manual trainer first; the driver refuses to run a second one and
+resets the Ubuntu distro between crashes.
+
 ### The monitor cannot find live status
 
 Wait a few minutes for the first batches. If no training process is running,

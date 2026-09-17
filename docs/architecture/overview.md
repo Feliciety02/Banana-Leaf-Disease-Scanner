@@ -7,7 +7,7 @@ The repository contains two deliberately separate architectures. Only Flow A is 
 DahonMD follows an offline-first edge-AI architecture. A user captures a banana
 leaf photograph with the Android camera or selects one from the gallery. The
 mobile application applies the fixed image-preprocessing contract and passes
-the tensor through the native Kotlin module to the bundled full-integer INT8
+the tensor through the native Kotlin module to the bundled float32
 TensorFlow Lite CA-MobileNetV3-Small model. The model returns four class scores,
 which the application converts into the predicted banana-leaf condition and
 relative model confidence for display.
@@ -23,17 +23,19 @@ classification and never provide or replace the model result.
 The research pipeline is separate from mobile inference. Python,
 TensorFlow/Keras, and a ResNet-101 teacher support self-supervised learning and
 knowledge distillation into the Coordinate Attention–enhanced
-MobileNetV3-Small student. Only the final audited INT8 student is intended for
-the mobile package. The final trained model is currently absent, so the source
-architecture is implemented but release-level on-device inference remains
-pending experimental validation.
+MobileNetV3-Small student. Only the frozen, test-evaluated student is deployed to
+the mobile package, as a float32 TFLite model so on-device output matches the
+Keras evaluation exactly. The full-integer INT8 export is produced and audited
+but degrades locked-test accuracy, so it is retained only for the on-device
+benchmark. The model is bundled and the release gate passes; physical-device
+offline acceptance remains pending experimental validation.
 
 ## Flow A — thesis classification
 
 ```text
 camera/gallery image
   -> deterministic 224x224 RGB preparation
-  -> bundled full-integer INT8 CA-MobileNetV3-Small
+  -> bundled float32 CA-MobileNetV3-Small
   -> class + relative model confidence
 ```
 
@@ -47,10 +49,10 @@ mobile-frontend/index.ts
   -> src/features/classification/inference.ts
   -> src/features/classification/preprocessing.ts
   -> modules/dahonmd-tflite
-  -> bundled assets/models/ca_mobilenetv3_small_int8.tflite
+  -> bundled assets/models/ca_mobilenetv3_small_fp32.tflite
 ```
 
-The final model asset is not currently present. The source boundary is compliant, but an offline device run cannot be verified until the trained artifact is bundled and exercised on Android hardware.
+The validated model asset is bundled and the release gate passes, but an offline device run cannot yet be verified until the build is exercised on Android hardware.
 
 The offline research path is:
 
@@ -64,8 +66,9 @@ acquisition
   -> four-class teacher fine-tuning selected by validation macro F1
   -> frozen-teacher KD into CA-MobileNetV3-Small
   -> validation-macro-F1-selected FP32 student
-  -> training-only calibration and full-integer INT8 TFLite audit
+  -> FP32 export plus training-only-calibrated full-integer INT8 TFLite audit
   -> held-out FP32/INT8 and Davao field-subset evaluation
+  -> FP32 deployed to the phone; INT8 accuracy loss documented for future QAT
 ```
 
 ## Flow B — optional legacy/demo client–server functionality

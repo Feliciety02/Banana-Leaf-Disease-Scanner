@@ -214,6 +214,12 @@ class FinalSplitBuilderTest(unittest.TestCase):
             self.assertIn("quantization_calibration", first["test_manifest.json"]["usage_contract"]["forbidden"])
             self.assertIn("hyperparameter_tuning", first["test_manifest.json"]["usage_contract"]["forbidden"])
 
+            changed_relative = first["train_manifest.json"]["records"][0]["image_path"]
+            changed_path = Path(paths["root"]) / changed_relative
+            changed_path.write_bytes(changed_path.read_bytes() + b"tampered")
+            with self.assertRaisesRegex(ValueError, "Frozen split image changed"):
+                load_final_dataset_splits(output, paths["root"], CLASS_LABELS)
+
     def test_exact_hash_leakage_assertion_fails_loudly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             paths = self._workspace(directory)

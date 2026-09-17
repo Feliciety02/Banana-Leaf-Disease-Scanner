@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+
+os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
 
 import tensorflow as tf
 from tqdm import tqdm
@@ -40,6 +43,7 @@ HISTORY_FILE = "student_supervised_history.json"
 BEST_MODEL_FILE = "best_supervised_student.keras"
 LATEST_MODEL_FILE = "latest_supervised_student.keras"
 COMPLETE_FILE = "student_supervised_training.complete.json"
+PROGRESS_UPDATE_INTERVAL = 20
 
 
 def parse_args() -> argparse.Namespace:
@@ -231,17 +235,23 @@ def train(args: argparse.Namespace) -> Path:
             total=total_batches or None,
             unit="batch",
             dynamic_ncols=True,
+            mininterval=1.0,
+            miniters=10,
         )
         for batch_index, (images, labels) in enumerate(progress, start=1):
             loss, logits = train_step(images, labels)
             batch_size = tf.cast(tf.shape(labels)[0], tf.float32)
             train_loss.update_state(loss, sample_weight=batch_size)
             train_accuracy.update_state(labels, logits)
-            progress.set_postfix(
-                loss=f"{float(train_loss.result()):.4f}",
-                accuracy=f"{float(train_accuracy.result()):.4f}",
-            )
-            if batch_index == 1 or batch_index % 5 == 0 or batch_index == total_batches:
+            if batch_index == 1 or batch_index % PROGRESS_UPDATE_INTERVAL == 0 or batch_index == total_batches:
+                # Reading device metrics from Python synchronizes the GPU. Reuse
+                # one periodic snapshot for tqdm and the live-status file.
+                running_loss = float(train_loss.result())
+                running_accuracy = float(train_accuracy.result())
+                progress.set_postfix(
+                    loss=f"{running_loss:.4f}",
+                    accuracy=f"{running_accuracy:.4f}",
+                )
                 write_live_progress(output_dir, {
                     "phase": "enhanced_supervised",
                     "finetune_stage": stage,
@@ -251,25 +261,26 @@ def train(args: argparse.Namespace) -> Path:
                     "total_batches": total_batches,
                     "learning_rate": float(tf.keras.backend.get_value(optimizer.learning_rate)),
                     "metrics": {
-                        "loss": float(train_loss.result()),
-                        "accuracy": float(train_accuracy.result()),
+                        "loss": running_loss,
+                        "accuracy": running_accuracy,
                     },
                 })
 
         validation_loss = tf.keras.metrics.Mean()
         validation_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
-        truth: list[int] = []
-        predicted: list[int] = []
-        validation_count = 0
+        truth_batches: list[tf.Tensor] = []
+        predicted_batches: list[tf.Tensor] = []
         for images, labels in validation:
             logits = logits_model(images, training=False)
             loss = classification_loss(labels, logits)
             batch_size = tf.cast(tf.shape(labels)[0], tf.float32)
             validation_loss.update_state(loss, sample_weight=batch_size)
             validation_accuracy.update_state(labels, logits)
-            truth.extend(labels.numpy().astype(int).tolist())
-            predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
-            validation_count += int(tf.shape(labels)[0])
+            truth_batches.append(labels)
+            predicted_batches.append(tf.argmax(logits, axis=1, output_type=tf.int32))
+        truth = tf.concat(truth_batches, axis=0).numpy().astype(int).tolist()
+        predicted = tf.concat(predicted_batches, axis=0).numpy().astype(int).tolist()
+        validation_count = len(truth)
 
         row = {
             "epoch": epoch,

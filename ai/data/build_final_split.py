@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -18,6 +19,17 @@ from ai.data.near_duplicate_adjudication import GROUPING_DECISIONS, load_and_val
 
 PARTITIONS = ("train", "validation", "test")
 SCHEMA_VERSION = 1
+HASH_VERIFICATION_WORKERS = 8
+
+
+def _verify_image_hashes(items: Sequence[tuple[Path, str]]) -> None:
+    """Verify every frozen image cryptographically using bounded parallel I/O."""
+    paths = [path for path, _ in items]
+    with ThreadPoolExecutor(max_workers=min(HASH_VERIFICATION_WORKERS, max(1, len(paths)))) as executor:
+        actual_hashes = executor.map(sha256_file, paths)
+        for (path, expected), actual in zip(items, actual_hashes):
+            if actual != expected:
+                raise ValueError(f"Frozen split image changed: {path}")
 
 
 class DisjointSet:
@@ -622,6 +634,7 @@ def load_final_dataset_splits(
             raise ValueError(f"Frozen final split summary fingerprint mismatch: {path}")
         record_payloads[partition] = payload["records"]
         values[partition] = []
+        prepared: list[tuple[dict[str, Any], Path]] = []
         for item in payload["records"]:
             image_path = (root / item["image_path"]).resolve()
             try:
@@ -631,8 +644,9 @@ def load_final_dataset_splits(
             expected_index = list(expected_class_names).index(item["canonical_class"])
             if item["class_index"] != expected_index:
                 raise ValueError(f"Frozen split class index mismatch: {item['image_path']}")
-            if sha256_file(image_path) != item["sha256"]:
-                raise ValueError(f"Frozen split image changed: {image_path}")
+            prepared.append((item, image_path))
+        _verify_image_hashes([(image_path, item["sha256"]) for item, image_path in prepared])
+        for item, image_path in prepared:
             metadata_values = {
                 "source": item.get("source_dataset", "unknown"),
                 "plant_id": item.get("plant_id", "unknown"),

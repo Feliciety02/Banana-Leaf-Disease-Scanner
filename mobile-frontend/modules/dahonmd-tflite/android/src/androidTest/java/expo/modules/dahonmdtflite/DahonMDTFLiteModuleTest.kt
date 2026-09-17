@@ -37,7 +37,7 @@ class DahonMDTFLiteModuleTest {
     }
 
     private fun loadModel(): Interpreter {
-        val fd = context.assets.openFd("ca_mobilenetv3_small_int8.tflite")
+        val fd = context.assets.openFd("ca_mobilenetv3_small_fp32.tflite")
         val bytes = ByteArray(fd.length.toInt())
         java.io.FileInputStream(fd.fileDescriptor).use { it.read(bytes) }
         fd.close()
@@ -122,7 +122,7 @@ class DahonMDTFLiteModuleTest {
         interpreter = testInterpreter
 
         val inputTensor = interpreter!!.getInputTensor(0)
-        assertEquals("Input dtype", DataType.INT8, inputTensor.dataType())
+        assertEquals("Input dtype", DataType.FLOAT32, inputTensor.dataType())
         val inputShape = inputTensor.shape()
         assertEquals("Input batch", 1, inputShape[0])
         assertEquals("Input height", 224, inputShape[1])
@@ -130,7 +130,7 @@ class DahonMDTFLiteModuleTest {
         assertEquals("Input channels", 3, inputShape[3])
 
         val outputTensor = interpreter!!.getOutputTensor(0)
-        assertEquals("Output dtype", DataType.INT8, outputTensor.dataType())
+        assertEquals("Output dtype", DataType.FLOAT32, outputTensor.dataType())
         val outputShape = outputTensor.shape()
         assertEquals("Output batch", 1, outputShape[0])
         assertEquals("Output classes", 4, outputShape[1])
@@ -141,10 +141,7 @@ class DahonMDTFLiteModuleTest {
         val testInterpreter = loadModel()
         interpreter = testInterpreter
 
-        val inputQuant = interpreter!!.getInputTensor(0).quantizationParams()
-        val outputQuant = interpreter!!.getOutputTensor(0).quantizationParams()
-
-        val inputBuffer = ByteBuffer.allocateDirect(224 * 224 * 3).apply {
+        val inputBuffer = ByteBuffer.allocateDirect(224 * 224 * 3 * Float.SIZE_BYTES).apply {
             order(ByteOrder.nativeOrder())
         }
         val bitmap = createTestBitmap()
@@ -156,13 +153,13 @@ class DahonMDTFLiteModuleTest {
             val r = (pixel shr 16) and 0xFF
             val g = (pixel shr 8) and 0xFF
             val b = pixel and 0xFF
-            inputBuffer.put(Math.round(r.toFloat() / 255.0f / inputQuant.scale + inputQuant.zeroPoint).coerceIn(-128, 127).toByte())
-            inputBuffer.put(Math.round(g.toFloat() / 255.0f / inputQuant.scale + inputQuant.zeroPoint).coerceIn(-128, 127).toByte())
-            inputBuffer.put(Math.round(b.toFloat() / 255.0f / inputQuant.scale + inputQuant.zeroPoint).coerceIn(-128, 127).toByte())
+            inputBuffer.putFloat(r.toFloat() / 255.0f)
+            inputBuffer.putFloat(g.toFloat() / 255.0f)
+            inputBuffer.putFloat(b.toFloat() / 255.0f)
         }
         inputBuffer.rewind()
 
-        val outputBuffer = ByteBuffer.allocateDirect(4).apply {
+        val outputBuffer = ByteBuffer.allocateDirect(4 * Float.SIZE_BYTES).apply {
             order(ByteOrder.nativeOrder())
         }
 
@@ -170,7 +167,7 @@ class DahonMDTFLiteModuleTest {
         outputBuffer.rewind()
 
         val logits = FloatArray(4) { i ->
-            (outputBuffer.get(i).toInt() - outputQuant.zeroPoint) * outputQuant.scale
+            outputBuffer.getFloat(i * Float.SIZE_BYTES)
         }
 
         assertEquals("Should produce 4 logits", 4, logits.size)
