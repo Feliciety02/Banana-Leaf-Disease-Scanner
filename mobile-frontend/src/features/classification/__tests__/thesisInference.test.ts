@@ -25,18 +25,28 @@ jest.mock('../../../../modules/dahonmd-tflite', () => {
         labels: ['healthy', 'sigatoka', 'panama-disease', 'cordana-leaf-spot'],
       };
     }),
+    classifyImageBaseline: jest.fn(async () => ({
+      scores: [0.2, 0.6, 0.12, 0.08],
+      latencyMs: 9.0,
+      modelVersion: 'ca_mobilenetv3_small_int8',
+      inputShape: [1, 224, 224, 3],
+      inputDtype: 'int8',
+      outputDtype: 'int8',
+      labels: ['healthy', 'sigatoka', 'panama-disease', 'cordana-leaf-spot'],
+    })),
     isNativeAvailable: jest.fn(() => true),
   };
 });
 
 import { CLASS_KEYS } from '../disease-data';
-import { analyzeLeaf, validateNativeResult, MODEL_INPUT, type NativeResult } from '../inference';
+import { analyzeLeaf, analyzeBaselineLeaf, validateNativeResult, validateBaselineNativeResult, CALIBRATION_TEMPERATURE, MODEL_INPUT, type NativeResult } from '../inference';
 
-const { classifyImage } = require('../../../../modules/dahonmd-tflite');
+const { classifyImage, classifyImageBaseline } = require('../../../../modules/dahonmd-tflite');
 
 beforeEach(() => {
   jest.clearAllMocks();
   classifyImage.mockClear();
+  classifyImageBaseline.mockClear();
 });
 
 describe('camera and gallery preprocessing', () => {
@@ -84,7 +94,9 @@ describe('analyzeLeaf end-to-end workflow', () => {
     });
     const result = await analyzeLeaf('file:///test.jpg');
     expect(result.classKey).toBe('healthy');
-    const exponents = [0.9, 0.05, 0.03, 0.02].map((v) => Math.exp(v));
+    const scaled = [0.9, 0.05, 0.03, 0.02].map((value) => value / CALIBRATION_TEMPERATURE);
+    const maximum = Math.max(...scaled);
+    const exponents = scaled.map((value) => Math.exp(value - maximum));
     const expected = exponents[0] / exponents.reduce((a, b) => a + b, 0);
     expect(result.confidence).toBeCloseTo(expected, 10);
   });
@@ -101,8 +113,11 @@ describe('analyzeLeaf end-to-end workflow', () => {
     });
     const result = await analyzeLeaf('file:///test.jpg');
     expect(result.classKey).toBe('healthy');
-    const total = Math.exp(10) + Math.exp(5) + Math.exp(3) + Math.exp(1);
-    expect(result.confidence).toBeCloseTo(Math.exp(10) / total, 5);
+    const scaled = [10.0, 5.0, 3.0, 1.0].map((value) => value / CALIBRATION_TEMPERATURE);
+    const maximum = Math.max(...scaled);
+    const exponents = scaled.map((value) => Math.exp(value - maximum));
+    const expected = exponents[0] / exponents.reduce((a, b) => a + b, 0);
+    expect(result.confidence).toBeCloseTo(expected, 5);
   });
 
   it('supports repeated inference without state leakage', async () => {
@@ -249,9 +264,9 @@ describe('four-class label mapping', () => {
   it('all four CLASS_KEYS have display names', () => {
     const { CLASS_DISPLAY_NAMES } = require('../disease-data');
     expect(CLASS_DISPLAY_NAMES.healthy).toBe('Healthy');
-    expect(CLASS_DISPLAY_NAMES.sigatoka).toBe('Sigatoka');
+    expect(CLASS_DISPLAY_NAMES.sigatoka).toBe('Black Sigatoka');
     expect(CLASS_DISPLAY_NAMES['panama-disease']).toBe('Panama Disease');
-    expect(CLASS_DISPLAY_NAMES['cordana-leaf-spot']).toBe('Cordana Leaf Spot');
+    expect(CLASS_DISPLAY_NAMES['cordana-leaf-spot']).toBe('Cordana');
   });
 });
 
@@ -272,6 +287,78 @@ describe('confidence display', () => {
     const result = await analyzeLeaf('file:///test.jpg');
     expect(result.probabilities.reduce((sum, item) => sum + item.probability, 0)).toBeCloseTo(1, 10);
     expect(result.probabilities.every((item) => item.probability > 0 && item.probability < 1)).toBe(true);
+  });
+});
+
+describe('enhanced model calibration', () => {
+  it('uses a softmax temperature above 1 so confidence is never always-perfect', () => {
+    expect(CALIBRATION_TEMPERATURE).toBeGreaterThan(1);
+  });
+
+  it('calibration keeps the predicted class but lowers the top confidence', async () => {
+    const raw = [0.8, 0.1, 0.05, 0.05];
+    classifyImage.mockResolvedValueOnce({
+      scores: raw,
+      latencyMs: 8, modelVersion: 'test',
+      inputShape: [1, 224, 224, 3], inputDtype: 'float32', outputDtype: 'float32',
+      labels: [...CLASS_KEYS],
+    });
+    const result = await analyzeLeaf('file:///test.jpg');
+    expect(result.classKey).toBe('healthy');
+    const rawSoftmax = (() => {
+      const maximum = Math.max(...raw);
+      const exponentials = raw.map((value) => Math.exp(value - maximum));
+      const total = exponentials.reduce((sum, value) => sum + value, 0);
+      return exponentials[0] / total;
+    })();
+    expect(result.confidence).toBeLessThan(rawSoftmax);
+    expect(result.probabilities.reduce((sum, item) => sum + item.probability, 0)).toBeCloseTo(1, 10);
+  });
+
+  it('calibration preserves the softmax-before-argmax order', async () => {
+    const result = await analyzeLeaf('file:///test.jpg');
+    expect(result.classKey).toBe(result.probabilities.reduce((best, item) => item.probability > best.probability ? item : best, result.probabilities[0]).classKey);
+  });
+});
+
+describe('baseline int8 TF-Lite model', () => {
+  const int8Result: NativeResult = {
+    scores: [1, 2, 3, 4],
+    latencyMs: 8,
+    modelVersion: 'test',
+    inputShape: [1, 224, 224, 3],
+    inputDtype: 'int8',
+    outputDtype: 'int8',
+    labels: [...CLASS_KEYS],
+  };
+
+  it('accepts a valid four-output INT8 model result', () => {
+    expect(() => validateBaselineNativeResult(int8Result)).not.toThrow();
+  });
+
+  it('rejects an FP32 result on the baseline validator', () => {
+    expect(() => validateBaselineNativeResult({ ...int8Result, inputDtype: 'float32', outputDtype: 'float32' })).toThrow();
+  });
+
+  it('rejects wrong output count on the baseline validator', () => {
+    expect(() => validateBaselineNativeResult({
+      ...int8Result, scores: [1, 2, 3, 4, 5], labels: [...CLASS_KEYS, 'moko'],
+    })).toThrow();
+  });
+
+  it('runs the int8 model on-device and returns the four-class softmax', async () => {
+    const result = await analyzeBaselineLeaf('file:///test.jpg');
+    expect(result.classKey).toBe('sigatoka');
+    expect(result.modelVersion).toBe('ca_mobilenetv3_small_int8');
+    expect(result.probabilities).toHaveLength(4);
+    expect(result.probabilities.reduce((sum, item) => sum + item.probability, 0)).toBeCloseTo(1, 10);
+    expect(classifyImageBaseline).toHaveBeenCalledTimes(1);
+    expect(classifyImageBaseline).toHaveBeenCalledWith('file:///tmp/prepared.jpg');
+  });
+
+  it('propagates baseline native module rejection', async () => {
+    classifyImageBaseline.mockRejectedValueOnce(new Error('Baseline model not found'));
+    await expect(analyzeBaselineLeaf('file:///test.jpg')).rejects.toThrow('Baseline model not found');
   });
 });
 
