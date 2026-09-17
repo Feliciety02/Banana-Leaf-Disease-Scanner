@@ -194,7 +194,7 @@ class AuthenticationCrudTest extends TestCase
             ->assertJsonPath('data.total_diagnoses', 1)
             ->assertJsonPath('data.uncertain_predictions', 1);
         $this->getJson('/api/admin/system')->assertOk()
-            ->assertJsonPath('data.ai_mode', 'SIMULATED / DEVELOPMENT')
+            ->assertJsonPath('data.ai_mode', 'PRODUCTION')
             ->assertJsonPath('data.model', 'CA-MobileNetV3-Small')
             ->assertJsonPath('data.deployment', 'TensorFlow Lite FP32');
     }
