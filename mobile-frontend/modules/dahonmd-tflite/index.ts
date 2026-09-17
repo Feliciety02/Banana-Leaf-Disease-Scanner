@@ -67,6 +67,25 @@ export type LatencyStats = {
   throughputImagesPerSecond: number;
 };
 
+export type ModelFingerprints = {
+  baseline: string;
+  enhanced: string;
+  modelVersion: string;
+};
+
+export type ImageQualityResult = {
+  width: number;
+  height: number;
+  meanLuma: number;
+  lumaStdDev: number;
+  edgeScore: number;
+};
+
+export type PrepareResult = {
+  modelVersion: string;
+  ready: boolean;
+};
+
 export type BenchmarkResult = {
   modelVariant: string;
   modelFileSizeBytes: number;
@@ -96,8 +115,12 @@ export type BenchmarkResult = {
 
 type NativeModule = {
   classifyImage(uri: string): Promise<ClassifyResult>;
+  classifyImageBaseline(uri: string): Promise<ClassifyResult>;
   getDeviceInfo(): Promise<DeviceInfo>;
   preprocessImage(uri: string): Promise<PreprocessResult>;
+  prepareModel(): Promise<PrepareResult>;
+  getModelFingerprints(): Promise<ModelFingerprints>;
+  analyzeImageQuality(uri: string): Promise<ImageQualityResult>;
   benchmarkModel(
     uri: string,
     modelVariant: string,
@@ -129,6 +152,18 @@ export function classifyImage(uri: string): Promise<ClassifyResult> {
   return native.classifyImage(uri);
 }
 
+export function classifyImageBaseline(uri: string): Promise<ClassifyResult> {
+  if (!native) {
+    return Promise.reject(
+      new Error(
+        'DahonMDTFLite native module is not available. '
+        + 'Run "npx expo prebuild --platform android" and build a development or production client.',
+      ),
+    );
+  }
+  return native.classifyImageBaseline(uri);
+}
+
 // ── Benchmark API ─────────────────────────────────────────────────────────
 
 export function getDeviceInfo(): Promise<DeviceInfo> {
@@ -156,6 +191,29 @@ export function benchmarkModel(
     return Promise.reject(new Error('DahonMDTFLite native module is not available.'));
   }
   return native.benchmarkModel(uri, modelVariant, warmupRuns, measuredRuns, numThreads);
+}
+
+// ── Model readiness, fingerprints, and image quality ────────────────────
+
+export function prepareModel(): Promise<PrepareResult> {
+  if (!native) {
+    return Promise.reject(new Error('DahonMDTFLite native module is not available.'));
+  }
+  return native.prepareModel();
+}
+
+export function getModelFingerprints(): Promise<ModelFingerprints> {
+  if (!native) {
+    return Promise.reject(new Error('DahonMDTFLite native module is not available.'));
+  }
+  return native.getModelFingerprints();
+}
+
+export function analyzeImageQuality(uri: string): Promise<ImageQualityResult> {
+  if (!native) {
+    return Promise.reject(new Error('DahonMDTFLite native module is not available.'));
+  }
+  return native.analyzeImageQuality(uri);
 }
 
 export function isNativeAvailable(): boolean {
