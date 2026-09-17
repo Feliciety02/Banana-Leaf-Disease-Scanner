@@ -608,13 +608,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 /* Public-first scanner shared with the mobile authentication flow */
 .public-app { min-height: 100dvh; color: var(--ink); background: #f4f7f2; }
 .public-header {
-  min-height: 72px;
-  padding: 11px clamp(18px, 4vw, 56px);
+  min-height: 100px;
+  padding: 22px clamp(18px, 4vw, 56px) 14px;
   position: sticky;
   top: 0;
   z-index: 40;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
   background: rgba(255, 255, 255, .94);
@@ -643,7 +643,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .auth-modal-content .auth-form { margin-top: 0; }
 
 @media (max-width: 680px) {
-  .public-header { align-items: flex-start; }
+  .public-header { align-items: flex-end; }
   .public-brand small { display: none; }
   .public-auth-actions button { min-height: 40px; padding-inline: 11px; font-size: 11px; }
   .public-main { padding-top: 24px; }

@@ -19,6 +19,7 @@ const GUIDE_MEDIA = {
 const formatDate = (value, time = false) => value ? new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric', ...(time ? { hour: 'numeric', minute: '2-digit' } : {}) }).format(new Date(value)) : 'Not available';
 const titleCase = (value = '') => value.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const confidenceText = (value) => value < THRESHOLD ? 'Uncertain result' : value >= 85 ? 'High confidence' : 'Moderate confidence';
+const percent = (value, digits = 1) => `${Math.min(100 - 10 ** -digits, Math.max(0, Number(value))).toFixed(digits)}%`;
 const mapDiagnosis = (item) => ({ id: String(item.id), syncUuid: item.sync_uuid || null, diseaseId: item.disease?.slug || item.predicted_class, predictedClass: item.predicted_class, disease: item.disease, confidence: Number(item.confidence), date: item.diagnosed_at, source: item.source, synced: item.sync_status === 'synced' || item.source === 'web', syncStatus: item.sync_status || (item.source === 'web' ? 'synced' : null), isSimulated: Boolean(item.is_simulated), image: item.image_url, gradcam: item.gradcam_url, farmerNotes: item.farmer_notes || '', researchConsent: Boolean(item.research_consent), researchConsentedAt: item.research_consented_at, priority: Number(item.review_priority || 0), reviewReasons: item.review_reasons || [], latency: item.inference_time_ms || 0, model: item.model_version || 'Not specified', user: item.user, review: item.review || null });
 const roleHome = (role) => role === 'admin' ? '/admin/dashboard' : role === 'agricultural_expert' ? '/expert/dashboard' : '/farmer/dashboard';
 
@@ -239,7 +240,7 @@ function RecentCard({ record, onOpen }) {
     <span className="recent-thumb">{record.image ? <img src={record.image} alt="Saved banana leaf" /> : <Leaf size={24} />}</span>
     <span className="recent-copy">
       <strong>{record.confidence < THRESHOLD ? 'Uncertain result' : record.diseaseId === 'healthy' ? 'No supported pattern detected' : name}</strong>
-      <small>{confidenceText(record.confidence)} · {record.confidence.toFixed(1)}%</small>
+      <small>{confidenceText(record.confidence)} · {percent(record.confidence)}</small>
       <small>{formatDate(record.date, true)}</small>
     </span>
     <span className="recent-status">{record.synced ? <><Cloud size={15} />Saved online</> : <><CloudOff size={15} />Waiting to sync</>}</span>
@@ -430,11 +431,11 @@ function FarmerResult({ image, result, comparison, onReset, onSave, navigate, er
             <small>{statusLabel}</small>
             <h2>{resultName}</h2>
           </div>
-          {!unavailable && !researchOnly && <div className="scan-result-score"><strong>{confidence.toFixed(1)}%</strong><small>model confidence</small></div>}
+          {!unavailable && !researchOnly && <div className="scan-result-score"><strong>{percent(confidence, 2)}</strong><small>model confidence</small></div>}
           {researchOnly && <div className="scan-result-match-label"><strong>Possible match</strong><small>not a diagnosis</small></div>}
         </header>
 
-        {!unavailable && !researchOnly && <div className="scan-confidence-track" role="img" aria-label={`${confidence.toFixed(1)} percent model confidence`}><i style={{ width: `${Math.min(100, Math.max(0, confidence))}%` }} /></div>}
+        {!unavailable && !researchOnly && <div className="scan-confidence-track" role="img" aria-label={`${percent(confidence, 2)} model confidence`}><i style={{ width: `${Math.min(100, Math.max(0, confidence))}%` }} /></div>}
 
         {!unavailable && probabilities.length > 0 && <ProbabilityBreakdown probabilities={probabilities} predictedClass={activeDiseaseId} />}
 
@@ -531,12 +532,13 @@ function ProbabilityBreakdown({ probabilities, predictedClass }) {
   return <section className="class-probabilities" aria-label="All four model class scores">
     <h3>All class scores</h3>
     {probabilities.map(({ classKey, probability }) => {
-      const percentage = Math.min(100, Math.max(0, probability * 100));
+      const barWidth = Math.min(100, Math.max(0, probability * 100));
+      const rawPercent = percent(probability * 100, 2);
       const selected = classKey === predictedClass;
       return <div className={selected ? 'selected' : ''} key={classKey}>
         <span><strong>{CLASS_NAMES[classKey]}</strong>{selected && <small>Selected result</small>}</span>
-        <b>{percentage.toFixed(1)}%</b>
-        <i role="img" aria-label={`${CLASS_NAMES[classKey]} ${percentage.toFixed(1)} percent${selected ? ', selected result' : ''}`}><em style={{ width: `${percentage}%` }} /></i>
+        <b>{rawPercent}</b>
+        <i role="img" aria-label={`${CLASS_NAMES[classKey]} ${rawPercent.replace('%', '')} percent${selected ? ', selected result' : ''}`}><em style={{ width: `${barWidth}%` }} /></i>
       </div>;
     })}
     <p>Scores are relative model outputs and are not diagnostic certainty.</p>
@@ -548,7 +550,7 @@ function ComparisonModelCard({ title, value }) {
   const probabilities = normalizeClassProbabilities(value);
   const metrics = [
     ['Prediction', titleCase(value.predicted_class)],
-    ['Confidence', `${(Number(value.confidence) * 100).toFixed(2)}%`],
+    ['Confidence', percent(Number(value.confidence) * 100, 2)],
     ['Inference time', `${Number(value.inference_time_ms).toFixed(2)} ms`],
     ['Model size', `${(Number(value.model_size_bytes) / 1048576).toFixed(2)} MB`],
   ];
@@ -591,8 +593,8 @@ function FarmerComparison({ image, comparison }) {
           <div className="farmer-output-row-top">
             <span className="farmer-output-class-name">{CLASS_NAMES[classKey]}</span>
             <div className="farmer-output-values">
-              <span>{(baselineProbability * 100).toFixed(1)}%</span>
-              <span>{(enhancedProbability * 100).toFixed(1)}%</span>
+              <span>{percent(baselineProbability * 100, 2)}</span>
+              <span>{percent(enhancedProbability * 100, 2)}</span>
             </div>
           </div>
           <div className="farmer-output-track" aria-label={`${CLASS_NAMES[classKey]} probability comparison`}>
@@ -697,11 +699,11 @@ function DiagnosisDialog({ record, onClose, onRequestReview, onDelete }) {
     <aside className="diagnosis-dialog">
       <header><div><span className="section-label">SAVED RESULT</span><h2>{record.confidence < THRESHOLD ? 'Uncertain result' : record.disease?.name || titleCase(record.diseaseId)}</h2></div><IconButton label="Close result" onClick={onClose}><X size={20} /></IconButton></header>
       {record.image ? <img className="dialog-image" src={record.image} alt="Saved banana leaf" /> : <div className="dialog-image placeholder"><Leaf size={45} /></div>}
-      <div className="confidence-plain"><strong>{confidenceText(record.confidence)}</strong><span>{record.confidence.toFixed(1)}%</span></div>
+      <div className="confidence-plain"><strong>{confidenceText(record.confidence)}</strong><span>{percent(record.confidence)}</span></div>
       <dl><div><dt>Date</dt><dd>{formatDate(record.date, true)}</dd></div><div><dt>Source</dt><dd>{titleCase(record.source)}</dd></div><div><dt>Save status</dt><dd>{record.synced ? 'Saved online' : record.syncStatus === 'failed' ? 'Sync needs retry' : 'Waiting to sync'}</dd></div>{record.farmerNotes && <div><dt>Your notes</dt><dd>{record.farmerNotes}</dd></div>}</dl>
       {!record.synced && <section className="review-notice"><CloudOff size={20} /><div><strong>Safely stored in this browser</strong><p>Reconnect to upload this record before requesting another review action.</p></div></section>}
       {record.review?.review_status === 'pending' && <section className="review-notice"><ShieldCheck size={20} /><div><strong>Review requested</strong><p>An agricultural reviewer can assess this saved image.</p></div></section>}
-      {reviewed && <section className="review-result"><span className="section-label">AGRICULTURAL REVIEW AVAILABLE</span><h3>{titleCase(record.review.review_status.replaceAll('_', '-'))}</h3><p><strong>AI screening:</strong> {titleCase(record.predictedClass)} ({record.confidence.toFixed(1)}%)</p>{record.review.verified_label && <p><strong>Reviewer assessment:</strong> {titleCase(record.review.verified_label)}</p>}<p><strong>Recommended follow-up:</strong> {record.review.farmer_follow_up}</p>{record.review.next_steps?.length > 0 && <p><strong>Next steps:</strong> {record.review.next_steps.map((step) => titleCase(step.replaceAll('_', '-'))).join(' · ')}</p>}</section>}
+      {reviewed && <section className="review-result"><span className="section-label">AGRICULTURAL REVIEW AVAILABLE</span><h3>{titleCase(record.review.review_status.replaceAll('_', '-'))}</h3><p><strong>AI screening:</strong> {titleCase(record.predictedClass)} ({percent(record.confidence)})</p>{record.review.verified_label && <p><strong>Reviewer assessment:</strong> {titleCase(record.review.verified_label)}</p>}<p><strong>Recommended follow-up:</strong> {record.review.farmer_follow_up}</p>{record.review.next_steps?.length > 0 && <p><strong>Next steps:</strong> {record.review.next_steps.map((step) => titleCase(step.replaceAll('_', '-'))).join(' · ')}</p>}</section>}
       {!record.review && record.synced && <ReviewRequestForm initialNotes={record.farmerNotes} onSubmit={(notes) => onRequestReview(record, notes)} />}
       <button className="danger-button full" onClick={() => { if (window.confirm('Delete this saved scan? This change will synchronize to your other devices.')) onDelete(record); }}><Trash2 size={17} />Delete saved scan</button>
       <Warning />
@@ -719,7 +721,7 @@ function ProfilePage({ user, onUser, onAccountDeleted }) {
 function Stat({ label, value, note, icon: Icon }) { return <article className="admin-stat-card"><span><Icon size={21} /></span><div><small>{label}</small><strong>{value}</strong><p>{note}</p></div></article>; }
 function useAdmin(path) { const [data, setData] = useState(null); const [error, setError] = useState(''); useEffect(() => { api(path).then((payload) => setData(payload.data)).catch((exception) => setError(exception.message)); }, [path]); return { data, error }; }
 function Distribution({ title, values, extra }) { return <article className="panel admin-distribution"><h2>{title}</h2>{Object.entries(values).map(([label, value]) => <div key={label}><span>{titleCase(label)}</span><strong>{value}</strong></div>)}{!Object.keys(values).length && <p className="empty-copy">No diagnoses yet.</p>}{extra && <div><span>{extra[0]}</span><strong>{extra[1]}</strong></div>}</article>; }
-function DiagnosisRows({ items }) { return items.length ? items.map((item) => <div className="admin-record-row" key={item.id}>{item.image_url ? <img src={item.image_url} alt="" /> : <span className="record-placeholder"><Leaf size={20} /></span>}<div><strong>{item.disease?.name || titleCase(item.predicted_class)}</strong><small>{item.user?.name || 'Unknown farmer'}</small></div><span>{item.confidence}%</span><span>{titleCase(item.source)}</span><time>{formatDate(item.diagnosed_at, true)}</time></div>) : <Empty icon={ScanLine} title="No diagnoses yet." text="New saved scans will appear here." />; }
+function DiagnosisRows({ items }) { return items.length ? items.map((item) => <div className="admin-record-row" key={item.id}>{item.image_url ? <img src={item.image_url} alt="" /> : <span className="record-placeholder"><Leaf size={20} /></span>}<div><strong>{item.disease?.name || titleCase(item.predicted_class)}</strong><small>{item.user?.name || 'Unknown farmer'}</small></div><span>{percent(item.confidence)}</span><span>{titleCase(item.source)}</span><time>{formatDate(item.diagnosed_at, true)}</time></div>) : <Empty icon={ScanLine} title="No diagnoses yet." text="New saved scans will appear here." />; }
 
 function AdminDashboard() {
   const { data, error } = useAdmin('/admin/dashboard'); if (error) return <div className="form-error">{error}</div>; if (!data) return <Loading text="Loading dashboard..." />;
@@ -774,7 +776,7 @@ function DiagnosesAdmin() {
   const inspect = async (item) => { setBusy(true); try { const payload = await api(`/admin/diagnoses/${item.id}`); setSelected(payload.data); setError(''); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
   const remove = async () => { if (!deleteTarget) return; setBusy(true); try { await api(`/admin/diagnoses/${deleteTarget.id}`, { method: 'DELETE' }); setDeleteTarget(null); setSelected(null); setMessage('Diagnosis record deleted.'); setError(''); load(); } catch (exception) { setError(exception.message); setDeleteTarget(null); } finally { setBusy(false); } };
   return <div className="role-stack"><Heading eyebrow="ADMINISTRATION" title="Diagnoses" text="Audit original model outputs. Administrators cannot create or silently edit diagnosis records." /><form className="panel diagnosis-filters" onSubmit={(event) => { event.preventDefault(); setAppliedFilters({ ...filters }); }}><label>Class<input placeholder="Class slug" value={filters.class} onChange={(event) => setFilters({ ...filters, class: event.target.value })} /></label><label>Source<select value={filters.source} onChange={(event) => setFilters({ ...filters, source: event.target.value })}><option value="">All</option><option value="mobile">Mobile</option><option value="web">Web</option></select></label><label>From<input type="date" value={filters.date_from} onChange={(event) => setFilters({ ...filters, date_from: event.target.value })} /></label><label>To<input type="date" value={filters.date_to} onChange={(event) => setFilters({ ...filters, date_to: event.target.value })} /></label><label>Minimum confidence<input type="number" min="0" max="100" value={filters.confidence_min} onChange={(event) => setFilters({ ...filters, confidence_min: event.target.value })} /></label><label>Maximum confidence<input type="number" min="0" max="100" value={filters.confidence_max} onChange={(event) => setFilters({ ...filters, confidence_max: event.target.value })} /></label><div className="filter-actions"><button type="button" className="secondary-button" onClick={() => { setFilters(emptyFilters); setAppliedFilters(emptyFilters); }}>Clear</button><button className="primary-button">Apply Filters</button></div></form>{message && <div className="success-message">{message}</div>}{error && <div className="form-error">{error}</div>}<section className="panel admin-table-role diagnoses"><header><span>Image / Result</span><span>Farmer</span><span>Confidence</span><span>Source / Sync</span><span>Date</span><span>Actions</span></header>{items.map((item) => <div key={item.id}><span className="diagnosis-admin-name">{item.image_url ? <img src={item.image_url} alt="" /> : <i><Leaf size={18} /></i>}<strong>{item.disease?.name || titleCase(item.predicted_class)}</strong></span><span>{item.user?.name || 'Unknown farmer'}</span><span>{item.confidence}%</span><span>{titleCase(item.source)} · {item.sync_status || (item.source === 'web' ? 'saved' : 'unknown')}</span><span>{formatDate(item.diagnosed_at, true)}</span><span><button onClick={() => inspect(item)} disabled={busy}>View</button><button className="danger-link" onClick={() => setDeleteTarget(item)}>Delete</button></span></div>)}{!items.length && <Empty icon={ScanLine} title="No diagnosis records match these filters." text="Change the filters or wait for new scans." />}</section>
-    <ModalShell open={Boolean(selected)} title="Diagnosis Details" description="The original model output is read-only." onClose={() => setSelected(null)} variant="drawer" size="large">{selected && <div className="record-detail">{selected.image_url ? <img className="record-detail-image" src={selected.image_url} alt="Submitted banana leaf" /> : <div className="record-detail-placeholder"><Leaf size={44} /></div>}<dl><div><dt>Prediction</dt><dd>{selected.disease?.name || titleCase(selected.predicted_class)}</dd></div><div><dt>Confidence</dt><dd>{Number(selected.confidence).toFixed(1)}%</dd></div><div><dt>Farmer</dt><dd>{selected.user?.name || 'Unknown farmer'}</dd></div><div><dt>Source / sync</dt><dd>{titleCase(selected.source)} · {selected.sync_status || (selected.source === 'web' ? 'saved' : 'unknown')}</dd></div><div><dt>Model</dt><dd>{selected.model_version || 'Not specified'}</dd></div><div><dt>Inference time</dt><dd>{selected.inference_time_ms ? `${selected.inference_time_ms} ms` : 'Not recorded'}</dd></div><div><dt>Date</dt><dd>{formatDate(selected.diagnosed_at, true)}</dd></div><div><dt>Research consent</dt><dd>{selected.research_consent ? 'Active' : 'Not active'}</dd></div></dl>{selected.farmer_notes && <section className="detail-note"><h3>Farmer notes</h3><p>{selected.farmer_notes}</p></section>}{selected.review && <section className="review-result"><h3>Agricultural review</h3><p>{titleCase(selected.review.review_status?.replaceAll('_', '-') || 'Pending')}</p></section>}<button className="danger-button full" onClick={() => setDeleteTarget(selected)}><Trash2 size={17} />Delete Diagnosis</button></div>}</ModalShell>
+    <ModalShell open={Boolean(selected)} title="Diagnosis Details" description="The original model output is read-only." onClose={() => setSelected(null)} variant="drawer" size="large">{selected && <div className="record-detail">{selected.image_url ? <img className="record-detail-image" src={selected.image_url} alt="Submitted banana leaf" /> : <div className="record-detail-placeholder"><Leaf size={44} /></div>}<dl><div><dt>Prediction</dt><dd>{selected.disease?.name || titleCase(selected.predicted_class)}</dd></div><div><dt>Confidence</dt><dd>{percent(Number(selected.confidence), 1)}</dd></div><div><dt>Farmer</dt><dd>{selected.user?.name || 'Unknown farmer'}</dd></div><div><dt>Source / sync</dt><dd>{titleCase(selected.source)} · {selected.sync_status || (selected.source === 'web' ? 'saved' : 'unknown')}</dd></div><div><dt>Model</dt><dd>{selected.model_version || 'Not specified'}</dd></div><div><dt>Inference time</dt><dd>{selected.inference_time_ms ? `${selected.inference_time_ms} ms` : 'Not recorded'}</dd></div><div><dt>Date</dt><dd>{formatDate(selected.diagnosed_at, true)}</dd></div><div><dt>Research consent</dt><dd>{selected.research_consent ? 'Active' : 'Not active'}</dd></div></dl>{selected.farmer_notes && <section className="detail-note"><h3>Farmer notes</h3><p>{selected.farmer_notes}</p></section>}{selected.review && <section className="review-result"><h3>Agricultural review</h3><p>{titleCase(selected.review.review_status?.replaceAll('_', '-') || 'Pending')}</p></section>}<button className="danger-button full" onClick={() => setDeleteTarget(selected)}><Trash2 size={17} />Delete Diagnosis</button></div>}</ModalShell>
     <ConfirmDialog open={Boolean(deleteTarget)} title="Delete diagnosis record?" text="This permanently removes the saved scan and its associated review data. The action cannot be undone." confirmLabel="Delete Diagnosis" danger busy={busy} onCancel={() => setDeleteTarget(null)} onConfirm={remove} />
   </div>;
 }
