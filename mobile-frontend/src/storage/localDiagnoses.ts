@@ -6,6 +6,17 @@ import type { ClassKey } from '../features/classification/types';
 
 export type LocalSyncStatus = 'local_only' | 'pending' | 'syncing' | 'synced' | 'failed' | 'pending_delete' | 'delete_failed';
 
+export type ClassProbabilityRecord = { classKey: ClassKey; probability: number };
+
+export type ModelComparisonEntry = {
+  predictedClass: ClassKey;
+  confidence: number;
+  probabilities: ClassProbabilityRecord[];
+  inferenceTimeMs: number;
+  model: string;
+  modelSizeBytes: number;
+};
+
 export type LocalDiagnosis = {
   local_id: string;
   sync_uuid: string | null;
@@ -21,6 +32,9 @@ export type LocalDiagnosis = {
   source: 'mobile' | 'web';
   sync_status: LocalSyncStatus;
   last_error: string | null;
+  probabilities_json: string | null;
+  baseline_json: string | null;
+  enhanced_json: string | null;
   diagnosed_at: string;
   created_at: string;
   updated_at: string;
@@ -42,11 +56,18 @@ export type RemoteDiagnosis = {
 };
 
 const DATABASE_NAME = 'dahonmd-offline.db';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export async function initializeLocalDatabase() {
   await database();
+}
+
+export async function subscribeToLocalDiagnosisChanges(listener: () => void): Promise<{ remove: () => void }> {
+  await database();
+  return SQLite.addDatabaseChangeListener((event) => {
+    if (event.tableName === 'local_diagnoses') listener();
+  });
 }
 
 async function database() {
@@ -55,7 +76,7 @@ async function database() {
 }
 
 async function openAndMigrate() {
-  const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
+  const db = await SQLite.openDatabaseAsync(DATABASE_NAME, { enableChangeListener: true });
   await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   const version = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const currentVersion = version?.user_version ?? 0;
@@ -94,6 +115,14 @@ async function openAndMigrate() {
         state_value TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+      PRAGMA user_version = 2;
+    `);
+  }
+  if (currentVersion < 3) {
+    await db.execAsync(`
+      ALTER TABLE local_diagnoses ADD COLUMN probabilities_json TEXT;
+      ALTER TABLE local_diagnoses ADD COLUMN baseline_json TEXT;
+      ALTER TABLE local_diagnoses ADD COLUMN enhanced_json TEXT;
       PRAGMA user_version = ${SCHEMA_VERSION};
     `);
   }
@@ -107,6 +136,9 @@ export async function saveLocalDiagnosis(input: {
   inferenceTimeMs: number;
   imageUri: string;
   ownerUserId: number | null;
+  probabilities?: ClassProbabilityRecord[];
+  baseline?: ModelComparisonEntry | null;
+  enhanced?: ModelComparisonEntry | null;
 }) {
   const db = await database();
   const localId = Crypto.randomUUID();
@@ -119,8 +151,9 @@ export async function saveLocalDiagnosis(input: {
     `INSERT INTO local_diagnoses (
       local_id, sync_uuid, owner_user_id, predicted_class, confidence,
       model_version, inference_time_ms, image_uri, source, sync_status,
+      probabilities_json, baseline_json, enhanced_json,
       diagnosed_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'mobile', ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'mobile', ?, ?, ?, ?, ?, ?, ?)`,
     localId,
     syncUuid,
     input.ownerUserId,
@@ -130,12 +163,30 @@ export async function saveLocalDiagnosis(input: {
     Math.max(0, Math.round(input.inferenceTimeMs)),
     storedImageUri,
     syncStatus,
+    input.probabilities ? JSON.stringify(input.probabilities) : null,
+    input.baseline ? JSON.stringify(input.baseline) : null,
+    input.enhanced ? JSON.stringify(input.enhanced) : null,
     now,
     now,
     now,
   );
 
   return db.getFirstAsync<LocalDiagnosis>('SELECT * FROM local_diagnoses WHERE local_id = ?', localId);
+}
+
+export async function updateLocalDiagnosisComparison(
+  localId: string,
+  baseline: ModelComparisonEntry | null,
+  enhanced: ModelComparisonEntry | null,
+) {
+  const db = await database();
+  await db.runAsync(
+    `UPDATE local_diagnoses SET baseline_json = ?, enhanced_json = ?, updated_at = ? WHERE local_id = ?`,
+    baseline ? JSON.stringify(baseline) : null,
+    enhanced ? JSON.stringify(enhanced) : null,
+    new Date().toISOString(),
+    localId,
+  );
 }
 
 function persistImage(sourceUri: string, localId: string) {

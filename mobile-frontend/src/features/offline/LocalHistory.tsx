@@ -1,33 +1,44 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Directory, File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 import { CLASS_DISPLAY_NAMES } from '../classification/disease-data';
+import type { ClassKey } from '../classification/types';
 import {
   listLocalDiagnoses,
   requestLocalDiagnosisDeletion,
   retryLocalDiagnosis,
+  subscribeToLocalDiagnosisChanges,
   type LocalDiagnosis,
   type LocalSyncStatus,
 } from '../../storage/localDiagnoses';
-import { Empty, Loading, Notice, palette, SectionHeader, uiStyles } from '../connected/ui';
+import { ImageViewer } from '../../components/ImageViewer';
+import { palette } from '../connected/ui';
+import { ProbabilityRow } from '../scan/ProbabilityRow';
 import { authenticatedImageSource } from '../../services/api';
+import type { PredictionResult } from '../../types/prediction';
 
-const statusCopy: Record<LocalSyncStatus, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
-  local_only: { label: 'Only on this device', icon: 'phone-portrait-outline', color: palette.muted },
-  pending: { label: 'Waiting to sync', icon: 'time-outline', color: '#856617' },
-  syncing: { label: 'Syncing', icon: 'sync-outline', color: palette.green },
-  synced: { label: 'Synced', icon: 'cloud-done-outline', color: palette.green },
-  failed: { label: 'Needs retry', icon: 'warning-outline', color: '#a13a2f' },
-  pending_delete: { label: 'Waiting to delete', icon: 'trash-outline', color: '#856617' },
-  delete_failed: { label: 'Delete needs retry', icon: 'warning-outline', color: '#a13a2f' },
+const statusCopy: Record<LocalSyncStatus, { label: string; color: string }> = {
+  local_only: { label: 'Only on this device', color: palette.muted },
+  pending: { label: 'Waiting to sync', color: '#856617' },
+  syncing: { label: 'Syncing', color: palette.green },
+  synced: { label: 'Synced', color: palette.green },
+  failed: { label: 'Needs retry', color: '#a13a2f' },
+  pending_delete: { label: 'Waiting to delete', color: '#856617' },
+  delete_failed: { label: 'Delete needs retry', color: '#a13a2f' },
 };
+const clampPercent = (value: number) => `${Math.min(99.99, Math.max(0, value)).toFixed(2)}%`;
 
 export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { ownerUserId: number | null; refreshKey?: number; onChanged?: () => void }) {
   const [items, setItems] = useState<LocalDiagnosis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -43,9 +54,29 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let subscription: { remove: () => void } | null = null;
+    const scheduleReload = () => {
+      if (!active) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { load(); }, 200);
+    };
+    subscribeToLocalDiagnosisChanges(scheduleReload).then((value) => {
+      if (active) subscription = value;
+      else value.remove();
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+      subscription?.remove();
+    };
+  }, [load]);
+
   const remove = (item: LocalDiagnosis) => {
     const cloudCopy = item.server_id ? ' It will also be removed from your account when synchronization completes.' : '';
-    Alert.alert('Delete this scan?', `The saved result and its device image will be removed.${cloudCopy}`, [
+    Alert.alert('Delete scan?', `The saved result and its device image will be removed.${cloudCopy}`, [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         setBusyId(item.local_id);
@@ -73,34 +104,137 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
     }
   };
 
-  return <View style={uiStyles.stack}>
-    <SectionHeader
-      eyebrow="LOCAL SQLITE HISTORY"
-      title="Scan history"
-      text="Results are written to this device first. Signed-in farmer scans are copied to the shared SQL database when a connection returns. Images stay local unless you explicitly consent to research upload."
-      action={<Pressable accessibilityRole="button" accessibilityLabel="Refresh history" onPress={load} style={styles.refresh}><Ionicons name="refresh" size={19} color={palette.green} /></Pressable>}
-    />
-    {!ownerUserId && <Notice tone="warning">Scans made while signed out remain only on this device. Sign in before scanning when you want a result synchronized to your account.</Notice>}
-    {error && <Notice>{error}</Notice>}
-    {loading ? <Loading text="Opening offline history…" /> : items.length ? items.map((item) => {
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      const rows = [['diagnosed_at', 'predicted_class', 'confidence_pct', 'inference_time_ms', 'baseline_class', 'baseline_confidence_pct', 'baseline_time_ms', 'enhanced_class', 'enhanced_confidence_pct', 'enhanced_time_ms']];
+      for (const item of items) {
+        const baseline = parseComparisonEntry(item.baseline_json);
+        const enhanced = parseComparisonEntry(item.enhanced_json);
+        rows.push([
+          item.diagnosed_at,
+          item.predicted_class,
+          Number(item.confidence).toFixed(2),
+          String(item.inference_time_ms ?? ''),
+          baseline ? baseline.predictedClass : '',
+          baseline ? (baseline.confidence * 100).toFixed(2) : '',
+          baseline ? baseline.inferenceTimeMs.toFixed(1) : '',
+          enhanced ? enhanced.predictedClass : '',
+          enhanced ? (enhanced.confidence * 100).toFixed(2) : '',
+          enhanced ? enhanced.inferenceTimeMs.toFixed(1) : '',
+        ]);
+      }
+      const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
+      const exportDir = new Directory(Paths.cache, 'dahonmd-exports');
+      if (!exportDir.exists) exportDir.create({ intermediates: true, idempotent: true });
+      const file = new File(exportDir, 'scan-history.csv');
+      file.write(csv);
+      await Sharing.shareAsync(file.uri, { mimeType: 'text/csv' });
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : 'The scan history could not be exported.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return <View style={styles.stack}>
+    <View style={styles.header}>
+      <View style={styles.headerCopy}>
+        <Text style={styles.title}>History</Text>
+        <Text style={styles.count}>{items.length === 1 ? '1 scan' : `${items.length} scans`}</Text>
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Export scan history as CSV" disabled={items.length === 0 || exporting} onPress={exportCsv} style={[styles.exportButton, (items.length === 0 || exporting) && styles.dim]}>
+        <Ionicons name="download-outline" size={17} color={palette.green} />
+        <Text style={styles.exportText}>{exporting ? 'Exporting…' : 'Export CSV'}</Text>
+      </Pressable>
+    </View>
+    {error && <Text style={styles.error}>{error}</Text>}
+    {loading ? <Text style={styles.muted}>Loading history…</Text> : items.length ? items.map((item) => {
       const status = statusCopy[item.sync_status];
-      return <View key={item.local_id} style={uiStyles.card}>
-        <View style={uiStyles.row}>
-          {item.image_uri ? <Image source={authenticatedImageSource(item.image_uri)} style={styles.thumb} /> : <View style={styles.placeholder}><Ionicons name="leaf-outline" size={25} color={palette.green} /></View>}
-          <View style={uiStyles.flex}>
-            <Text style={uiStyles.cardTitle}>{CLASS_DISPLAY_NAMES[item.predicted_class]}</Text>
-            <Text style={uiStyles.cardMeta}>{item.confidence.toFixed(1)}% confidence · {formatLocalDate(item.diagnosed_at)}</Text>
-            <View style={styles.status}><Ionicons name={status.icon} size={15} color={status.color} /><Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text></View>
+      const baseline = parseComparisonEntry(item.baseline_json);
+      const enhanced = parseComparisonEntry(item.enhanced_json);
+      const expanded = expandedId === item.local_id;
+      const needsRetry = item.sync_status === 'failed' || item.sync_status === 'delete_failed';
+      return <View key={item.local_id} style={styles.card}>
+        <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Hide scan details' : 'Show scan details'} onPress={() => setExpandedId(expanded ? null : item.local_id)} style={styles.cardRow}>
+          {item.image_uri ? <Pressable accessibilityRole="button" accessibilityLabel="View scan image" onPress={() => setViewerImage(item.image_uri)}><Image source={authenticatedImageSource(item.image_uri)} style={styles.thumb} /></Pressable> : <View style={styles.placeholder}><Ionicons name="leaf-outline" size={25} color={palette.green} /></View>}
+          <View style={styles.cardCopy}>
+            <Text style={styles.cardClass}>{CLASS_DISPLAY_NAMES[item.predicted_class]}</Text>
+            <Text style={styles.cardDate}>{formatLocalDate(item.diagnosed_at)}</Text>
           </View>
-        </View>
-        {item.last_error && <Text style={styles.error}>{item.last_error}</Text>}
-        <View style={styles.actions}>
-          {(item.sync_status === 'failed' || item.sync_status === 'delete_failed') && <Pressable accessibilityRole="button" disabled={busyId === item.local_id} onPress={() => retry(item)} style={styles.retryButton}><Ionicons name="refresh" size={15} color={palette.green} /><Text style={styles.retryText}>Retry</Text></Pressable>}
-          <Pressable accessibilityRole="button" disabled={busyId === item.local_id || item.sync_status === 'pending_delete'} onPress={() => remove(item)} style={styles.deleteButton}><Ionicons name="trash-outline" size={15} color={palette.danger} /><Text style={styles.deleteText}>{item.sync_status === 'pending_delete' ? 'Deletion queued' : 'Delete'}</Text></Pressable>
-        </View>
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={palette.muted} />
+        </Pressable>
+        {expanded && (
+          <View style={styles.details}>
+            {baseline && enhanced && (
+              <View style={styles.verdictRow}>
+                <Ionicons name={baseline.predictedClass === enhanced.predictedClass ? 'checkmark-circle' : 'swap-horizontal'} size={17} color={baseline.predictedClass === enhanced.predictedClass ? palette.success : palette.warning} />
+                <Text style={[styles.verdictText, { color: baseline.predictedClass === enhanced.predictedClass ? palette.success : palette.warning }]}>
+                  {baseline.predictedClass === enhanced.predictedClass ? 'Models agree' : 'Different results'}
+                </Text>
+              </View>
+            )}
+            <View style={styles.modelBlock}>
+              <Text style={styles.modelLine}>Baseline{baseline ? ` · ${clampPercent(baseline.confidence)} · ${baseline.inferenceTimeMs.toFixed(1)}ms` : ' not available'}</Text>
+              {baseline?.probabilities && baseline.probabilities.map((item) => <ProbabilityRow key={item.classKey} label={CLASS_DISPLAY_NAMES[item.classKey]} probability={item.probability} selected={item.classKey === baseline.predictedClass} />)}
+            </View>
+            <View style={styles.modelBlock}>
+              <Text style={styles.modelLine}>Enhanced · {clampPercent(enhanced ? enhanced.confidence * 100 : item.confidence)}{enhancedTimeLabel(enhanced, item)}</Text>
+              {(enhanced?.probabilities.length ? enhanced.probabilities : parseProbabilities(item)).map(({ classKey, probability }) => <ProbabilityRow key={classKey} label={CLASS_DISPLAY_NAMES[classKey]} probability={probability} selected={classKey === item.predicted_class} />)}
+            </View>
+            <View style={styles.statusRow}><Ionicons name="cloud-outline" size={14} color={status.color} /><Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text></View>
+            {needsRetry && (
+              <Pressable accessibilityRole="button" disabled={busyId === item.local_id} onPress={() => retry(item)} style={styles.retryButton}>
+                <Ionicons name="refresh" size={15} color={palette.green} /><Text style={styles.retryText}>Retry</Text>
+              </Pressable>
+            )}
+            <Pressable accessibilityRole="button" disabled={busyId === item.local_id || item.sync_status === 'pending_delete'} onPress={() => remove(item)} style={styles.deleteButton}>
+              <Ionicons name="trash-outline" size={16} color={palette.danger} /><Text style={styles.deleteText}>{item.sync_status === 'pending_delete' ? 'Deletion queued' : 'Delete scan'}</Text>
+            </Pressable>
+          </View>
+        )}
       </View>;
-    }) : <Empty title="No saved scans yet" text="Your next classification will be stored here even when the device is offline." />}
+    }) : <View style={styles.empty}><Ionicons name="leaf-outline" size={30} color={palette.green} /><Text style={styles.emptyTitle}>No saved scans.</Text></View>}
+    <ImageViewer uri={viewerImage} visible={viewerImage !== null} onClose={() => setViewerImage(null)} />
   </View>;
+}
+
+type StoredProbability = { classKey: ClassKey; probability: number };
+
+function parseProbabilities(item: LocalDiagnosis): StoredProbability[] {
+  if (!item.probabilities_json) return [];
+  try {
+    const parsed = JSON.parse(item.probabilities_json) as StoredProbability[];
+    return Array.isArray(parsed)
+      ? parsed.filter((p) => p && typeof p.probability === 'number' && (p.classKey === 'healthy' || p.classKey === 'sigatoka' || p.classKey === 'panama-disease' || p.classKey === 'cordana-leaf-spot'))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+type StoredComparisonEntry = PredictionResult;
+
+function enhancedTimeLabel(enhanced: StoredComparisonEntry | null, item: LocalDiagnosis) {
+  const timeMs = enhanced && enhanced.inferenceTimeMs > 0 ? enhanced.inferenceTimeMs : item.inference_time_ms;
+  return timeMs != null && timeMs > 0 ? ` · ${timeMs.toFixed(1)}ms` : '';
+}
+
+function parseComparisonEntry(raw: string | null): StoredComparisonEntry | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<StoredComparisonEntry>;
+    if (!value.predictedClass || typeof value.confidence !== 'number') return null;
+    return {
+      predictedClass: value.predictedClass,
+      confidence: value.confidence,
+      probabilities: Array.isArray(value.probabilities) && value.probabilities.length ? value.probabilities : [],
+      inferenceTimeMs: value.inferenceTimeMs ?? 0,
+      model: value.model ?? '',
+    };
+  } catch {
+    return null;
+  }
 }
 
 function formatLocalDate(value: string) {
@@ -109,15 +243,34 @@ function formatLocalDate(value: string) {
 }
 
 const styles = StyleSheet.create({
-  refresh: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: palette.border },
-  thumb: { width: 72, height: 72, borderRadius: 15, backgroundColor: palette.greenSoft },
-  placeholder: { width: 72, height: 72, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.greenSoft },
-  status: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 },
-  statusText: { fontSize: 12, fontWeight: '800' },
-  error: { color: '#8e3028', fontSize: 12, lineHeight: 17, paddingTop: 8, borderTopWidth: 1, borderTopColor: palette.border },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, paddingTop: 4 },
-  retryButton: { minHeight: 36, paddingHorizontal: 11, borderRadius: 11, borderWidth: 1, borderColor: palette.green, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  retryText: { color: palette.green, fontSize: 12, fontWeight: '800' },
-  deleteButton: { minHeight: 36, paddingHorizontal: 11, borderRadius: 11, borderWidth: 1, borderColor: '#e7bbb7', flexDirection: 'row', alignItems: 'center', gap: 5 },
-  deleteText: { color: palette.danger, fontSize: 12, fontWeight: '800' },
+  stack: { gap: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  headerCopy: { flex: 1 },
+  title: { color: palette.ink, fontSize: 32, lineHeight: 38, fontWeight: '900', letterSpacing: -0.5 },
+  count: { color: palette.muted, fontSize: 14, fontWeight: '600', marginTop: 1 },
+  exportButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 42, paddingHorizontal: 13, borderRadius: 13, borderWidth: 1, borderColor: palette.green, backgroundColor: '#fff' },
+  exportText: { color: palette.green, fontSize: 13, fontWeight: '800' },
+  dim: { opacity: 0.5 },
+  error: { color: '#8e3028', fontSize: 13, lineHeight: 18, backgroundColor: '#ffeeec', borderWidth: 1, borderColor: '#efc2bd', borderRadius: 12, padding: 11 },
+  muted: { color: palette.muted, fontSize: 14 },
+  card: { backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: palette.border, overflow: 'hidden' },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
+  thumb: { width: 68, height: 68, borderRadius: 14, backgroundColor: palette.greenSoft },
+  placeholder: { width: 68, height: 68, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.greenSoft },
+  cardCopy: { flex: 1, gap: 3 },
+  cardClass: { color: palette.ink, fontSize: 18, fontWeight: '800' },
+  cardDate: { color: palette.muted, fontSize: 13, fontWeight: '600' },
+  details: { gap: 10, borderTopWidth: 1, borderTopColor: palette.border, padding: 12 },
+  verdictRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  verdictText: { fontSize: 14, fontWeight: '800' },
+  modelBlock: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#f5f8f6' },
+  modelLine: { color: palette.muted, fontSize: 12, fontWeight: '800' },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statusText: { fontSize: 12, fontWeight: '700' },
+  retryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: palette.green, backgroundColor: '#fff' },
+  retryText: { color: palette.green, fontSize: 13, fontWeight: '800' },
+  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 42, borderRadius: 12, borderWidth: 1, borderColor: '#e7b3ae', backgroundColor: '#fff' },
+  deleteText: { color: palette.danger, fontSize: 13, fontWeight: '800' },
+  empty: { alignItems: 'center', padding: 32, gap: 8 },
+  emptyTitle: { color: palette.ink, fontSize: 16, fontWeight: '800' },
 });

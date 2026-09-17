@@ -14,7 +14,7 @@ type ApiEnvelope<T> = {
   errors?: Record<string, string[]>;
 };
 
-type ApiOptions = Omit<RequestInit, 'headers'> & { headers?: Record<string, string> };
+type ApiOptions = Omit<RequestInit, 'headers'> & { headers?: Record<string, string>; timeoutMs?: number };
 
 const TOKEN_KEY = 'dahonmd-mobile-token';
 const USER_KEY = 'dahonmd-mobile-user';
@@ -80,7 +80,8 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<Ap
   if (options.body && typeof options.body === 'string') headers['Content-Type'] = 'application/json';
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeout = options.timeoutMs ?? API_TIMEOUT_MS;
+  const timer = setTimeout(() => controller.abort(), timeout);
   let response: Response;
   try {
     response = await fetch(apiUrl(path), { ...options, headers, signal: options.signal ?? controller.signal });
