@@ -62,10 +62,10 @@ class DashboardService
                 'unable_to_determine' => $reviews->where('review_status', 'cannot_determine')->count(),
                 'field_inspection_required' => $reviews->where('requires_field_inspection', true)->count(),
                 'possible_outside_supported_classes' => $reviews->where('review_status', 'possible_outside_supported_classes')->count(),
-                'most_confused_classes' => $disagreements->groupBy(fn ($review) => $review->diagnosis?->predicted_class.' â†’ '.$review->verified_label)
+                'most_confused_classes' => $disagreements->groupBy(fn ($review) => $review->diagnosis?->predicted_class.' → '.$review->verified_label)
                     ->map->count()->sortDesc()->take(5),
                 'agreement_by_confidence' => $agreementByConfidence,
-                'reference_standard_note' => 'These are AIâ€“agricultural reviewer agreement statistics, not diagnostic accuracy, unless the study protocol establishes the reviews as a valid reference standard.',
+                'reference_standard_note' => 'These are AI–agricultural reviewer agreement statistics, not diagnostic accuracy, unless the study protocol establishes the reviews as a valid reference standard.',
             ],
             'dataset_candidates' => [
                 'pending' => $this->candidates->countByStatus('pending'),

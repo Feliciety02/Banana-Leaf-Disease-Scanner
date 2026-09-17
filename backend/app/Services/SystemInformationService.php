@@ -19,7 +19,7 @@ class SystemInformationService
             'classes' => $this->registry->labels(),
             'final_model_classes_known' => $this->registry->isEstablished(),
             'research_comparison_configured' => filled(config('banana.comparison_url')),
-            'disease_content_status' => $this->registry->isEstablished() ? 'READY FOR SOURCE-VALIDATED RESEARCH' : 'DISEASE CONTENT PENDING â€” a validated trained-model label map is not yet available.',
+            'disease_content_status' => $this->registry->isEstablished() ? 'READY FOR SOURCE-VALIDATED RESEARCH' : 'DISEASE CONTENT PENDING — a validated trained-model label map is not yet available.',
             'confidence_threshold' => (float) config('banana.confidence_threshold'),
             'ai_mode' => config('banana.ai_mode'),
         ];
