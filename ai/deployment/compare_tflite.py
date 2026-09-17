@@ -69,6 +69,7 @@ def compare_models(
 
     baseline_runner = TFLiteRunner(baseline_path, num_threads=num_threads)
     baseline_shape = tuple(int(value) for value in baseline_runner.input["shape"])
+    baseline_dtype = baseline_runner.input["dtype"]
     if len(baseline_shape) != 4 or baseline_shape[0] != 1 or baseline_shape[3] != 3:
         raise ValueError(f"Unsupported baseline input shape: {baseline_shape}")
     prepared = decode_and_resize(tf.constant(str(image_path)), baseline_shape[1:3]).numpy()[None, ...]
@@ -81,6 +82,11 @@ def compare_models(
     enhanced_shape = tuple(int(value) for value in enhanced_runner.input["shape"])
     if enhanced_shape != baseline_shape:
         raise ValueError(f"Model input mismatch: baseline {baseline_shape}, enhanced {enhanced_shape}")
+    if enhanced_runner.input["dtype"] != baseline_dtype:
+        raise ValueError(
+            f"Input precision mismatch: baseline {baseline_dtype}, enhanced {enhanced_runner.input['dtype']}. "
+            "Compare both models at the same precision (FP32 vs FP32, or INT8 vs INT8) for a fair accuracy comparison."
+        )
     enhanced_logits, enhanced_latency = enhanced_runner.predict(prepared)
     enhanced = _result("enhanced", enhanced_path, enhanced_logits, enhanced_latency, labels)
     del enhanced_runner
