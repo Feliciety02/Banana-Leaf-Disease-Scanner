@@ -25,8 +25,17 @@ class DahonMDTFLiteModule : Module() {
     private var modelFileName: String = ""
     private var inputBuffer: ByteBuffer? = null
     private var outputBuffer: ByteBuffer? = null
+    private var baselineInterpreter: Interpreter? = null
+    private var baselineInputBuffer: ByteBuffer? = null
+    private var baselineOutputBuffer: ByteBuffer? = null
+    private var baselineInputZeroPoint = 0
+    private var baselineOutputZeroPoint = 0
+    private var baselineInputScale = 1f
+    private var baselineOutputScale = 1f
     private val initMutex = Mutex()
     private val inferenceMutex = Mutex()
+    private val baselineMutex = Mutex()
+    private val initLock = Any()
 
     private val context
         get() = requireNotNull(appContext.reactContext) { "Android context is unavailable" }
@@ -37,6 +46,10 @@ class DahonMDTFLiteModule : Module() {
         AsyncFunction("classifyImage") Coroutine { uri: String ->
             ensureModelLoaded()
             classifyImage(uri)
+        }
+
+        AsyncFunction("classifyImageBaseline") Coroutine { uri: String ->
+            classifyBaselineImage(uri)
         }
 
         AsyncFunction("getDeviceInfo") {
@@ -51,11 +64,31 @@ class DahonMDTFLiteModule : Module() {
             benchmarkModel(uri, modelVariant, warmupRuns, measuredRuns, numThreads)
         }
 
+        AsyncFunction("prepareModel") {
+            ensureModelLoadedSync()
+            mapOf(
+                "modelVersion" to modelFileName,
+                "ready" to true,
+            )
+        }
+
+        AsyncFunction("getModelFingerprints") {
+            getModelFingerprints()
+        }
+
+        AsyncFunction("analyzeImageQuality") Coroutine { uri: String ->
+            analyzeImageQuality(uri)
+        }
+
         OnDestroy {
             interpreter?.close()
             interpreter = null
             inputBuffer = null
             outputBuffer = null
+            baselineInterpreter?.close()
+            baselineInterpreter = null
+            baselineInputBuffer = null
+            baselineOutputBuffer = null
         }
     }
 
@@ -64,6 +97,14 @@ class DahonMDTFLiteModule : Module() {
     private suspend fun ensureModelLoaded() {
         if (interpreter != null) return
         initMutex.withLock {
+            if (interpreter != null) return
+            loadModel(FP32_MODEL_ASSET, 1)
+        }
+    }
+
+    private fun ensureModelLoadedSync() {
+        if (interpreter != null) return
+        synchronized(initLock) {
             if (interpreter != null) return
             loadModel(FP32_MODEL_ASSET, 1)
         }
@@ -218,6 +259,213 @@ class DahonMDTFLiteModule : Module() {
             "inputDtype" to "float32",
             "outputDtype" to "float32",
             "labels" to LABELS.toList(),
+        )
+    }
+
+    // ── Baseline (int8) production inference ──────────────────────────────
+
+    private suspend fun ensureBaselineLoaded() {
+        if (baselineInterpreter != null) return
+        baselineMutex.withLock {
+            if (baselineInterpreter != null) return
+            val current = loadModelFresh(INT8_MODEL_ASSET, 1)
+            try {
+                val inputDetails = current.getInputTensor(0)
+                require(inputDetails.dataType() == DataType.INT8) {
+                    "Baseline model input must be INT8, received ${inputDetails.dataType()}"
+                }
+                require(inputDetails.shape().contentEquals(intArrayOf(1, MODEL_HEIGHT, MODEL_WIDTH, CHANNELS))) {
+                    "Baseline model input must be [1,$MODEL_HEIGHT,$MODEL_WIDTH,$CHANNELS], received ${inputDetails.shape().contentToString()}"
+                }
+                val outputDetails = current.getOutputTensor(0)
+                require(outputDetails.dataType() == DataType.INT8) {
+                    "Baseline model output must be INT8, received ${outputDetails.dataType()}"
+                }
+                require(outputDetails.shape().contentEquals(intArrayOf(1, NUM_CLASSES))) {
+                    "Baseline model output must be [1,$NUM_CLASSES], received ${outputDetails.shape().contentToString()}"
+                }
+                baselineInputScale = inputDetails.quantizationParams().scale
+                baselineInputZeroPoint = inputDetails.quantizationParams().zeroPoint
+                baselineOutputScale = outputDetails.quantizationParams().scale
+                baselineOutputZeroPoint = outputDetails.quantizationParams().zeroPoint
+                baselineInputBuffer = ByteBuffer.allocateDirect(INPUT_SIZE).apply { order(ByteOrder.nativeOrder()) }
+                baselineOutputBuffer = ByteBuffer.allocateDirect(OUTPUT_SIZE).apply { order(ByteOrder.nativeOrder()) }
+            } catch (t: Throwable) {
+                current.close()
+                throw t
+            }
+            baselineInterpreter = current
+        }
+    }
+
+    private suspend fun classifyBaselineImage(uri: String): Map<String, Any> {
+        ensureBaselineLoaded()
+        val currentInterpreter = baselineInterpreter
+            ?: throw IllegalStateException("Baseline TFLite model is not loaded")
+        val inputBuf = baselineInputBuffer
+            ?: throw IllegalStateException("Baseline input buffer is not allocated")
+        val outputBuf = baselineOutputBuffer
+            ?: throw IllegalStateException("Baseline output buffer is not allocated")
+
+        if (uri.isBlank()) {
+            throw IllegalArgumentException("Image URI must not be blank")
+        }
+
+        val bitmap = withContext(Dispatchers.IO) {
+            readBitmapFromUri(uri)
+        } ?: throw IllegalArgumentException("Could not decode image from URI: $uri")
+
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width <= 0 || height <= 0) {
+            bitmap.recycle()
+            throw IllegalArgumentException("Image has invalid dimensions: ${width}x${height}")
+        }
+
+        val resized = if (width != MODEL_WIDTH || height != MODEL_HEIGHT) {
+            Bitmap.createScaledBitmap(bitmap, MODEL_WIDTH, MODEL_HEIGHT, true).also {
+                if (it !== bitmap) bitmap.recycle()
+            }
+        } else {
+            bitmap
+        }
+
+        inputBuf.clear()
+        val pixels = IntArray(MODEL_WIDTH * MODEL_HEIGHT)
+        resized.getPixels(pixels, 0, MODEL_WIDTH, 0, 0, MODEL_WIDTH, MODEL_HEIGHT)
+        resized.recycle()
+
+        for (pixel in pixels) {
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            inputBuf.put(quantizeWith(r, baselineInputScale, baselineInputZeroPoint))
+            inputBuf.put(quantizeWith(g, baselineInputScale, baselineInputZeroPoint))
+            inputBuf.put(quantizeWith(b, baselineInputScale, baselineInputZeroPoint))
+        }
+        inputBuf.rewind()
+
+        outputBuf.clear()
+
+        val startTime = System.nanoTime()
+        baselineMutex.withLock {
+            currentInterpreter.run(inputBuf, outputBuf)
+        }
+        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000.0
+
+        outputBuf.rewind()
+        val logits = FloatArray(NUM_CLASSES) { i ->
+            (outputBuf.get(i).toInt() - baselineOutputZeroPoint) * baselineOutputScale
+        }
+
+        return mapOf(
+            "scores" to logits.toList(),
+            "latencyMs" to elapsedMs,
+            "modelVersion" to INT8_MODEL_ASSET.substringAfterLast('/').removeSuffix(".tflite"),
+            "inputShape" to listOf(1, MODEL_WIDTH, MODEL_HEIGHT, CHANNELS),
+            "inputDtype" to "int8",
+            "outputDtype" to "int8",
+            "labels" to LABELS.toList(),
+        )
+    }
+
+    // ── Image quality and model fingerprints ─────────────────────────────
+
+    private fun getModelFingerprints(): Map<String, String> {
+        return mapOf(
+            "baseline" to fingerprintAsset(INT8_MODEL_ASSET),
+            "enhanced" to fingerprintAsset(FP32_MODEL_ASSET),
+            "modelVersion" to modelFileName.ifEmpty { "ca-mobilenetv3-small" },
+        )
+    }
+
+    private fun fingerprintAsset(assetPath: String): String {
+        return try {
+            context.assets.open(assetPath).use { stream ->
+                sha256Prefix(stream.readBytes())
+            }
+        } catch (e: Exception) {
+            "unknown"
+        }
+    }
+
+    private fun sha256Prefix(bytes: ByteArray): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+        return digest.take(8).joinToString("") { String.format("%02x", it) }
+    }
+
+    private suspend fun analyzeImageQuality(uri: String): Map<String, Any> {
+        if (uri.isBlank()) {
+            throw IllegalArgumentException("Image URI must not be blank")
+        }
+
+        val original = withContext(Dispatchers.IO) {
+            readBitmapFromUri(uri)
+        } ?: throw IllegalArgumentException("Could not decode image from URI: $uri")
+
+        val width = original.width
+        val height = original.height
+        if (width <= 0 || height <= 0) {
+            original.recycle()
+            throw IllegalArgumentException("Image has invalid dimensions: ${width}x${height}")
+        }
+
+        val sampleSize = 64
+        val sampled = if (width == sampleSize && height == sampleSize) {
+            original
+        } else {
+            Bitmap.createScaledBitmap(original, sampleSize, sampleSize, true).also {
+                if (it !== original) original.recycle()
+            }
+        }
+
+        val pixels = IntArray(sampleSize * sampleSize)
+        sampled.getPixels(pixels, 0, sampleSize, 0, 0, sampleSize, sampleSize)
+        sampled.recycle()
+
+        val luma = FloatArray(sampleSize * sampleSize)
+        var sum = 0.0
+        var sumSquares = 0.0
+        var greenPixels = 0
+        for (index in pixels.indices) {
+            val pixel = pixels[index]
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            val l = 0.299f * r + 0.587f * g + 0.114f * b
+            luma[index] = l
+            sum += l
+            sumSquares += l * l
+            if (g >= 60 && g >= r && (g - b) >= 8) greenPixels += 1
+        }
+
+        val count = sampleSize * sampleSize
+        val mean = sum / count
+        val variance = kotlin.math.max(0.0, sumSquares / count - mean * mean)
+        val stdDev = kotlin.math.sqrt(variance)
+        val greenCoverage = greenPixels.toDouble() / count
+
+        var edgeEnergy = 0.0
+        for (y in 1 until sampleSize - 1) {
+            for (x in 1 until sampleSize - 1) {
+                val center = luma[y * sampleSize + x].toDouble()
+                val neighbors = luma[(y - 1) * sampleSize + x].toDouble()
+                    + luma[(y + 1) * sampleSize + x].toDouble()
+                    + luma[y * sampleSize + x - 1].toDouble()
+                    + luma[y * sampleSize + x + 1].toDouble()
+                edgeEnergy += kotlin.math.abs(4.0 * center - neighbors)
+            }
+        }
+        val interiorCount = (sampleSize - 2) * (sampleSize - 2)
+        val edgeScore = edgeEnergy / maxOf(1, interiorCount)
+
+        return mapOf(
+            "width" to width,
+            "height" to height,
+            "meanLuma" to mean,
+            "lumaStdDev" to stdDev,
+            "edgeScore" to edgeScore,
+            "greenCoverage" to greenCoverage,
         )
     }
 
