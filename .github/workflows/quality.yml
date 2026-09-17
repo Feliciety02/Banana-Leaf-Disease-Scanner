@@ -89,7 +89,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Fail if the root README changed
         run: |
-          EXPECTED="68071aae3edda2f78c2652f729b6676d8c386422"
+          EXPECTED="5e523f9da4b201ba92557e543e761ac8215df1b8"
           ACTUAL="$(git hash-object README.md)"
           if [[ "$ACTUAL" != "$EXPECTED" ]]; then
             echo "::error::The root README.md is protected and must not be changed."

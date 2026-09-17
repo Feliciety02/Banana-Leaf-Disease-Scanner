@@ -10,7 +10,7 @@ The `ai` package implements four-class banana leaf disease classification with a
 - Student: MobileNetV3-Small with Coordinate Attention at every predetermined former-SE block.
 - KD: `alpha*L_CE + beta*T²*L_KD + gamma*L_feat`, with MSE-aligned near-final feature maps.
 - Selection: validation macro F1 for both teacher and student.
-- Deployment: full-integer INT8 TensorFlow Lite; calibration from training only.
+- Deployment: float32 TensorFlow Lite for the phone; the pipeline still exports a full-integer INT8 model with training-only calibration for evaluation (see the INT8 finding in `MODEL_EXPERIMENTS.md`).
 
 Configuration defaults and values in `ai/config/` are candidate starting points pending validation, not claimed optimal settings.
 
@@ -139,6 +139,6 @@ Evaluation reports accuracy, macro precision/recall/F1, per-class precision/reca
 .venv\Scripts\python.exe -m ai.deployment.benchmark_tflite --tflite-model <model_int8.tflite> --dataset-dir <dataset> --final-split-dir <frozen-split> --output-dir <run>
 ```
 
-Conversion writes an FP32 model, full-integer INT8 model, training-only calibration manifest, and programmatic quantization audit. Formal Android latency/memory comparison remains pending until run on named hardware with the same FP32/INT8 configuration.
+Conversion writes an FP32 model, full-integer INT8 model, training-only calibration manifest, and programmatic quantization audit. FP32 reproduces the Keras result; full-integer INT8 post-training quantization of the frozen seed 42 checkpoint drops locked-test accuracy from 0.96644 to 0.84433, so the phone ships FP32 and INT8 recovery is QAT future work (see `MODEL_EXPERIMENTS.md`). Formal Android latency/memory comparison remains pending until run on named hardware with the same FP32/INT8 configuration.
 
 Grad-CAM under `ai/evaluation/gradcam.py` is qualitative, offline evaluation only.

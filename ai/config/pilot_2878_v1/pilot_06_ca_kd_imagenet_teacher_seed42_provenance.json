@@ -1,0 +1,9 @@
+{
+  "allowed_method_change": "distillation enabled; student protocol otherwise preserved",
+  "memory_policy": "micro-batch 4 x 8 accumulation steps preserves effective batch 32",
+  "selected_teacher_model": "ai/artifacts/four_class/pilot_2878_v1/pilot_03_teacher_imagenet_seed42/best_teacher.keras",
+  "selected_teacher_model_sha256": "f337c9675dc3708f727b30f01854838565e0dddd0470563759f16472015fd503",
+  "source_student_protocol": "ai/artifacts/four_class/pilot_2878_v1/pilot_02_ca_supervised_seed42/student_supervised_experiment_config.json",
+  "source_student_protocol_sha256": "5beea77795189752346f356dc97ef324f191db1e2ea22aefcb74ede3545e155f",
+  "teacher_selection": "ai/artifacts/four_class/pilot_2878_v1/pilot_05_teacher_selection.json"
+}

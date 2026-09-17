@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { hasConnectedConfiguration, login, register, requestPasswordReset, SessionUser } from '../../services/api';
-import { ActionButton, Field, ModalSheet, Notice, palette, uiStyles } from './ui';
+import { ActionButton, Field, ModalCard, Notice, palette, uiStyles } from './ui';
 
 export type AuthMode = 'login' | 'register';
 
@@ -25,7 +25,7 @@ export function AuthModal({ mode, onClose, onMode, onAuthenticated }: { mode: Au
     setBusy(true); setError(''); setNotice('');
     try { setNotice(await requestPasswordReset(email)); } catch (resetError) { setError(messageOf(resetError)); } finally { setBusy(false); }
   };
-  return <ModalSheet visible={Boolean(mode)} title={signup ? 'Create your account' : 'Welcome back'} description={signup ? 'Save connected scans and access your farmer workspace.' : 'Sign in to open your role-based connected workspace.'} onClose={() => { if (!busy) onClose(); }}>
+  return <ModalCard visible={Boolean(mode)} title={signup ? 'Sign up' : 'Log in'} description={signup ? 'Save and sync your scans.' : undefined} onClose={() => { if (!busy) onClose(); }}>
     {!hasConnectedConfiguration() && <Notice tone="warning">Authentication needs EXPO_PUBLIC_API_URL. Offline scanning remains available.</Notice>}
     {signup && <Field label="Full name" value={name} onChangeText={setName} autoCapitalize="words" autoComplete="name" />}
     <Field label="Email address" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
@@ -35,7 +35,7 @@ export function AuthModal({ mode, onClose, onMode, onAuthenticated }: { mode: Au
     {error && <Notice>{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     <ActionButton icon={signup ? 'person-add-outline' : 'log-in-outline'} disabled={busy || !hasConnectedConfiguration()} onPress={submit}>{busy ? 'Please wait…' : signup ? 'Create account' : 'Log in'}</ActionButton>
     <View style={styles.switchRow}><Text style={styles.switchText}>{signup ? 'Already have an account?' : 'New to DahonMD?'}</Text><Pressable accessibilityRole="button" onPress={() => onMode(signup ? 'login' : 'register')}><Text style={styles.link}>{signup ? 'Log in' : 'Sign up'}</Text></Pressable></View>
-  </ModalSheet>;
+  </ModalCard>;
 }
 
 const styles = StyleSheet.create({

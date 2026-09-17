@@ -4,7 +4,8 @@
     "dataset_dir": "/home/feanne/dahonmd-data/banana_leaf_thesis_4class",
     "final_split_dir": "ai/artifacts/final_split",
     "batch_size": 2,
-    "cache_dataset": true
+    "cache_dataset": true,
+    "decoded_cache_dir": "/home/feanne/dahonmd-data/tf-cache/pilot_04_teacher_fresh_ssl_seed42"
   },
   "teacher": {
     "backbone": "ResNet101",

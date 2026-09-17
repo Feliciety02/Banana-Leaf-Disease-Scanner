@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.Dispatchers
@@ -21,10 +22,6 @@ import java.nio.ByteOrder
 class DahonMDTFLiteModule : Module() {
 
     private var interpreter: Interpreter? = null
-    private var inputScale: Float = 1.0f
-    private var inputZeroPoint: Int = 0
-    private var outputScale: Float = 1.0f
-    private var outputZeroPoint: Int = 0
     private var modelFileName: String = ""
     private var inputBuffer: ByteBuffer? = null
     private var outputBuffer: ByteBuffer? = null
@@ -37,27 +34,21 @@ class DahonMDTFLiteModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("DahonMDTFLite")
 
-        AsyncFunction("classifyImage") { uri: String ->
-            withContext(Dispatchers.Default) {
-                ensureModelLoaded()
-                classifyImage(uri)
-            }
+        AsyncFunction("classifyImage") Coroutine { uri: String ->
+            ensureModelLoaded()
+            classifyImage(uri)
         }
 
         AsyncFunction("getDeviceInfo") {
             getDeviceInfo()
         }
 
-        AsyncFunction("preprocessImage") { uri: String ->
-            withContext(Dispatchers.IO) {
-                preprocessImage(uri)
-            }
+        AsyncFunction("preprocessImage") Coroutine { uri: String ->
+            preprocessImage(uri)
         }
 
-        AsyncFunction("benchmarkModel") { uri: String, modelVariant: String, warmupRuns: Int, measuredRuns: Int, numThreads: Int ->
-            withContext(Dispatchers.Default) {
-                benchmarkModel(uri, modelVariant, warmupRuns, measuredRuns, numThreads)
-            }
+        AsyncFunction("benchmarkModel") Coroutine { uri: String, modelVariant: String, warmupRuns: Int, measuredRuns: Int, numThreads: Int ->
+            benchmarkModel(uri, modelVariant, warmupRuns, measuredRuns, numThreads)
         }
 
         OnDestroy {
@@ -74,7 +65,7 @@ class DahonMDTFLiteModule : Module() {
         if (interpreter != null) return
         initMutex.withLock {
             if (interpreter != null) return
-            loadModel(INT8_MODEL_ASSET, 1)
+            loadModel(FP32_MODEL_ASSET, 1)
         }
     }
 
@@ -105,35 +96,27 @@ class DahonMDTFLiteModule : Module() {
         val options = Interpreter.Options().apply {
             setNumThreads(numThreads)
         }
-        interpreter = Interpreter(modelBytes, options)
+        interpreter = Interpreter(toNativeOrderModelBuffer(modelBytes), options)
 
         val inputDetails = interpreter!!.getInputTensor(0)
-        require(inputDetails.dataType() == DataType.INT8) {
-            "Production model input must be INT8, received ${inputDetails.dataType()}"
+        require(inputDetails.dataType() == DataType.FLOAT32) {
+            "Production model input must be FLOAT32, received ${inputDetails.dataType()}"
         }
         require(inputDetails.shape().contentEquals(intArrayOf(1, MODEL_HEIGHT, MODEL_WIDTH, CHANNELS))) {
             "Production model input must be [1,$MODEL_HEIGHT,$MODEL_WIDTH,$CHANNELS], received ${inputDetails.shape().contentToString()}"
         }
-        val inputQuant = inputDetails.quantizationParams()
-        require(inputQuant.scale > 0.0f) { "Production model input quantization scale must be positive" }
-        inputScale = inputQuant.scale
-        inputZeroPoint = inputQuant.zeroPoint
 
         val outputDetails = interpreter!!.getOutputTensor(0)
-        require(outputDetails.dataType() == DataType.INT8) {
-            "Production model output must be INT8, received ${outputDetails.dataType()}"
+        require(outputDetails.dataType() == DataType.FLOAT32) {
+            "Production model output must be FLOAT32, received ${outputDetails.dataType()}"
         }
         require(outputDetails.shape().contentEquals(intArrayOf(1, NUM_CLASSES))) {
             "Production model output must be [1,$NUM_CLASSES], received ${outputDetails.shape().contentToString()}"
         }
-        val outputQuant = outputDetails.quantizationParams()
-        require(outputQuant.scale > 0.0f) { "Production model output quantization scale must be positive" }
-        outputScale = outputQuant.scale
-        outputZeroPoint = outputQuant.zeroPoint
 
         modelFileName = assetPath.substringAfterLast('/').removeSuffix(".tflite")
-        inputBuffer = ByteBuffer.allocateDirect(INPUT_SIZE).apply { order(ByteOrder.nativeOrder()) }
-        outputBuffer = ByteBuffer.allocateDirect(OUTPUT_SIZE).apply { order(ByteOrder.nativeOrder()) }
+        inputBuffer = ByteBuffer.allocateDirect(INPUT_SIZE * Float.SIZE_BYTES).apply { order(ByteOrder.nativeOrder()) }
+        outputBuffer = ByteBuffer.allocateDirect(OUTPUT_SIZE * Float.SIZE_BYTES).apply { order(ByteOrder.nativeOrder()) }
     }
 
     private fun loadModelFresh(assetPath: String, numThreads: Int): Interpreter {
@@ -156,8 +139,14 @@ class DahonMDTFLiteModule : Module() {
         fileDescriptor.close()
 
         val options = Interpreter.Options().apply { setNumThreads(numThreads) }
-        return Interpreter(modelBytes, options)
+        return Interpreter(toNativeOrderModelBuffer(modelBytes), options)
     }
+
+    private fun toNativeOrderModelBuffer(modelBytes: ByteArray): ByteBuffer =
+        ByteBuffer.allocateDirect(modelBytes.size)
+            .order(ByteOrder.nativeOrder())
+            .put(modelBytes)
+            .apply { rewind() }
 
     private suspend fun classifyImage(uri: String): Map<String, Any> {
         val currentInterpreter = interpreter
@@ -202,9 +191,9 @@ class DahonMDTFLiteModule : Module() {
             val r = (pixel shr 16) and 0xFF
             val g = (pixel shr 8) and 0xFF
             val b = pixel and 0xFF
-            inputBuf.put(quantize(r))
-            inputBuf.put(quantize(g))
-            inputBuf.put(quantize(b))
+            inputBuf.putFloat(r.toFloat() / 255.0f)
+            inputBuf.putFloat(g.toFloat() / 255.0f)
+            inputBuf.putFloat(b.toFloat() / 255.0f)
         }
         inputBuf.rewind()
 
@@ -218,7 +207,7 @@ class DahonMDTFLiteModule : Module() {
 
         outputBuf.rewind()
         val logits = FloatArray(NUM_CLASSES) { i ->
-            (outputBuf.get(i).toInt() - outputZeroPoint) * outputScale
+            outputBuf.getFloat(i * Float.SIZE_BYTES)
         }
 
         return mapOf(
@@ -226,8 +215,8 @@ class DahonMDTFLiteModule : Module() {
             "latencyMs" to elapsedMs,
             "modelVersion" to modelFileName,
             "inputShape" to listOf(1, MODEL_WIDTH, MODEL_HEIGHT, CHANNELS),
-            "inputDtype" to "int8",
-            "outputDtype" to "int8",
+            "inputDtype" to "float32",
+            "outputDtype" to "float32",
             "labels" to LABELS.toList(),
         )
     }
@@ -247,8 +236,8 @@ class DahonMDTFLiteModule : Module() {
 
         val runtime = Runtime.getRuntime()
 
-        return mapOf(
-            "device" to mapOf(
+        return mapOf<String, Any>(
+            "device" to mapOf<String, String>(
                 "manufacturer" to Build.MANUFACTURER,
                 "model" to Build.MODEL,
                 "brand" to Build.BRAND,
@@ -257,25 +246,25 @@ class DahonMDTFLiteModule : Module() {
                 "device" to Build.DEVICE,
                 "product" to Build.PRODUCT,
             ),
-            "android" to mapOf(
+            "android" to mapOf<String, Any>(
                 "version" to Build.VERSION.RELEASE,
                 "sdk_int" to Build.VERSION.SDK_INT,
                 "security_patch" to if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Build.VERSION.SECURITY_PATCH else "unknown",
             ),
-            "cpu" to mapOf(
-                "abi" to Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown",
+            "cpu" to mapOf<String, Any>(
+                "abi" to (Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"),
                 "all_abis" to Build.SUPPORTED_ABIS.toList(),
                 "available_processors" to runtime.availableProcessors(),
             ),
-            "memory" to mapOf(
+            "memory" to mapOf<String, Long>(
                 "total_ram_bytes" to totalMemBytes,
                 "total_ram_mb" to totalMemBytes / (1024 * 1024),
                 "max_heap_bytes" to runtime.maxMemory(),
                 "available_heap_bytes" to runtime.freeMemory(),
             ),
-            "java" to mapOf(
-                "version" to System.getProperty("java.version") ?: "unknown",
-                "vm_name" to System.getProperty("java.vm.name") ?: "unknown",
+            "java" to mapOf<String, String>(
+                "version" to (System.getProperty("java.version") ?: "unknown"),
+                "vm_name" to (System.getProperty("java.vm.name") ?: "unknown"),
             ),
         )
     }
@@ -485,12 +474,6 @@ class DahonMDTFLiteModule : Module() {
         if (sorted.isEmpty()) return 0.0
         val index = (p / 100.0 * (sorted.size - 1)).toInt().coerceIn(0, sorted.size - 1)
         return sorted[index]
-    }
-
-    private fun quantize(uint8: Int): Byte {
-        val normalized = uint8.toFloat() / 255.0f
-        val quantized = Math.round(normalized / inputScale + inputZeroPoint)
-        return quantized.coerceIn(Byte.MIN_VALUE.toInt(), Byte.MAX_VALUE.toInt()).toByte()
     }
 
     private fun quantizeWith(uint8: Int, scale: Float, zeroPoint: Int): Byte {

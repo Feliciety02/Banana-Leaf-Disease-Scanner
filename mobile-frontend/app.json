@@ -6,13 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "scheme": "dahonmd",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#f4f7f2"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dahonmd.field",
@@ -45,7 +39,6 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f4f7f2"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -66,17 +59,18 @@
           "configureAndroidBackup": true
         }
       ],
-      [
-        "expo-asset",
-        {
-          "assets": [
-            "./assets/models/ca_mobilenetv3_small_int8.tflite"
-          ]
-        }
-      ],
+      "expo-system-ui",
       "expo-font",
-      "./modules/dahonmd-tflite/plugin",
-      "expo-background-task"
+      "./modules/dahonmd-tflite/plugin/src/index.js",
+      "expo-background-task",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#f4f7f2"
+        }
+      ]
     ]
   }
 }

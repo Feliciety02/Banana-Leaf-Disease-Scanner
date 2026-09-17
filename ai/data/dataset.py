@@ -1341,6 +1341,127 @@ def _parallelism(config: ExperimentConfig):
     return tf.data.AUTOTUNE if config.runtime.num_parallel_calls == -1 else config.runtime.num_parallel_calls
 
 
+def _decoded_cache_namespace(
+    records: Sequence[ImageRecord],
+    config: ExperimentConfig,
+    *,
+    pipeline: str,
+) -> Path:
+    """Return a content-addressed directory for sharded decoded images."""
+    configured_root = config.data.decoded_cache_dir
+    cache_root = (
+        Path(configured_root).expanduser()
+        if configured_root
+        else Path(config.runtime.output_dir) / "dataset_cache"
+    )
+    cache_root.mkdir(parents=True, exist_ok=True)
+    identity = hashlib.sha256()
+    identity.update(
+        f"sharded-decoder-v1\0{config.data.image_height}\0{config.data.image_width}\0"
+        f"{config.data.image_channels}\0".encode("utf-8")
+    )
+    for record in records:
+        identity.update(
+            f"{record.label}\0{record.sha256}\n".encode("utf-8")
+        )
+    return cache_root / f"{pipeline}_sharded_{identity.hexdigest()[:20]}_decoded"
+
+
+def _save_decoded_array(destination: Path, image: np.ndarray) -> None:
+    """Atomically persist one decoded float32 image shard."""
+    temporary = destination.with_name(f"{destination.name}.{os.getpid()}.tmp.npy")
+    try:
+        np.save(temporary, np.asarray(image, dtype=np.float32), allow_pickle=False)
+        os.replace(temporary, destination)
+    except BaseException:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _ensure_teacher_decoded_cache(
+    records: Sequence[ImageRecord],
+    config: ExperimentConfig,
+) -> list[str]:
+    """Build or reuse random-access decoded shards without caching augmentation."""
+    tf = _require_tensorflow()
+    namespace = _decoded_cache_namespace(records, config, pipeline="teacher")
+    arrays_dir = namespace / "arrays"
+    marker = namespace / "complete.json"
+    arrays_dir.mkdir(parents=True, exist_ok=True)
+    destinations = [arrays_dir / f"{index:08d}.npy" for index in range(len(records))]
+    expected_shape = [config.data.image_height, config.data.image_width, config.data.image_channels]
+
+    marker_valid = False
+    if marker.is_file():
+        try:
+            payload = json.loads(marker.read_text(encoding="utf-8"))
+            marker_valid = (
+                payload.get("format") == "decoded-float32-npy-v1"
+                and payload.get("record_count") == len(records)
+                and payload.get("image_shape") == expected_shape
+                and all(path.is_file() for path in destinations)
+            )
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            marker_valid = False
+    if marker_valid:
+        return [str(path) for path in destinations]
+
+    missing = [
+        (record.path, destination)
+        for record, destination in zip(records, destinations)
+        if not destination.is_file()
+    ]
+    if missing:
+        print(
+            f"Building native decoded-image cache: {len(missing)}/{len(records)} shards "
+            f"under {namespace}"
+        )
+        source_paths = [source for source, _ in missing]
+        builder = tf.data.Dataset.from_tensor_slices(source_paths).map(
+            lambda path: decode_and_resize(path, config.image_size),
+            num_parallel_calls=_parallelism(config),
+            deterministic=True,
+        ).prefetch(tf.data.AUTOTUNE)
+        for completed, ((_, destination), image) in enumerate(zip(missing, builder), start=1):
+            _save_decoded_array(destination, image.numpy())
+            if completed % 500 == 0 or completed == len(missing):
+                print(f"Decoded cache: {completed}/{len(missing)} shards")
+
+    if not all(path.is_file() for path in destinations):
+        raise RuntimeError(f"Decoded-image cache is incomplete under {namespace}")
+    temporary_marker = marker.with_suffix(".json.tmp")
+    temporary_marker.write_text(
+        json.dumps(
+            {
+                "format": "decoded-float32-npy-v1",
+                "record_count": len(records),
+                "image_shape": expected_shape,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    temporary_marker.replace(marker)
+    return [str(path) for path in destinations]
+
+
+def _load_decoded_array(path, image_shape: tuple[int, int, int]):
+    """Load one trusted float32 shard while retaining a static tensor shape."""
+    tf = _require_tensorflow()
+
+    def load(path_value):
+        raw = path_value.numpy() if hasattr(path_value, "numpy") else path_value
+        filename = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+        return np.load(filename, allow_pickle=False).astype(np.float32, copy=False)
+
+    image = tf.py_function(load, [path], Tout=tf.float32)
+    image.set_shape(image_shape)
+    return image
+
+
 def make_supervised_dataset(
     records: Sequence[ImageRecord],
     config: ExperimentConfig,
@@ -1351,24 +1472,47 @@ def make_supervised_dataset(
 
     if not records:
         raise ValueError("Cannot build a dataset from an empty record list")
-    paths = [record.path for record in records]
+    use_sharded_cache = bool(config.data.cache_dataset and config.data.decoded_cache_dir)
+    paths = (
+        _ensure_teacher_decoded_cache(records, config)
+        if use_sharded_cache
+        else [record.path for record in records]
+    )
     labels = [record.label for record in records]
     dataset = tf.data.Dataset.from_tensor_slices((paths, labels))
     options = tf.data.Options()
     options.experimental_deterministic = True
     dataset = dataset.with_options(options)
-    if training:
-        dataset = dataset.shuffle(len(records), seed=config.runtime.seed, reshuffle_each_iteration=True)
-    dataset = dataset.map(
-        lambda path, label: (decode_and_resize(path, config.image_size), label),
-        num_parallel_calls=_parallelism(config),
+    image_shape = (
+        config.data.image_height,
+        config.data.image_width,
+        config.data.image_channels,
     )
-    if config.data.cache_dataset:
+    if use_sharded_cache:
+        dataset = dataset.map(
+            lambda path, label: (_load_decoded_array(path, image_shape), label),
+            num_parallel_calls=_parallelism(config),
+        )
+    else:
+        dataset = dataset.map(
+            lambda path, label: (decode_and_resize(path, config.image_size), label),
+            num_parallel_calls=_parallelism(config),
+        )
+    if config.data.cache_dataset and not use_sharded_cache:
         fingerprint = hashlib.md5("\n".join(paths).encode("utf-8")).hexdigest()[:16]
         cache_root = Path(config.runtime.output_dir) / "dataset_cache"
         cache_root.mkdir(parents=True, exist_ok=True)
         dataset = dataset.cache(str(cache_root / f"{'train' if training else 'val'}_{fingerprint}_decoded"))
-    dataset = dataset.batch(config.data.batch_size, drop_remainder=False)
+    # Shuffle decoded records after either cache implementation. Caching after
+    # shuffle would permanently freeze the first epoch's order.
+    if training:
+        dataset = dataset.shuffle(len(records), seed=config.runtime.seed, reshuffle_each_iteration=True)
+    batch_size = (
+        config.data.batch_size
+        if training or config.data.evaluation_batch_size is None
+        else config.data.evaluation_batch_size
+    )
+    dataset = dataset.batch(batch_size, drop_remainder=False)
     if training:
         augmenter = build_augmentation(config.augmentation, config.runtime.seed)
         dataset = dataset.map(
@@ -1391,7 +1535,11 @@ def make_teacher_dataset(
 
     if not records:
         raise ValueError("Cannot build a dataset from an empty record list")
-    paths = [record.path for record in records]
+    paths = (
+        _ensure_teacher_decoded_cache(records, config)
+        if config.data.cache_dataset
+        else [record.path for record in records]
+    )
     labels = [record.label for record in records]
     base = tf.data.Dataset.from_tensor_slices((paths, labels))
     options = tf.data.Options()
@@ -1406,10 +1554,22 @@ def make_teacher_dataset(
             )
         else:
             base = base.shuffle(len(records), seed=config.runtime.seed, reshuffle_each_iteration=True)
-    base = base.map(
-        lambda path, label: (decode_and_resize(path, config.image_size), label),
-        num_parallel_calls=_parallelism(config),
-    ).batch(config.data.batch_size, drop_remainder=False)
+    image_shape = (
+        config.data.image_height,
+        config.data.image_width,
+        config.data.image_channels,
+    )
+    if config.data.cache_dataset:
+        base = base.map(
+            lambda path, label: (_load_decoded_array(path, image_shape), label),
+            num_parallel_calls=_parallelism(config),
+        )
+    else:
+        base = base.map(
+            lambda path, label: (decode_and_resize(path, config.image_size), label),
+            num_parallel_calls=_parallelism(config),
+        )
+    base = base.batch(config.data.batch_size, drop_remainder=False)
     if not training:
         return base.prefetch(tf.data.AUTOTUNE)
     view_one_augmenter = build_augmentation(config.augmentation, config.runtime.seed + 101, strong=True)

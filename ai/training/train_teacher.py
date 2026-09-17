@@ -19,10 +19,54 @@ os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 # while fine-tuning backprop is at its most memory-hungry.
 os.environ.setdefault("OMP_NUM_THREADS", "8")
 os.environ.setdefault("TF_NUM_INTRAOP_THREADS", "8")
+# Reuse freed CUDA blocks instead of requiring large contiguous scratch
+# allocations. This changes memory management only, not model mathematics.
+os.environ.setdefault("TF_GPU_ALLOCATOR", "cuda_malloc_async")
+# Suppress noisy C++ logs:
+#   W cpu_allocator_impl — "Allocation exceeds 10% of free system memory" (benign on
+#       GPU-pinned hosts where TF sees a small free-RAM window).
+#   E node_def_util     — "use_unbounded_threadpool not in op definition" (benign
+#       version skew when a checkpoint was written by a newer TF build).
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+import io
+import sys
 
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+
+
+class _BenignTFLogFilter:
+    """Wrap stderr and drop known-benign C++ TF log lines on write.
+
+    TensorFlow's node_def_util.cc logs ``use_unbounded_threadpool`` attribute
+    mismatches at ``E`` level even though the message itself says "Unknown
+    attributes will be ignored".  ``TF_CPP_MIN_LOG_LEVEL`` only controls W/I,
+    not E, so we filter at the Python level instead.  Every attribute except
+    ``write``/``flush`` is delegated to the wrapped stream so callers (tqdm,
+    TF, print) keep working unchanged.
+    """
+
+    _SUPPRESSED = ("use_unbounded_threadpool",)
+
+    def __init__(self, wrapped) -> None:
+        self._wrapped = wrapped
+
+    def write(self, data: str) -> int:
+        if any(fragment in data for fragment in self._SUPPRESSED):
+            return len(data)
+        return self._wrapped.write(data)
+
+    def flush(self) -> None:
+        self._wrapped.flush()
+
+    def __getattr__(self, name: str):
+        return getattr(self._wrapped, name)
+
+
+if hasattr(sys.stderr, "buffer"):
+    sys.stderr = _BenignTFLogFilter(sys.stderr)
 
 from ai.config.config import ExperimentConfig
 from ai.data.dataset import build_ssl_pretraining_records, make_supervised_dataset, make_teacher_dataset, prepare_splits, write_label_map
@@ -45,6 +89,7 @@ CHECKPOINT_MARKER_SUFFIX = ".complete"
 FINAL_SSL_MODEL_NAME = "resnet101_ssl_pretrained.keras"
 TRAINING_COMPLETE_NAME = "teacher_training.complete.json"
 LATEST_FINETUNE_NAME = "latest_teacher.keras"
+PROGRESS_UPDATE_INTERVAL = 20
 
 
 def write_pipeline_status(status_file: str | Path | None, status: str) -> None:
@@ -496,9 +541,11 @@ def _run_ssl_pretraining(
             results = ssl_step(batch)
             for name, value in results.items():
                 metrics[name].update_state(value)
-            running = {name: float(metric.result()) for name, metric in metrics.items()}
-            progress.set_postfix({name: f"{value:.4f}" for name, value in running.items()})
-            if batch_index % 5 == 0 or batch_index == total_ssl_batches:
+            if batch_index % PROGRESS_UPDATE_INTERVAL == 0 or batch_index == total_ssl_batches:
+                # Rendering Python floats synchronizes the GPU. Keep status useful
+                # without forcing that synchronization after every training step.
+                running = {name: float(metric.result()) for name, metric in metrics.items()}
+                progress.set_postfix({name: f"{value:.4f}" for name, value in running.items()})
                 write_live_progress(
                     output_dir,
                     {
@@ -813,10 +860,11 @@ def train(args: argparse.Namespace) -> Path:
             loss_value, logits = finetune_step(images, labels)
             train_loss.update_state(loss_value, sample_weight=tf.cast(tf.shape(labels)[0], tf.float32))
             train_accuracy.update_state(labels, logits)
-            train_progress.set_postfix(
-                loss=f"{float(train_loss.result()):.4f}", accuracy=f"{float(train_accuracy.result()):.4f}"
-            )
-            if batch_index % 5 == 0 or batch_index == total_finetune_batches:
+            if batch_index % PROGRESS_UPDATE_INTERVAL == 0 or batch_index == total_finetune_batches:
+                # Avoid a device synchronization solely to repaint tqdm on every batch.
+                running_loss = float(train_loss.result())
+                running_accuracy = float(train_accuracy.result())
+                train_progress.set_postfix(loss=f"{running_loss:.4f}", accuracy=f"{running_accuracy:.4f}")
                 write_live_progress(
                     output_dir,
                     {
@@ -827,8 +875,8 @@ def train(args: argparse.Namespace) -> Path:
                         "batch": batch_index,
                         "total_batches": total_finetune_batches,
                         "metrics": {
-                            "loss": float(train_loss.result()),
-                            "accuracy": float(train_accuracy.result()),
+                            "loss": running_loss,
+                            "accuracy": running_accuracy,
                         },
                         "learning_rate": float(tf.keras.backend.get_value(finetune_optimizer.learning_rate)),
                         "timestamp": time.time(),
@@ -838,14 +886,18 @@ def train(args: argparse.Namespace) -> Path:
 
         validation_loss = tf.keras.metrics.Mean()
         validation_accuracy = tf.keras.metrics.SparseCategoricalAccuracy()
-        validation_true: list[int] = []
-        validation_predicted: list[int] = []
+        validation_true_batches: list[tf.Tensor] = []
+        validation_predicted_batches: list[tf.Tensor] = []
         for images, labels in validation_dataset:
             loss_value, logits = validation_step(images, labels)
             validation_loss.update_state(loss_value, sample_weight=tf.cast(tf.shape(labels)[0], tf.float32))
             validation_accuracy.update_state(labels, logits)
-            validation_true.extend(labels.numpy().astype(int).tolist())
-            validation_predicted.extend(tf.argmax(logits, axis=1).numpy().astype(int).tolist())
+            validation_true_batches.append(labels)
+            validation_predicted_batches.append(tf.argmax(logits, axis=1, output_type=tf.int32))
+        # Transfer the small prediction vectors once per epoch instead of forcing
+        # a GPU-to-CPU synchronization for every validation batch.
+        validation_true = tf.concat(validation_true_batches, axis=0).numpy().astype(int).tolist()
+        validation_predicted = tf.concat(validation_predicted_batches, axis=0).numpy().astype(int).tolist()
         validation_macro_f1 = macro_f1_from_predictions(
             validation_true, validation_predicted, config.data.num_classes
         )

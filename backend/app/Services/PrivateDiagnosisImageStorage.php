@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 class PrivateDiagnosisImageStorage
 {
     private const MAX_OUTPUT_DIMENSION = 4096;
+
     private const MAX_INPUT_PIXELS = 13_000_000;
 
     public function store(UploadedFile $image): string

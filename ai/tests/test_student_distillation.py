@@ -27,6 +27,7 @@ from ai.models.mobilenetv3_student import (
     shared_backbone_layer_names,
 )
 from ai.models.teacher import ResNet101Preprocessing, build_teacher
+from ai.training.train_student import averaged_gradient_pairs, merge_gradient_sums
 
 
 def _minimal_config() -> ExperimentConfig:
@@ -56,6 +57,37 @@ def _fake_batch(batch_size: int = 2) -> tuple[tf.Tensor, tf.Tensor]:
 
 def _single_fake_image() -> tf.Tensor:
     return tf.random.uniform([1, 224, 224, 3], 0.0, 1.0, seed=42)
+
+
+class GradientAccumulationTest(unittest.TestCase):
+    def test_microbatch_gradient_matches_full_batch_gradient(self) -> None:
+        features = tf.reshape(tf.range(1, 17, dtype=tf.float32), [8, 2])
+        targets = tf.reshape(tf.range(8, dtype=tf.float32), [8, 1])
+        weights = tf.Variable([[0.25], [-0.5]], dtype=tf.float32)
+
+        with tf.GradientTape() as tape:
+            full_loss = tf.reduce_mean(tf.square(features @ weights - targets))
+        full_gradient = tape.gradient(full_loss, [weights])[0]
+
+        gradient_sums = None
+        sample_count = tf.constant(0.0)
+        for start in range(0, 8, 2):
+            micro_features = features[start : start + 2]
+            micro_targets = targets[start : start + 2]
+            with tf.GradientTape() as tape:
+                micro_mean = tf.reduce_mean(
+                    tf.square(micro_features @ weights - micro_targets)
+                )
+                micro_count = tf.cast(tf.shape(micro_targets)[0], tf.float32)
+                micro_sum = micro_mean * micro_count
+            gradients = tape.gradient(micro_sum, [weights])
+            gradient_sums = merge_gradient_sums(gradient_sums, gradients)
+            sample_count += micro_count
+
+        accumulated = averaged_gradient_pairs(
+            gradient_sums, sample_count, [weights]
+        )[0][0]
+        np.testing.assert_allclose(accumulated.numpy(), full_gradient.numpy(), rtol=1e-6)
 
 
 class TeacherFrozenDuringDistillationTest(unittest.TestCase):

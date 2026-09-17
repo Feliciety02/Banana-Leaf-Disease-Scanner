@@ -18,10 +18,10 @@ jest.mock('../../../../modules/dahonmd-tflite', () => {
       return {
         scores: [0.1, 0.7, 0.15, 0.05],
         latencyMs: 12.5,
-        modelVersion: 'ca_mobilenetv3_small_int8',
+        modelVersion: 'ca_mobilenetv3_small_fp32',
         inputShape: [1, 224, 224, 3],
-        inputDtype: 'int8',
-        outputDtype: 'int8',
+        inputDtype: 'float32',
+        outputDtype: 'float32',
         labels: ['healthy', 'sigatoka', 'panama-disease', 'cordana-leaf-spot'],
       };
     }),
@@ -55,8 +55,12 @@ describe('analyzeLeaf end-to-end workflow', () => {
     expect(result.classKey).toBe('sigatoka');
     expect(result.confidence).toBeGreaterThan(0);
     expect(result.confidence).toBeLessThanOrEqual(1);
+    expect(result.probabilities.map(({ classKey }) => classKey)).toEqual(CLASS_KEYS);
+    expect(result.probabilities).toHaveLength(4);
+    expect(result.probabilities.reduce((sum, item) => sum + item.probability, 0)).toBeCloseTo(1, 10);
+    expect(result.confidence).toBe(result.probabilities.find((item) => item.classKey === result.classKey)?.probability);
     expect(result.latencyMs).toBe(12.5);
-    expect(result.modelVersion).toBe('ca_mobilenetv3_small_int8');
+    expect(result.modelVersion).toBe('ca_mobilenetv3_small_fp32');
     expect(classifyImage).toHaveBeenCalledTimes(1);
     expect(classifyImage).toHaveBeenCalledWith('file:///tmp/prepared.jpg');
   });
@@ -72,10 +76,10 @@ describe('analyzeLeaf end-to-end workflow', () => {
     classifyImage.mockResolvedValueOnce({
       scores: [0.9, 0.05, 0.03, 0.02],
       latencyMs: 8.0,
-      modelVersion: 'ca_mobilenetv3_small_int8',
+      modelVersion: 'ca_mobilenetv3_small_fp32',
       inputShape: [1, 224, 224, 3],
-      inputDtype: 'int8',
-      outputDtype: 'int8',
+      inputDtype: 'float32',
+      outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
     const result = await analyzeLeaf('file:///test.jpg');
@@ -89,10 +93,10 @@ describe('analyzeLeaf end-to-end workflow', () => {
     classifyImage.mockResolvedValueOnce({
       scores: [10.0, 5.0, 3.0, 1.0],
       latencyMs: 8.0,
-      modelVersion: 'ca_mobilenetv3_small_int8',
+      modelVersion: 'ca_mobilenetv3_small_fp32',
       inputShape: [1, 224, 224, 3],
-      inputDtype: 'int8',
-      outputDtype: 'int8',
+      inputDtype: 'float32',
+      outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
     const result = await analyzeLeaf('file:///test.jpg');
@@ -105,19 +109,19 @@ describe('analyzeLeaf end-to-end workflow', () => {
     classifyImage.mockResolvedValueOnce({
       scores: [0.8, 0.1, 0.05, 0.05],
       latencyMs: 10.0,
-      modelVersion: 'ca_mobilenetv3_small_int8',
+      modelVersion: 'ca_mobilenetv3_small_fp32',
       inputShape: [1, 224, 224, 3],
-      inputDtype: 'int8',
-      outputDtype: 'int8',
+      inputDtype: 'float32',
+      outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
     classifyImage.mockResolvedValueOnce({
       scores: [0.05, 0.05, 0.8, 0.1],
       latencyMs: 11.0,
-      modelVersion: 'ca_mobilenetv3_small_int8',
+      modelVersion: 'ca_mobilenetv3_small_fp32',
       inputShape: [1, 224, 224, 3],
-      inputDtype: 'int8',
-      outputDtype: 'int8',
+      inputDtype: 'float32',
+      outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
 
@@ -136,12 +140,12 @@ describe('native result validation contract', () => {
     latencyMs: 8,
     modelVersion: 'test',
     inputShape: [1, 224, 224, 3],
-    inputDtype: 'int8',
-    outputDtype: 'int8',
+    inputDtype: 'float32',
+    outputDtype: 'float32',
     labels: [...CLASS_KEYS],
   };
 
-  it('accepts a valid four-output INT8 model result', () => {
+  it('accepts a valid four-output FP32 model result', () => {
     expect(() => validateNativeResult(validResult)).not.toThrow();
   });
 
@@ -158,9 +162,9 @@ describe('native result validation contract', () => {
     })).toThrow();
   });
 
-  it('rejects float32 dtype', () => {
+  it('rejects int8 dtype', () => {
     expect(() => validateNativeResult({
-      ...validResult, inputDtype: 'float32', outputDtype: 'float32',
+      ...validResult, inputDtype: 'int8', outputDtype: 'int8',
     })).toThrow();
   });
 
@@ -202,7 +206,7 @@ describe('four-class label mapping', () => {
     classifyImage.mockResolvedValueOnce({
       scores: [0.9, 0.03, 0.04, 0.03],
       latencyMs: 8, modelVersion: 'test',
-      inputShape: [1, 224, 224, 3], inputDtype: 'int8', outputDtype: 'int8',
+      inputShape: [1, 224, 224, 3], inputDtype: 'float32', outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
     const result = await analyzeLeaf('file:///test.jpg');
@@ -213,7 +217,7 @@ describe('four-class label mapping', () => {
     classifyImage.mockResolvedValueOnce({
       scores: [0.03, 0.9, 0.04, 0.03],
       latencyMs: 8, modelVersion: 'test',
-      inputShape: [1, 224, 224, 3], inputDtype: 'int8', outputDtype: 'int8',
+      inputShape: [1, 224, 224, 3], inputDtype: 'float32', outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
     const result = await analyzeLeaf('file:///test.jpg');
@@ -224,7 +228,7 @@ describe('four-class label mapping', () => {
     classifyImage.mockResolvedValueOnce({
       scores: [0.03, 0.04, 0.9, 0.03],
       latencyMs: 8, modelVersion: 'test',
-      inputShape: [1, 224, 224, 3], inputDtype: 'int8', outputDtype: 'int8',
+      inputShape: [1, 224, 224, 3], inputDtype: 'float32', outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
     const result = await analyzeLeaf('file:///test.jpg');
@@ -235,7 +239,7 @@ describe('four-class label mapping', () => {
     classifyImage.mockResolvedValueOnce({
       scores: [0.03, 0.04, 0.03, 0.9],
       latencyMs: 8, modelVersion: 'test',
-      inputShape: [1, 224, 224, 3], inputDtype: 'int8', outputDtype: 'int8',
+      inputShape: [1, 224, 224, 3], inputDtype: 'float32', outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
     const result = await analyzeLeaf('file:///test.jpg');
@@ -262,12 +266,12 @@ describe('confidence display', () => {
     classifyImage.mockResolvedValueOnce({
       scores: [1.5, 2.3, 0.7, -0.4],
       latencyMs: 8, modelVersion: 'test',
-      inputShape: [1, 224, 224, 3], inputDtype: 'int8', outputDtype: 'int8',
+      inputShape: [1, 224, 224, 3], inputDtype: 'float32', outputDtype: 'float32',
       labels: [...CLASS_KEYS],
     });
     const result = await analyzeLeaf('file:///test.jpg');
-    expect(result.confidence).toBeGreaterThan(0);
-    expect(result.confidence).toBeLessThan(1);
+    expect(result.probabilities.reduce((sum, item) => sum + item.probability, 0)).toBeCloseTo(1, 10);
+    expect(result.probabilities.every((item) => item.probability > 0 && item.probability < 1)).toBe(true);
   });
 });
 
@@ -296,7 +300,7 @@ describe('offline operation', () => {
     expect(source).not.toContain('modelComparison');
   });
 
-  it('native model loading fails closed unless the tensor contract is full INT8', () => {
+  it('native model loading fails closed unless the tensor contract is float32', () => {
     const fs = require('fs');
     const path = require('path');
     const nativePath = path.resolve(
@@ -304,8 +308,8 @@ describe('offline operation', () => {
       '../../../../modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
     );
     const source = fs.readFileSync(nativePath, 'utf8');
-    expect(source).toContain('inputDetails.dataType() == DataType.INT8');
-    expect(source).toContain('outputDetails.dataType() == DataType.INT8');
+    expect(source).toContain('inputDetails.dataType() == DataType.FLOAT32');
+    expect(source).toContain('outputDetails.dataType() == DataType.FLOAT32');
     expect(source).toContain('intArrayOf(1, MODEL_HEIGHT, MODEL_WIDTH, CHANNELS)');
     expect(source).toContain('intArrayOf(1, NUM_CLASSES)');
   });
@@ -314,17 +318,29 @@ describe('offline operation', () => {
     const fs = require('fs');
     const path = require('path');
     const appConfig = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../../app.json'), 'utf8'));
-    const assetPlugin = appConfig.expo.plugins.find(
+    const expoAssetPlugin = appConfig.expo.plugins.find(
       (plugin: unknown) => Array.isArray(plugin) && plugin[0] === 'expo-asset',
     );
-    expect(assetPlugin?.[1]?.assets).toContain('./assets/models/ca_mobilenetv3_small_int8.tflite');
+    const modulePluginRegistered = appConfig.expo.plugins.includes(
+      './modules/dahonmd-tflite/plugin/src/index.js',
+    );
+    expect(expoAssetPlugin).toBeUndefined();
+    expect(modulePluginRegistered).toBe(true);
+
+    const pluginSource = fs.readFileSync(
+      path.resolve(__dirname, '../../../../modules/dahonmd-tflite/plugin/src/index.js'),
+      'utf8',
+    );
+    expect(pluginSource).toContain('.tflite');
+    expect(pluginSource).toContain("'app', 'src', 'main', 'assets'");
 
     const nativePath = path.resolve(
       __dirname,
       '../../../../modules/dahonmd-tflite/android/src/main/java/expo/modules/dahonmdtflite/DahonMDTFLiteModule.kt',
     );
     const source = fs.readFileSync(nativePath, 'utf8');
-    expect(source).toContain('INT8_MODEL_ASSET = "ca_mobilenetv3_small_int8.tflite"');
-    expect(source).not.toContain('models/ca_mobilenetv3_small_int8.tflite');
+    expect(source).toContain('FP32_MODEL_ASSET = "ca_mobilenetv3_small_fp32.tflite"');
+    expect(source).toContain('loadModel(FP32_MODEL_ASSET, 1)');
+    expect(source).not.toContain('models/ca_mobilenetv3_small_fp32.tflite');
   });
 });

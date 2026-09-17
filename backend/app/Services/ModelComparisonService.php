@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Validator;
 
 class ModelComparisonService
 {
+    private const CLASSES = ['healthy', 'sigatoka', 'panama-disease', 'cordana-leaf-spot'];
+
     public function compare(UploadedFile $image): array
     {
         $url = config('banana.comparison_url');
@@ -33,13 +35,23 @@ class ModelComparisonService
         $validator = Validator::make($payload ?? [], [
             'timestamp' => ['required', 'string'],
             'baseline.model' => ['required', 'in:baseline'],
-            'baseline.predicted_class' => ['required', 'string'],
+            'baseline.predicted_class' => ['required', 'in:'.implode(',', self::CLASSES)],
             'baseline.confidence' => ['required', 'numeric', 'between:0,1'],
+            'baseline.probabilities' => ['required', 'array:'.implode(',', self::CLASSES)],
+            'baseline.probabilities.healthy' => ['required', 'numeric', 'between:0,1'],
+            'baseline.probabilities.sigatoka' => ['required', 'numeric', 'between:0,1'],
+            'baseline.probabilities.panama-disease' => ['required', 'numeric', 'between:0,1'],
+            'baseline.probabilities.cordana-leaf-spot' => ['required', 'numeric', 'between:0,1'],
             'baseline.inference_time_ms' => ['required', 'numeric', 'min:0'],
             'baseline.model_size_bytes' => ['required', 'integer', 'min:1'],
             'enhanced.model' => ['required', 'in:enhanced'],
-            'enhanced.predicted_class' => ['required', 'string'],
+            'enhanced.predicted_class' => ['required', 'in:'.implode(',', self::CLASSES)],
             'enhanced.confidence' => ['required', 'numeric', 'between:0,1'],
+            'enhanced.probabilities' => ['required', 'array:'.implode(',', self::CLASSES)],
+            'enhanced.probabilities.healthy' => ['required', 'numeric', 'between:0,1'],
+            'enhanced.probabilities.sigatoka' => ['required', 'numeric', 'between:0,1'],
+            'enhanced.probabilities.panama-disease' => ['required', 'numeric', 'between:0,1'],
+            'enhanced.probabilities.cordana-leaf-spot' => ['required', 'numeric', 'between:0,1'],
             'enhanced.inference_time_ms' => ['required', 'numeric', 'min:0'],
             'enhanced.model_size_bytes' => ['required', 'integer', 'min:1'],
             'comparison.prediction_agreement' => ['required', 'boolean'],
@@ -55,7 +67,9 @@ class ModelComparisonService
             'study.enhanced.macro_f1' => ['required_with:study', 'numeric', 'between:0,1'],
             'study.decision_note' => ['required_with:study', 'string'],
         ]);
-        if ($validator->fails()) {
+        if ($validator->fails()
+            || ! $this->hasConsistentDistribution($payload['baseline'])
+            || ! $this->hasConsistentDistribution($payload['enhanced'])) {
             return $this->error('The research service returned an invalid comparison contract.', 502);
         }
 
@@ -64,6 +78,17 @@ class ModelComparisonService
             'message' => 'Research comparison completed. This run was not added to diagnosis history.',
             'data' => $payload,
         ]];
+    }
+
+    private function hasConsistentDistribution(array $model): bool
+    {
+        $probabilities = array_map('floatval', $model['probabilities']);
+        $maximum = max($probabilities);
+        $predictedProbability = $probabilities[$model['predicted_class']];
+
+        return abs(array_sum($probabilities) - 1.0) <= 0.0001
+            && abs($predictedProbability - $maximum) <= 0.0001
+            && abs((float) $model['confidence'] - $maximum) <= 0.0001;
     }
 
     private function error(string $message, int $status): array

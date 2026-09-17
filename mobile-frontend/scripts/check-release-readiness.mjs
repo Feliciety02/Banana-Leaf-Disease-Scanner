@@ -47,7 +47,7 @@ const bannedFromOfflineBoundary = [
   ['simulated', 'simulated inference result'],
 ];
 const problems = [];
-const modelRelativePath = 'assets/models/ca_mobilenetv3_small_int8.tflite';
+const modelRelativePath = 'assets/models/ca_mobilenetv3_small_fp32.tflite';
 const modelPath = resolve(root, modelRelativePath);
 
 for (const relativePath of productionSources) {
@@ -112,13 +112,13 @@ if (existsSync(nativeBuildPath)) {
 }
 
 if (!existsSync(modelPath)) {
-  problems.push('PENDING EXPERIMENTAL VALIDATION: final INT8 TFLite model is not bundled.');
+  problems.push('PENDING EXPERIMENTAL VALIDATION: final FP32 TFLite model is not bundled.');
 } else {
   const model = readFileSync(modelPath);
   if (model.length === 0) {
-    problems.push(`Final INT8 TFLite model is empty: ${modelRelativePath}.`);
+    problems.push(`Final FP32 TFLite model is empty: ${modelRelativePath}.`);
   } else if (model.length < 8 || model.subarray(4, 8).toString('ascii') !== 'TFL3') {
-    problems.push(`Final INT8 model is not a valid TFLite FlatBuffer (missing TFL3 identifier): ${modelRelativePath}.`);
+    problems.push(`Final FP32 model is not a valid TFLite FlatBuffer (missing TFL3 identifier): ${modelRelativePath}.`);
   }
 }
 if (!existsSync(resolve(root, 'modules/dahonmd-tflite'))) {
@@ -131,13 +131,16 @@ if (!existsSync(resolve(root, 'modules/dahonmd-tflite/android/src/main/java/expo
 const appConfigPath = resolve(root, 'app.json');
 if (existsSync(appConfigPath)) {
   const appConfig = JSON.parse(readFileSync(appConfigPath, 'utf8'));
-  const assetPlugin = appConfig.expo?.plugins?.find(
-    (plugin) => Array.isArray(plugin) && plugin[0] === 'expo-asset',
-  );
-  const configuredAssets = assetPlugin?.[1]?.assets;
-  if (!Array.isArray(configuredAssets)
-      || !configuredAssets.includes('./assets/models/ca_mobilenetv3_small_int8.tflite')) {
-    problems.push('app.json does not link the production INT8 model with the expo-asset config plugin.');
+  const plugins = appConfig.expo?.plugins ?? [];
+  const nativeModulePlugin = resolve(root, 'modules/dahonmd-tflite/plugin/src/index.js');
+  if (!plugins.includes('./modules/dahonmd-tflite/plugin/src/index.js')) {
+    problems.push('app.json does not register the DahonMDTFLite config plugin that bundles the production model.');
+  }
+  if (existsSync(nativeModulePlugin)) {
+    const nativePlugin = readFileSync(nativeModulePlugin, 'utf8');
+    if (!nativePlugin.includes('.tflite')) {
+      problems.push('The DahonMDTFLite config plugin does not bundle the production model from assets/models.');
+    }
   }
   if (appConfig.expo?.android?.allowBackup !== false) problems.push('Android release permits automatic backup of private app data.');
   const blockedPermissions = appConfig.expo?.android?.blockedPermissions ?? [];
@@ -176,6 +179,12 @@ if (existsSync(appSourcePath) && !readFileSync(appSourcePath, 'utf8').includes('
 const nativePluginPath = resolve(root, 'modules/dahonmd-tflite/plugin/src/index.js');
 if (!existsSync(nativePluginPath) || !readFileSync(nativePluginPath, 'utf8').includes('android:usesCleartextTraffic')) {
   problems.push('Android manifest generation does not explicitly block cleartext traffic.');
+}
+if (existsSync(nativePluginPath)) {
+  const nativePlugin = readFileSync(nativePluginPath, 'utf8');
+  if (!nativePlugin.includes("'app', 'src', 'main', 'assets'")) {
+    problems.push('The DahonMDTFLite config plugin does not copy the model into the Android asset root used by the native module.');
+  }
 }
 
 const errorBoundaryPath = resolve(root, 'src/shared/components/AppErrorBoundary.tsx');

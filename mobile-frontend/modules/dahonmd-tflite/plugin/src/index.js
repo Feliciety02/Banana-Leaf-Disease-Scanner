@@ -1,10 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_plugins_1 = require("expo/config-plugins");
+const fs = require("fs");
+const path = require("path");
 const LITERT_DEPENDENCIES = [
     "implementation 'com.google.ai.edge.litert:litert:1.4.0'",
     "implementation 'com.google.ai.edge.litert:litert-api:1.4.0'",
 ];
+const MODELS_RELATIVE_DIR = 'assets/models';
 const withTFLiteDependency = (config) => (0, config_plugins_1.withAppBuildGradle)(config, (mod) => {
     if (!mod.modResults.contents.includes('com.google.ai.edge.litert:litert:')) {
         mod.modResults.contents = mod.modResults.contents.replace(/dependencies\s*\{/, `dependencies {\n    ${LITERT_DEPENDENCIES.join('\n    ')}`);
@@ -37,10 +40,27 @@ const withAndroidSecurity = (config) => (0, config_plugins_1.withAndroidManifest
     application.$['android:usesCleartextTraffic'] = 'false';
     return mod;
 });
-const withTFLite = (config) => {
+const withTFLiteModelAssets = (config, props = {}) => (0, config_plugins_1.withDangerousMod)(config, [
+    'android',
+    async (modConfig) => {
+        const modelsDir = path.resolve(modConfig.modRequest.projectRoot, props.modelsDir ?? MODELS_RELATIVE_DIR);
+        const assetsDir = path.join(modConfig.modRequest.platformProjectRoot, 'app', 'src', 'main', 'assets');
+        const modelFiles = fs.readdirSync(modelsDir).filter((file) => file.endsWith('.tflite'));
+        if (modelFiles.length === 0) {
+            throw new Error(`No .tflite models found in ${MODELS_RELATIVE_DIR}/. Copy the trained models there and rebuild.`);
+        }
+        fs.mkdirSync(assetsDir, { recursive: true });
+        for (const file of modelFiles) {
+            fs.copyFileSync(path.join(modelsDir, file), path.join(assetsDir, file));
+        }
+        return modConfig;
+    },
+]);
+const withTFLite = (config, props = {}) => {
     config = withTFLiteDependency(config);
     config = withTFLiteNdkFilters(config);
     config = withAndroidSecurity(config);
+    config = withTFLiteModelAssets(config, props);
     return config;
 };
 exports.default = withTFLite;

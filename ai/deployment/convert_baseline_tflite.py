@@ -28,8 +28,6 @@ def convert(args: argparse.Namespace) -> tuple[Path, Path]:
     config = configured_experiment(args, "baseline_tflite_conversion_config.json")
     output_dir = Path(config.runtime.output_dir)
     manifest = Path(args.split_manifest) if args.split_manifest else output_dir / "split_manifest.json"
-    if not manifest.is_file():
-        raise FileNotFoundError(f"Shared split manifest not found: {manifest}")
     splits = prepare_splits(config, manifest)
     model_path = Path(args.baseline_model)
     if not model_path.is_file():

@@ -3,7 +3,7 @@
 The mobile app deliberately separates two modes:
 
 1. **Offline Scan** — camera/gallery input, deterministic 224 × 224 preparation,
-   local full-integer INT8 TensorFlow Lite inference, exactly four outputs, and
+   local float32 TensorFlow Lite inference, exactly four outputs, and
    no login, upload, server, or Internet requirement. Completed results are
    copied into app-private local history after inference.
 2. **Workspace** — optional authenticated access to the existing Laravel API.
@@ -34,7 +34,7 @@ The UI warns that confidence is not diagnostic certainty, Panama Disease output 
 input/output dtypes, wrong input shape, and wrong class maps. It expects a
 native Expo module named `DahonMDTFLite`.
 
-The native `DahonMDTFLite` Android implementation is present, uses the 16 KB page-size compatible LiteRT 1.4 runtime, and validates the production tensor contract at load time: INT8 input and output, `[1, 224, 224, 3]` input, and four outputs. The repository still has no trained final `.tflite` file. On-device inference is therefore **PENDING EXPERIMENTAL VALIDATION** and fails explicitly; no simulated prediction is shown. This Expo SDK 54 native module requires a development/production build rather than Expo Go.
+The native `DahonMDTFLite` Android implementation uses the 16 KB page-size compatible LiteRT 1.4 runtime and validates the production tensor contract at load time: float32 input and output, `[1, 224, 224, 3]` input, and four outputs. The bundled production model is `assets/models/ca_mobilenetv3_small_fp32.tflite`, the frozen PILOT-06 seed 42 four-class checkpoint. It is deployed as float32 because post-training INT8 quantization of this checkpoint collapsed locked-test accuracy from 0.96644 to 0.84433; the int8 export remains bundled only for the on-device FP32-versus-INT8 benchmark and is not used for production inference. Native inference fails explicitly rather than showing a simulated prediction, and this Expo SDK 57 native module requires a development/production build rather than Expo Go.
 
 `src/features/connected/` contains the optional connected UI. It calls only
 routes defined by the Laravel backend. The bearer token and cached session
@@ -71,11 +71,11 @@ These controls require a new native Android/iOS build; Expo Go does not reproduc
 | `src/storage/localDiagnoses.ts` | SQLite schema, migration, outbox state, and remote upsert logic |
 | `src/services/api.ts` | Existing Laravel API client and SecureStore session |
 | `src/services/diagnosisSync.ts` | Push/pull synchronization coordinator |
-| `src/services/backgroundSync.ts` | SDK 54 background-task registration and secure-session sync |
+| `src/services/backgroundSync.ts` | SDK 57 background-task registration and secure-session sync |
 | `src/services/mobileSecurity.ts` | Android/iOS screen-capture and app-switcher privacy protection |
 | `src/shared/` | Reusable application-level components |
 | `modules/dahonmd-tflite/` | Native Expo/Kotlin TensorFlow Lite bridge |
-| `assets/models/` | Final validated mobile model location; model currently absent |
+| `assets/models/` | Validated mobile models: production `ca_mobilenetv3_small_fp32.tflite` and benchmark-only `ca_mobilenetv3_small_int8.tflite` |
 
 ## Setup
 
@@ -93,8 +93,8 @@ features are needed. For a physical development device, use the development
 computer's LAN address rather than `127.0.0.1`. Production URLs must use HTTPS.
 The app can be built and used for offline scans without a reachable API.
 
-The release check remains blocked until the validated model is present. After
-the model is supplied, create and run the native Android project:
+The validated model is bundled and the release check passes. Create and run the
+native Android project:
 
 ```powershell
 npx expo prebuild --platform android

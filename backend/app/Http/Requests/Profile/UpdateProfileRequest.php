@@ -3,8 +3,8 @@
 namespace App\Http\Requests\Profile;
 
 use App\Http\Requests\ApiRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class UpdateProfileRequest extends ApiRequest
 {

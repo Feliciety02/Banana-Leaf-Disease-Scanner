@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\ResearchSourceController;
 use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DiagnosisController;
 use App\Http\Controllers\DiagnosisMediaController;
@@ -44,6 +45,7 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
     Route::put('/profile/password', [ProfileController::class, 'password']);
     Route::delete('/profile', [ProfileController::class, 'destroy']);
     Route::post('/research/model-comparison', ModelComparisonController::class);
+    Route::post('/chat', ChatController::class)->middleware('throttle:ai-chat');
 
     Route::middleware('role:'.User::ROLE_FARMER)->group(function () {
         Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
