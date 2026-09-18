@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, AlertTriangle, ArrowLeft, BarChart3, BookOpen, Camera, Check, ChevronDown, ChevronRight, CircleUserRound, Cloud, CloudOff, Database, Eye, EyeOff, FileImage, GitCompareArrows, History, Home, ImagePlus, Info, Leaf, Link2, LockKeyhole, LogOut, Mail, Menu, MessageCircle, Plus, RefreshCw, ScanLine, Search, Send, Settings, ShieldCheck, Trash2, Upload, Users, X } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowLeft, ArrowRightLeft, BarChart3, BookOpen, Camera, Check, ChevronDown, ChevronRight, CircleUserRound, Cloud, CloudOff, Database, Eye, EyeOff, FileImage, GitCompareArrows, History, Home, ImagePlus, Info, Leaf, Lightbulb, Link2, LockKeyhole, LogOut, Mail, Menu, MessageCircle, Plus, RefreshCw, ScanLine, Search, Send, Settings, ShieldCheck, Trash2, Upload, Users, X } from 'lucide-react';
 import { analyzeLeaf } from './services/inferenceService';
 import { CLASS_NAMES, getHighestClass, normalizeClassProbabilities } from './services/classificationResults';
 import { AUTH_EXPIRED_EVENT, api, authenticate, getToken, logout, requestPasswordReset, setToken } from './services/api';
@@ -20,6 +20,13 @@ const formatDate = (value, time = false) => value ? new Intl.DateTimeFormat('en-
 const titleCase = (value = '') => value.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 const confidenceText = (value) => value < THRESHOLD ? 'Uncertain result' : value >= 85 ? 'High confidence' : 'Moderate confidence';
 const percent = (value, digits = 1) => `${Math.min(100 - 10 ** -digits, Math.max(0, Number(value))).toFixed(digits)}%`;
+const COMPARISON_BASE_BAR = '#c3cdc7';
+const COMPARISON_ENHANCED_BAR = '#245f43';
+const COMPARISON_PLOT_HEIGHT = 150;
+const COMPARISON_MIN_BAR_HEIGHT = 10;
+const COMPARISON_GRID_LEVELS = [0, 25, 50, 75, 100];
+const COMPARISON_AXIS_SHORT_NAMES = { healthy: 'Healthy', sigatoka: 'Sigatoka', 'panama-disease': 'Panama', 'cordana-leaf-spot': 'Cordana' };
+const comparisonBarLabel = (pct) => pct >= 0.05 ? `${pct.toFixed(1)}%` : '<0.1%';
 const mapDiagnosis = (item) => ({ id: String(item.id), syncUuid: item.sync_uuid || null, diseaseId: item.disease?.slug || item.predicted_class, predictedClass: item.predicted_class, disease: item.disease, confidence: Number(item.confidence), date: item.diagnosed_at, source: item.source, synced: item.sync_status === 'synced' || item.source === 'web', syncStatus: item.sync_status || (item.source === 'web' ? 'synced' : null), isSimulated: Boolean(item.is_simulated), image: item.image_url, gradcam: item.gradcam_url, farmerNotes: item.farmer_notes || '', researchConsent: Boolean(item.research_consent), researchConsentedAt: item.research_consented_at, priority: Number(item.review_priority || 0), reviewReasons: item.review_reasons || [], latency: item.inference_time_ms || 0, model: item.model_version || 'Not specified', user: item.user, review: item.review || null });
 const roleHome = (role) => role === 'admin' ? '/admin/dashboard' : role === 'agricultural_expert' ? '/expert/dashboard' : '/farmer/dashboard';
 
@@ -243,7 +250,7 @@ function RecentCard({ record, onOpen }) {
       <small>{confidenceText(record.confidence)} · {percent(record.confidence)}</small>
       <small>{formatDate(record.date, true)}</small>
     </span>
-    <span className="recent-status">{record.synced ? <><Cloud size={15} />Saved online</> : <><CloudOff size={15} />Waiting to sync</>}</span>
+    <span className={`recent-status ${record.synced ? 'synced' : record.syncStatus === 'failed' ? 'failed' : 'waiting'}`}>{record.synced ? <><Cloud size={15} />Synced</> : record.syncStatus === 'failed' ? <><CloudOff size={15} />Needs retry</> : <><CloudOff size={15} />Waiting to sync</>}</span>
     <ChevronRight size={18} />
   </button>;
 }
@@ -361,7 +368,57 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
   }, [stage, image]);
   const save = async (requestReview = false, farmerNotes = '', researchConsent = false) => { if (!onSaved) { onAuthRequired?.('login'); return; } try { await onSaved({ diseaseId: result.diseaseId, confidence: result.confidence, latency: result.latency, date: new Date().toISOString(), source: 'web', model: result.model, image: image === '/assets/sigatoka-sample.png' ? image : null, farmerNotes, researchConsent }, imageFile, requestReview); navigate('/farmer/history'); } catch { setError('The result could not be saved locally or online. Please try again.'); } };
   if (stage === 'result') return <FarmerResult image={image} result={result} comparison={comparison} onReset={reset} onSave={save} navigate={navigate} error={error} canContribute={Boolean(imageFile)} />;
-  return <div className="role-stack"><Heading title="Scan a leaf" text={image ? 'Review your photo before analysis.' : 'Point the camera at one banana leaf and take a clear photo.'} /><section className="farmer-scan-layout"><div className="panel scan-photo-panel">{!image ? <div className={`camera-scanner ${cameraStatus}`} onDrop={(event) => { event.preventDefault(); useFile(event.dataTransfer.files[0]); }} onDragOver={(event) => event.preventDefault()}><video ref={video} autoPlay muted playsInline aria-label="Live rear camera preview" /><div className="camera-frame" aria-hidden="true"><i /><i /><i /><i /></div>{cameraStatus === 'idle' && <div className="camera-message"><span><Camera size={36} /></span><h2>Ready to scan a leaf?</h2><p>Open the camera and keep one leaf inside the frame.</p><button className="primary-button" onClick={startCamera}><Camera size={18} />Open camera</button></div>}{cameraStatus === 'starting' && <div className="camera-message"><RefreshCw className="spin" size={30} /><h2>Opening camera...</h2><p>Allow camera access when your browser asks.</p></div>}{cameraStatus === 'unavailable' && <div className="camera-message"><span><Camera size={36} /></span><h2>Camera did not open</h2><p>Allow camera access, or use your phone's camera picker below.</p><button className="primary-button" onClick={() => cameraInput.current?.click()}><Camera size={18} />Use phone camera</button><button className="text-button" onClick={startCamera}>Try live camera again</button></div>}{cameraStatus === 'active' && <div className="camera-live-controls"><small>Keep the affected area in focus</small><button className="camera-shutter" aria-label="Take photo" onClick={takePhoto}><span /></button></div>}<div className="camera-source-actions"><button className="secondary-button" onClick={() => galleryInput.current?.click()}><ImagePlus size={18} />Choose from gallery</button><button className="sample-link" onClick={() => { stopCamera(); setImage('/assets/sigatoka-sample.png'); setFileName('Development sample'); setStage('preview'); }}>Use development sample</button></div><input ref={cameraInput} hidden type="file" accept="image/*" capture="environment" onChange={(event) => useFile(event.target.files[0])} /><input ref={galleryInput} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => useFile(event.target.files[0])} /></div> : <div className="friendly-preview"><img src={image} alt="Selected banana leaf" />{stage === 'checking' && <div className="checking-cover"><RefreshCw className="spin" size={28} /><strong>Checking the leaf...</strong><p>Examining visible patterns.</p></div>}<span><FileImage size={16} />{fileName}</span></div>}</div><aside className="panel scan-check-panel"><span className="step-number">{image ? '2' : '1'}</span><h2>{image ? 'Review your photo' : 'Take a clear photo'}</h2><p>{image ? 'Make sure the leaf is centered and easy to see.' : 'Use these tips for a clearer result.'}</p><Tips /><div className="development-note"><Info size={18} /><p>This development build uses simulated results and cannot confirm disease.</p></div>{image && <><button className="primary-button full" disabled={stage === 'checking'} onClick={check}><ScanLine size={18} />Analyze photo</button><button className="secondary-button full" disabled={stage === 'checking'} onClick={reset}>Retake photo</button></>}</aside></section>{error && <div className="form-error">{error}</div>}</div>;
+  return <div className="role-stack scan-page">
+    <Heading title="Scan a leaf" text={image ? 'Review your photo before analysis.' : 'Take or choose a clear banana leaf photo.'} />
+    <section className="farmer-scan-layout">
+      <div className="panel scan-photo-panel">
+        {image ? (
+          <figure className="selected-photo-card">
+            <div className="selected-photo-frame">
+              <img src={image} alt="Selected banana leaf" />
+            </div>
+            <figcaption><FileImage size={15} />{fileName}</figcaption>
+          </figure>
+        ) : cameraStatus === 'idle' ? (
+          <div className="scan-drop-frame" onDrop={(event) => { event.preventDefault(); useFile(event.dataTransfer.files[0]); }} onDragOver={(event) => event.preventDefault()}>
+            <ImagePlus size={40} />
+            <h2>No photo selected</h2>
+            <p>Center one leaf in good light.</p>
+          </div>
+        ) : (
+          <div className={`camera-scanner ${cameraStatus}`} onDrop={(event) => { event.preventDefault(); useFile(event.dataTransfer.files[0]); }} onDragOver={(event) => event.preventDefault()}>
+            <video ref={video} autoPlay muted playsInline aria-label="Live rear camera preview" />
+            <div className="camera-frame" aria-hidden="true"><i /><i /><i /><i /></div>
+            {cameraStatus === 'starting' && <div className="camera-message"><RefreshCw className="spin" size={30} /><h2>Opening camera...</h2><p>Allow camera access when your browser asks.</p></div>}
+            {cameraStatus === 'unavailable' && <div className="camera-message"><span><Camera size={36} /></span><h2>Camera did not open</h2><p>Allow camera access, or use your phone's camera picker below.</p><button className="primary-button" onClick={() => cameraInput.current?.click()}><Camera size={18} />Use phone camera</button><button className="text-button" onClick={startCamera}>Try live camera again</button></div>}
+            {cameraStatus === 'active' && <div className="camera-live-controls"><small>Keep the affected area in focus</small><button className="camera-shutter" aria-label="Take photo" onClick={takePhoto}><span /></button></div>}
+            <div className="camera-source-actions">
+              <button className="secondary-button" onClick={() => galleryInput.current?.click()}><ImagePlus size={18} />Choose from file</button>
+              <button className="sample-link" onClick={() => { stopCamera(); setImage('/assets/sigatoka-sample.png'); setFileName('Development sample'); setStage('preview'); }}>Use development sample</button>
+            </div>
+          </div>
+        )}
+        {!image && cameraStatus === 'idle' && <div className="scan-source-actions">
+          <button className="scan-source-camera" onClick={startCamera}><Camera size={22} />Camera</button>
+          <button className="scan-source-gallery" onClick={() => galleryInput.current?.click()}><ImagePlus size={22} />Gallery</button>
+        </div>}
+        {!image && cameraStatus === 'idle' && <p className="scan-tip-row"><Lightbulb size={17} /><span>Keep the whole leaf visible and avoid shadows.</span></p>}
+        {!image && cameraStatus === 'idle' && <button className="scan-sample-link" onClick={() => { setImage('/assets/sigatoka-sample.png'); setFileName('Development sample'); setStage('preview'); }}>Use development sample</button>}
+        {image && stage !== 'checking' && <button className="check-leaf-button" onClick={check}><ScanLine size={20} />Check leaf</button>}
+        {image && stage === 'checking' && <div className="scan-checking-card"><RefreshCw className="spin" size={18} /><span>Checking the leaf...</span></div>}
+        <input ref={cameraInput} hidden type="file" accept="image/*" capture="environment" onChange={(event) => useFile(event.target.files[0])} />
+        <input ref={galleryInput} hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => useFile(event.target.files[0])} />
+      </div>
+      <aside className="panel scan-check-panel">
+        <h2>{image ? 'Review your photo' : 'Take a clear photo'}</h2>
+        <p>{image ? 'Make sure the leaf is centered and easy to see.' : 'Use these tips for a clearer result.'}</p>
+        <Tips />
+        <div className="development-note"><Info size={18} /><p>This development build uses simulated results and cannot confirm disease.</p></div>
+        {image && <button className="secondary-button full" disabled={stage === 'checking'} onClick={reset}>Retake photo</button>}
+      </aside>
+    </section>
+    {error && <div className="scan-error-card" role="alert"><AlertTriangle size={18} /><span>{error}</span></div>}
+  </div>;
 }
 
 function FarmerResult({ image, result, comparison, onReset, onSave, navigate, error, canContribute }) {
@@ -496,10 +553,11 @@ function FarmerResult({ image, result, comparison, onReset, onSave, navigate, er
           <ul className="guidance-symptoms" aria-label="Visible symptoms">{disease.symptoms?.length ? disease.symptoms.map((symptom) => <li key={symptom}><span><Check size={16} /></span>{symptom}</li>) : <li>Insufficient verified evidence available.</li>}</ul>
         </article>
         <article className="panel result-guidance-card result-action">
+          <p className="guide-eyebrow">WHAT TO DO</p>
           <header className="guidance-card-heading"><span><ShieldCheck size={25} /></span><div><h3>Recommended action</h3><p>Keep your plants healthy and monitored</p></div></header>
           <div className="guidance-action-list">
-            <section><span><Leaf size={19} /></span><div><h3>Follow good farm practices</h3><p>{disease.management || 'Insufficient verified evidence available.'}</p></div></section>
-            <section><span><Users size={19} /></span><div><h3>Get expert advice when needed</h3><p>{disease.professional_referral || 'Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.'}</p></div></section>
+            <section><span className="step-badge">1</span><div><h3>Follow good farm practices</h3><p>{disease.management || 'Insufficient verified evidence available.'}</p></div></section>
+            <section><span className="step-badge">2</span><div><h3>Get expert advice when needed</h3><p>{disease.professional_referral || 'Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.'}</p></div></section>
           </div>
         </article>
       </div>
@@ -507,7 +565,7 @@ function FarmerResult({ image, result, comparison, onReset, onSave, navigate, er
     {!unavailable && !researchOnly && <details className="panel attention-panel"><summary><Eye size={18} />Areas the system noticed</summary><div><figure><img src={image} alt="Original leaf" /><figcaption>Original leaf</figcaption></figure><figure className="highlighted"><img src={image} alt="Illustrative highlighted preview" /><i /><figcaption>Development visualization</figcaption></figure></div><p>Highlighted areas contributed more strongly to the simulated result. They do not prove that a pathogen is present.</p></details>}
     <Warning />
     {!unavailable && !researchOnly && canContribute && <label className={`research-consent-card ${researchConsent ? 'selected' : ''}`}><input type="checkbox" checked={researchConsent} onChange={(event) => setResearchConsent(event.target.checked)} /><span><strong>Contribute this photo to future research</strong><small>Optional. The photo still requires agricultural and dataset review before it can be used for training.</small></span></label>}
-    {error && <div className="form-error">{error}</div>}
+    {error && <div className="scan-error-card" role="alert"><AlertTriangle size={18} /><span>{error}</span></div>}
     {!unavailable && !researchOnly && !uncertain && <div className="result-actions-bottom"><button className="secondary-button" onClick={onReset}>Scan Another Leaf</button><button className="primary-button" onClick={() => onSave(false, '', researchConsent)}>Save Result</button></div>}
   </div>;
 }
@@ -570,52 +628,96 @@ function ComparisonModelCard({ title, value }) {
   </article>;
 }
 
+function ComparisonBarColumn({ pct, color, winner, side }) {
+  const pixelHeight = Math.max(COMPARISON_MIN_BAR_HEIGHT, (pct / 100) * COMPARISON_PLOT_HEIGHT);
+  return <span className={`comparison-bar-col ${side === 'left' ? 'left' : 'right'}${winner ? ' winner' : ''}`}>
+    <span className="comparison-bar-value">{comparisonBarLabel(pct)}</span>
+    <i className="comparison-bar" style={{ height: pixelHeight, backgroundColor: color }} />
+  </span>;
+}
+
 function FarmerComparison({ image, comparison }) {
   const baselineProbabilities = normalizeClassProbabilities(comparison.baseline) || [];
   const enhancedProbabilities = normalizeClassProbabilities(comparison.enhanced) || [];
+  const predictionsAgree = comparison.comparison?.prediction_agreement ?? comparison.baseline?.predicted_class === comparison.enhanced?.predicted_class;
 
-  return <section className="farmer-output-comparison panel" aria-label="Model output comparison">
+  return <section className="farmer-output-comparison panel comparison-chart-card" aria-label="Model output comparison">
     <header className="farmer-output-header">
       <div>
-        <h2>Output comparison</h2>
-        <p>Photo, two model outputs</p>
+        <p className="comparison-eyebrow">MODEL COMPARISON</p>
+        <h2>Compare both models</h2>
+        <p>Both models scanned the same photo and gave a score for every disease class.</p>
       </div>
       <div className="farmer-output-legend" aria-label="Comparison legend">
         <span><i className="legend-dot baseline" />Baseline</span>
         <span><i className="legend-dot enhanced" />Enhanced</span>
       </div>
     </header>
-    <div className="farmer-output-list">
-      {CLASS_ORDER.map((classKey) => {
-        const baselineProbability = baselineProbabilities.find((item) => item.classKey === classKey)?.probability ?? 0;
-        const enhancedProbability = enhancedProbabilities.find((item) => item.classKey === classKey)?.probability ?? 0;
-        return <div key={classKey} className="farmer-output-row">
-          <div className="farmer-output-row-top">
-            <span className="farmer-output-class-name">{CLASS_NAMES[classKey]}</span>
-            <div className="farmer-output-values">
-              <span>{percent(baselineProbability * 100, 2)}</span>
-              <span>{percent(enhancedProbability * 100, 2)}</span>
-            </div>
-          </div>
-          <div className="farmer-output-track" aria-label={`${CLASS_NAMES[classKey]} probability comparison`}>
-            <span className="track-bar" />
-            <span className="track-marker baseline" style={{ left: `${Math.min(100, Math.max(0, baselineProbability * 100))}%` }} />
-            <span className="track-marker enhanced" style={{ left: `${Math.min(100, Math.max(0, enhancedProbability * 100))}%` }} />
-            <div className="track-scale">
-              <span>0%</span>
-              <span>50%</span>
-              <span>100%</span>
-            </div>
-          </div>
-        </div>;
-      })}
+
+    <div className="comparison-model-split">
+      <article className="comparison-model-tile baseline">
+        <span className="comparison-model-label">BASELINE</span>
+        <strong className="comparison-model-runtime">MobileNetV3-Small</strong>
+        <b>{CLASS_NAMES[comparison.baseline?.predicted_class] || titleCase(comparison.baseline?.predicted_class || '')}</b>
+        <em>{percent(Number(comparison.baseline?.confidence || 0) * 100, 2)}</em>
+      </article>
+      <article className="comparison-model-tile enhanced">
+        <span className="comparison-model-label">ENHANCED</span>
+        <strong className="comparison-model-runtime">CA-MobileNetV3-Small</strong>
+        <b>{CLASS_NAMES[comparison.enhanced?.predicted_class] || titleCase(comparison.enhanced?.predicted_class || '')}</b>
+        <em>{percent(Number(comparison.enhanced?.confidence || 0) * 100, 2)}</em>
+      </article>
+    </div>
+
+    {comparison.baseline && comparison.enhanced && (
+      <div className="comparison-verdict">
+        <span className={predictionsAgree ? 'agree' : 'differ'}>
+          {predictionsAgree ? <Check size={18} /> : <ArrowRightLeft size={18} />}
+        </span>
+        <p>{predictionsAgree
+          ? `Both models point to ${CLASS_NAMES[comparison.enhanced.predicted_class]}.`
+          : `Baseline picked ${CLASS_NAMES[comparison.baseline.predicted_class]}, enhanced picked ${CLASS_NAMES[comparison.enhanced.predicted_class]}.`}</p>
+      </div>
+    )}
+
+    <div className="comparison-breakdown">
+      <div className="comparison-plot-wrap">
+        <div className="comparison-grid-layer">
+          {COMPARISON_GRID_LEVELS.map((level) => (
+            <i key={level} className="comparison-grid-line" style={{ bottom: (level / 100) * COMPARISON_PLOT_HEIGHT }} />
+          ))}
+        </div>
+        <div className="comparison-plot-row">
+          <span className="comparison-gutter" />
+          {CLASS_ORDER.map((classKey) => {
+            const base = baselineProbabilities.find((item) => item.classKey === classKey)?.probability ?? 0;
+            const enh = enhancedProbabilities.find((item) => item.classKey === classKey)?.probability ?? 0;
+            const basePick = comparison.baseline?.predicted_class === classKey;
+            const enhPick = comparison.enhanced?.predicted_class === classKey;
+            return <div key={classKey} className="comparison-plot-group" aria-label={`${CLASS_NAMES[classKey]} comparison`}>
+              {comparison.baseline ? <ComparisonBarColumn pct={base * 100} color={COMPARISON_BASE_BAR} winner={basePick} side="left" /> : null}
+              <ComparisonBarColumn pct={enh * 100} color={COMPARISON_ENHANCED_BAR} winner={enhPick} side="right" />
+            </div>;
+          })}
+        </div>
+      </div>
+
+      <div className="comparison-axis-row">
+        <span className="comparison-gutter" />
+        {CLASS_ORDER.map((classKey) => (
+          <span key={classKey} className="comparison-axis-label">{COMPARISON_AXIS_SHORT_NAMES[classKey]}</span>
+        ))}
+      </div>
+
+      <p className="comparison-gauge-caption">Out of 100 (%). Higher bar = more likely that disease. Small matches are kept visible so no percentage disappears.</p>
+      <p className="comparison-calibration-note">Enhanced percentages are calibrated so a scan is never shown as 100% certain. Both models ran on the connected screening service.</p>
     </div>
   </section>;
 }
 
 function FarmerHistory({ records, navigate, onOpen }) {
   const [query, setQuery] = useState(''); const [kind, setKind] = useState('all'); const [date, setDate] = useState(''); const filtered = records.filter((record) => { const resultKind = record.diseaseId === 'healthy' ? 'healthy' : 'disease'; return (kind === 'all' || kind === resultKind) && (!date || record.date?.slice(0, 10) === date) && `${record.disease?.name || record.diseaseId} ${record.id}`.toLowerCase().includes(query.toLowerCase()); });
-  return <div className="role-stack"><Heading title="Scan history" text="Your newest saved results appear first." /><section className="panel history-role-panel"><div className="friendly-filters"><label><Search size={18} /><input placeholder="Search scans" value={query} onChange={(event) => setQuery(event.target.value)} /></label><select aria-label="Filter by result" value={kind} onChange={(event) => setKind(event.target.value)}><option value="all">All results</option><option value="healthy">Healthy</option><option value="disease">Possible disease</option></select><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div>{filtered.map((record) => <RecentCard key={record.id} record={record} onOpen={onOpen} />)}{!filtered.length && <Empty icon={History} title={records.length ? 'No matching scans' : 'No scans yet'} text={records.length ? 'Adjust your filters and try again.' : 'Scan your first leaf to start your history.'} action={!records.length ? () => navigate('/farmer/scan') : undefined} actionLabel="Scan a leaf" />}</section></div>;
+  return <div className="role-stack"><Heading title="History" text={records.length === 1 ? '1 saved scan · newest first.' : `${records.length} saved scans · newest first.`} /><section className="panel history-role-panel"><div className="friendly-filters"><label><Search size={18} /><input placeholder="Search scans" value={query} onChange={(event) => setQuery(event.target.value)} /></label><select aria-label="Filter by result" value={kind} onChange={(event) => setKind(event.target.value)}><option value="all">All results</option><option value="healthy">Healthy</option><option value="disease">Possible disease</option></select><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div>{filtered.map((record) => <RecentCard key={record.id} record={record} onOpen={onOpen} />)}{!filtered.length && <Empty icon={History} title={records.length ? 'No matching scans' : 'No saved scans yet'} text={records.length ? 'Adjust your filters and try again.' : 'Scan your first leaf to start your history.'} action={!records.length ? () => navigate('/farmer/scan') : undefined} actionLabel="Scan a leaf" />}</section></div>;
 }
 
 function DiseaseGuide() {
@@ -678,10 +780,19 @@ function DiseaseGuide() {
         </section>}
         <button type="button" className="guide-more-toggle" aria-expanded={moreOpen} aria-controls="guide-more-content" onClick={() => setMoreOpen((current) => !current)}>{moreOpen ? 'Hide detailed guidance' : 'View detailed guidance'}<ChevronDown size={18} /></button>
         <div id="guide-more-content" className={`guide-detail-more ${moreOpen ? 'open' : ''}`}>
+          {selected.slug === 'healthy' && <section className="guide-healthy-card">
+            <span><Check size={18} /></span>
+            <div><strong>Healthy Plant</strong><p>No treatment needed. Continue with regular care and monitoring.</p></div>
+          </section>}
+          <section className="guide-treatment-block">
+            <p className="guide-eyebrow">WHAT TO DO</p>
+            <div className="guide-treatment-steps">
+              {selected.slug !== 'healthy' && <section className="guide-step"><span className="step-badge">1</span><div><h3>What you can do</h3><p>{selected.management || 'Insufficient verified evidence available.'}</p></div></section>}
+              {selected.slug !== 'healthy' && <section className="guide-step"><span className="step-badge">2</span><div><h3>How to help prevent spread</h3><p>{selected.prevention || 'Insufficient verified evidence available.'}</p></div></section>}
+              <section className="guide-step"><span className="step-badge">{selected.slug === 'healthy' ? '1' : '3'}</span><div><h3>When to seek expert help</h3><p>{selected.professional_referral || 'Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.'}</p></div></section>
+            </div>
+          </section>
           <section><h3>What causes it</h3><p>{selected.causal_agent || 'Not applicable for this non-disease visual class.'}</p></section>
-          <section><h3>What you can do</h3><p>{selected.management || 'Insufficient verified evidence available.'}</p></section>
-          <section><h3>How to help prevent spread</h3><p>{selected.prevention || 'Insufficient verified evidence available.'}</p></section>
-          <section><h3>When to seek expert help</h3><p>{selected.professional_referral || 'Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.'}</p></section>
           <section><h3>Image-only limitations</h3><p>{selected.image_only_limitations || 'A leaf image cannot provide laboratory confirmation.'}</p></section>
           <section><h3>Research sources</h3>{selected.sources?.length ? <ol className="guide-source-list">{selected.sources.map((source) => <li key={source.id}><strong>{source.authors} ({source.year || 'n.d.'}).</strong> {source.title}. <em>{source.journal_or_institution}</em>. {source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">Open source</a>}</li>)}</ol> : <p>Insufficient verified evidence available.</p>}</section>
           <Warning />
@@ -700,7 +811,7 @@ function DiagnosisDialog({ record, onClose, onRequestReview, onDelete }) {
       <header><div><span className="section-label">SAVED RESULT</span><h2>{record.confidence < THRESHOLD ? 'Uncertain result' : record.disease?.name || titleCase(record.diseaseId)}</h2></div><IconButton label="Close result" onClick={onClose}><X size={20} /></IconButton></header>
       {record.image ? <img className="dialog-image" src={record.image} alt="Saved banana leaf" /> : <div className="dialog-image placeholder"><Leaf size={45} /></div>}
       <div className="confidence-plain"><strong>{confidenceText(record.confidence)}</strong><span>{percent(record.confidence)}</span></div>
-      <dl><div><dt>Date</dt><dd>{formatDate(record.date, true)}</dd></div><div><dt>Source</dt><dd>{titleCase(record.source)}</dd></div><div><dt>Save status</dt><dd>{record.synced ? 'Saved online' : record.syncStatus === 'failed' ? 'Sync needs retry' : 'Waiting to sync'}</dd></div>{record.farmerNotes && <div><dt>Your notes</dt><dd>{record.farmerNotes}</dd></div>}</dl>
+      <dl><div><dt>Date</dt><dd>{formatDate(record.date, true)}</dd></div><div><dt>Source</dt><dd>{titleCase(record.source)}</dd></div><div><dt>Save status</dt><dd>{record.synced ? 'Synced' : record.syncStatus === 'failed' ? 'Needs retry' : 'Waiting to sync'}</dd></div>{record.farmerNotes && <div><dt>Your notes</dt><dd>{record.farmerNotes}</dd></div>}</dl>
       {!record.synced && <section className="review-notice"><CloudOff size={20} /><div><strong>Safely stored in this browser</strong><p>Reconnect to upload this record before requesting another review action.</p></div></section>}
       {record.review?.review_status === 'pending' && <section className="review-notice"><ShieldCheck size={20} /><div><strong>Review requested</strong><p>An agricultural reviewer can assess this saved image.</p></div></section>}
       {reviewed && <section className="review-result"><span className="section-label">AGRICULTURAL REVIEW AVAILABLE</span><h3>{titleCase(record.review.review_status.replaceAll('_', '-'))}</h3><p><strong>AI screening:</strong> {titleCase(record.predictedClass)} ({percent(record.confidence)})</p>{record.review.verified_label && <p><strong>Reviewer assessment:</strong> {titleCase(record.review.verified_label)}</p>}<p><strong>Recommended follow-up:</strong> {record.review.farmer_follow_up}</p>{record.review.next_steps?.length > 0 && <p><strong>Next steps:</strong> {record.review.next_steps.map((step) => titleCase(step.replaceAll('_', '-'))).join(' · ')}</p>}</section>}

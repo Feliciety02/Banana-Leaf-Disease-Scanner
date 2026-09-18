@@ -35,6 +35,7 @@ export type LocalDiagnosis = {
   probabilities_json: string | null;
   baseline_json: string | null;
   enhanced_json: string | null;
+  review_json: string | null;
   diagnosed_at: string;
   created_at: string;
   updated_at: string;
@@ -51,12 +52,58 @@ export type RemoteDiagnosis = {
   research_consent?: boolean;
   source?: 'mobile' | 'web';
   sync_uuid?: string | null;
+  review?: DiagnosticReview | null;
   diagnosed_at: string;
   created_at?: string;
 };
 
+export type ReviewStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'alternate_class'
+  | 'cannot_determine'
+  | 'field_or_laboratory_required'
+  | 'possible_outside_supported_classes';
+
+export type DiagnosticReview = {
+  id: number;
+  review_status: ReviewStatus;
+  verified_label: string | null;
+  image_quality: string | null;
+  next_steps: string[];
+  requires_field_inspection: boolean;
+  requested_at: string | null;
+  reviewed_at: string | null;
+  reviewer?: { id: number; name: string } | null;
+  farmer_follow_up: string | null;
+};
+
+export function parseDiagnosisReview(raw: string | null): DiagnosticReview | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as unknown;
+    if (!value || typeof value !== 'object') return null;
+    const candidate = value as Partial<DiagnosticReview>;
+    if (typeof candidate.id !== 'number' || !Number.isInteger(candidate.id) || typeof candidate.review_status !== 'string') return null;
+    return {
+      id: candidate.id,
+      review_status: candidate.review_status as ReviewStatus,
+      verified_label: candidate.verified_label ?? null,
+      image_quality: candidate.image_quality ?? null,
+      next_steps: Array.isArray(candidate.next_steps) ? candidate.next_steps.filter((step): step is string => typeof step === 'string') : [],
+      requires_field_inspection: Boolean(candidate.requires_field_inspection),
+      requested_at: candidate.requested_at ?? null,
+      reviewed_at: candidate.reviewed_at ?? null,
+      reviewer: candidate.reviewer ?? null,
+      farmer_follow_up: candidate.farmer_follow_up ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const DATABASE_NAME = 'dahonmd-offline.db';
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export async function initializeLocalDatabase() {
@@ -123,6 +170,12 @@ async function openAndMigrate() {
       ALTER TABLE local_diagnoses ADD COLUMN probabilities_json TEXT;
       ALTER TABLE local_diagnoses ADD COLUMN baseline_json TEXT;
       ALTER TABLE local_diagnoses ADD COLUMN enhanced_json TEXT;
+      PRAGMA user_version = 3;
+    `);
+  }
+  if (currentVersion < 4) {
+    await db.execAsync(`
+      ALTER TABLE local_diagnoses ADD COLUMN review_json TEXT;
       PRAGMA user_version = ${SCHEMA_VERSION};
     `);
   }
@@ -306,12 +359,13 @@ async function updateMany(localIds: string[], status: LocalSyncStatus, error: st
 export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: number) {
   const db = await database();
   const now = new Date().toISOString();
+  const reviewJson = item.review ? JSON.stringify(item.review) : null;
   if (item.sync_uuid) {
     const updated = await db.runAsync(
       `UPDATE local_diagnoses SET
         server_id = ?, owner_user_id = ?, predicted_class = ?, confidence = ?, model_version = ?,
         inference_time_ms = ?, image_uri = COALESCE(image_uri, ?), farmer_notes = ?, research_consent = ?,
-        source = ?,
+        source = ?, review_json = ?,
         sync_status = CASE WHEN sync_status IN ('pending_delete', 'delete_failed') THEN sync_status ELSE 'synced' END,
         last_error = CASE WHEN sync_status IN ('pending_delete', 'delete_failed') THEN last_error ELSE NULL END,
         diagnosed_at = ?, updated_at = ?
@@ -326,6 +380,7 @@ export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: 
       item.farmer_notes ?? null,
       item.research_consent ? 1 : 0,
       item.source ?? 'mobile',
+      reviewJson,
       item.diagnosed_at,
       now,
       item.sync_uuid,
@@ -336,9 +391,9 @@ export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: 
   await db.runAsync(
     `INSERT INTO local_diagnoses (
       local_id, sync_uuid, server_id, owner_user_id, predicted_class, confidence, model_version,
-      inference_time_ms, image_uri, farmer_notes, research_consent, source, sync_status,
+      inference_time_ms, image_uri, farmer_notes, research_consent, source, sync_status, review_json,
       diagnosed_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?)
     ON CONFLICT(server_id) DO UPDATE SET
       owner_user_id = excluded.owner_user_id,
       predicted_class = excluded.predicted_class,
@@ -349,6 +404,7 @@ export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: 
       farmer_notes = excluded.farmer_notes,
       research_consent = excluded.research_consent,
       source = excluded.source,
+      review_json = excluded.review_json,
       sync_status = CASE WHEN local_diagnoses.sync_status IN ('pending_delete', 'delete_failed') THEN local_diagnoses.sync_status ELSE 'synced' END,
       last_error = CASE WHEN local_diagnoses.sync_status IN ('pending_delete', 'delete_failed') THEN local_diagnoses.last_error ELSE NULL END,
       diagnosed_at = excluded.diagnosed_at,
@@ -365,6 +421,7 @@ export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: 
     item.farmer_notes ?? null,
     item.research_consent ? 1 : 0,
     item.source ?? 'web',
+    reviewJson,
     item.diagnosed_at,
     item.created_at ?? now,
     now,
@@ -464,6 +521,21 @@ export async function retryLocalDiagnosis(localId: string) {
        sync_status = CASE WHEN sync_status = 'delete_failed' THEN 'pending_delete' ELSE 'pending' END,
        last_error = NULL, updated_at = ?
      WHERE local_id = ? AND sync_status IN ('failed', 'delete_failed')`,
+    new Date().toISOString(),
+    localId,
+  );
+}
+
+export async function getLocalDiagnosis(localId: string) {
+  const db = await database();
+  return db.getFirstAsync<LocalDiagnosis>('SELECT * FROM local_diagnoses WHERE local_id = ?', localId);
+}
+
+export async function saveDiagnosisReview(localId: string, review: DiagnosticReview) {
+  const db = await database();
+  await db.runAsync(
+    'UPDATE local_diagnoses SET review_json = ?, updated_at = ? WHERE local_id = ?',
+    JSON.stringify(review),
     new Date().toISOString(),
     localId,
   );
