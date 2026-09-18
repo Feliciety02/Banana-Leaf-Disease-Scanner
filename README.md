@@ -1,29 +1,5 @@
 <div align="center">
 
-#  DahonMD
-
-**Offline-First Banana Leaf Classification System**
-
-A thesis Android application that classifies banana leaf conditions on-device, keeps local history, and can optionally synchronize signed-in records.
-
-**Course:** CCE 106L – Applications Development and Emerging Technologies
-
-**Group Members:**
-| Member | Role |
-| --- | --- |
-| Fe Anne Malasarte | Student |
-| Jay Mark Burlado | Student |
-| Joevan Capote | Student |
-| John Benedict Bongcac | Student |
-
-![Laravel](https://img.shields.io/badge/Laravel-12-FF2D20?logo=laravel&logoColor=white)
-![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=0B1F2A)
-![Expo](https://img.shields.io/badge/Expo-SDK_57-000020?logo=expo&logoColor=white)
-![TensorFlow](https://img.shields.io/badge/TensorFlow-2.20-FF6F00?logo=tensorflow&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-Local_%2B_Central-003B57?logo=sqlite&logoColor=white)
-
-</div>
-
 > [!IMPORTANT]
 > DahonMD is a screening and research system, not laboratory confirmation. Model confidence is not the biological probability that a plant has a disease.
 
@@ -33,40 +9,40 @@ A thesis Android application that classifies banana leaf conditions on-device, k
 
 A user captures or chooses a leaf photo, and the Android application runs the bundled model locally to classify exactly one of four conditions:
 
-| Condition | Description |
-| --- | --- |
-| 🟢 Healthy | No visible disease symptoms |
-| 🟡 Sigatoka | Black- and Yellow-source presentations |
-| 🔴 Panama disease | Fusarium wilt symptoms |
-| 🟠 Cordana leaf spot | Fungal leaf spotting |
+| Condition            | Description                            |
+| -------------------- | -------------------------------------- |
+| 🟢 Healthy           | No visible disease symptoms            |
+| 🟡 Sigatoka          | Black- and Yellow-source presentations |
+| 🔴 Panama disease    | Fusarium wilt symptoms                 |
+| 🟠 Cordana leaf spot | Fungal leaf spotting                   |
 
 The classification path does not upload the image, call an API, or require an account. Results are also written to an app-private SQLite history; signed-in farmer records synchronize to the shared Laravel SQL store when connectivity returns. Images remain local unless the farmer explicitly opts into research upload.
 
 ### The Platform
 
-| Component | Stack | Purpose |
-| --- | --- | --- |
-| 📱 Mobile application | Expo / React Native + native TFLite + SQLite | **Active thesis client:** offline classification with local-first history |
-| 🌐 Web application | React / Vite | Legacy/demo client; outside thesis production scope |
-| ⚙️ Backend API | Laravel + Eloquent + SQLite | Legacy/demo server and relational store; outside thesis production scope |
-| 🤖 AI research pipeline | Python / TensorFlow | Reproducible training, evaluation, deployment |
+| Component               | Stack                                        | Purpose                                                                         |
+| ----------------------- | -------------------------------------------- | ------------------------------------------------------------------------------- |
+| 📱 Mobile application   | Expo / React Native + native TFLite + SQLite | **Active thesis client:** offline classification with local-first history |
+| 🌐 Web application      | React / Vite                                 | Legacy/demo client; outside thesis production scope                             |
+| ⚙️ Backend API        | Laravel + Eloquent + SQLite                  | Legacy/demo server and relational store; outside thesis production scope        |
+| 🤖 AI research pipeline | Python / TensorFlow                          | Reproducible training, evaluation, deployment                                   |
 
 ---
 
 ## Technologies Used and Deployment Status
 
-| Area | Technologies used in this repository | Role |
-| --- | --- | --- |
-| Mobile application | React Native 0.86, Expo SDK 57, TypeScript 6.0 | Camera/gallery workflow, interface, preprocessing coordination, local history, and optional synchronization |
-| Native Android inference | Kotlin and LiteRT/TensorFlow Lite | Loads the bundled model, verifies the float32 tensor contract, and runs inference locally on Android |
-| AI development | Python, TensorFlow, and Keras | Dataset preparation, model training, evaluation, knowledge distillation, and model conversion |
-| Teacher model | ResNet-101 | Research/training-only teacher; never deployed to the phone |
-| Baseline model | MobileNetV3-Small | Plain supervised control used for the thesis comparison |
-| Proposed mobile student | Coordinate Attention–enhanced MobileNetV3-Small | Compact model intended for on-device classification |
-| Emerging technologies | Self-supervised learning, knowledge distillation, edge AI, and post-training quantization (INT8 evaluated) | Training and deployment pipeline for producing the mobile model |
-| Local persistence | Expo SQLite and app-private file storage | Offline-first diagnosis history after local inference |
-| Optional connected services | Laravel 12, Eloquent, SQLite, and React/Vite | Accounts, synchronization, agricultural review, and administration; not required for classification |
-| Version control | Git and GitHub | Source history and collaboration |
+| Area                        | Technologies used in this repository                                                                       | Role                                                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Mobile application          | React Native 0.86, Expo SDK 57, TypeScript 6.0                                                             | Camera/gallery workflow, interface, preprocessing coordination, local history, and optional synchronization |
+| Native Android inference    | Kotlin and LiteRT/TensorFlow Lite                                                                          | Loads the bundled model, verifies the float32 tensor contract, and runs inference locally on Android        |
+| AI development              | Python, TensorFlow, and Keras                                                                              | Dataset preparation, model training, evaluation, knowledge distillation, and model conversion               |
+| Teacher model               | ResNet-101                                                                                                 | Research/training-only teacher; never deployed to the phone                                                 |
+| Baseline model              | MobileNetV3-Small                                                                                          | Plain supervised control used for the thesis comparison                                                     |
+| Proposed mobile student     | Coordinate Attention–enhanced MobileNetV3-Small                                                           | Compact model intended for on-device classification                                                         |
+| Emerging technologies       | Self-supervised learning, knowledge distillation, edge AI, and post-training quantization (INT8 evaluated) | Training and deployment pipeline for producing the mobile model                                             |
+| Local persistence           | Expo SQLite and app-private file storage                                                                   | Offline-first diagnosis history after local inference                                                       |
+| Optional connected services | Laravel 12, Eloquent, SQLite, and React/Vite                                                               | Accounts, synchronization, agricultural review, and administration; not required for classification         |
+| Version control             | Git and GitHub                                                                                             | Source history and collaboration                                                                            |
 
 > [!IMPORTANT]
 > The bundled `ca_mobilenetv3_small_fp32.tflite` is the frozen PILOT-06 seed 42
@@ -82,12 +58,12 @@ The classification path does not upload the image, call an API, or require an ac
 
 ## ✨ Features
 
-| Area | What it provides |
-| --- | --- |
-| 🧑‍🌾 Thesis mobile experience | Camera/gallery input, 224 × 224 RGB preparation, four-class prediction, and confidence |
-| 📡 Field reliability | On-device classification without Internet, backend, or account; local history does not control inference |
-| 🔬 Legacy research/demo | Optional accounts, reviews, synchronization, and content administration; not a thesis dependency |
-| 🧠 AI research | Controlled MobileNetV3 baseline and Coordinate Attention enhanced model on one fixed split |
+| Area                            | What it provides                                                                                         |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 🧑‍🌾 Thesis mobile experience | Camera/gallery input, 224 × 224 RGB preparation, four-class prediction, and confidence                  |
+| 📡 Field reliability            | On-device classification without Internet, backend, or account; local history does not control inference |
+| 🔬 Legacy research/demo         | Optional accounts, reviews, synchronization, and content administration; not a thesis dependency         |
+| 🧠 AI research                  | Controlled MobileNetV3 baseline and Coordinate Attention enhanced model on one fixed split               |
 
 ---
 
@@ -122,14 +98,14 @@ Flow B demonstrates client–server–database separation but is not required by
 
 ## 📂 Repository Guide
 
-| Path | Purpose | Guide |
-| --- | --- | --- |
-| `backend/` | Legacy/demo Laravel API and relational persistence | [Backend README](backend/README.md) |
-| `web-frontend/` | Legacy/demo React browser client | [Web README](web-frontend/README.md) |
+| Path                 | Purpose                                                                  | Guide                                     |
+| -------------------- | ------------------------------------------------------------------------ | ----------------------------------------- |
+| `backend/`         | Legacy/demo Laravel API and relational persistence                       | [Backend README](backend/README.md)        |
+| `web-frontend/`    | Legacy/demo React browser client                                         | [Web README](web-frontend/README.md)       |
 | `mobile-frontend/` | Active offline classifier plus optional local-first history/account sync | [Mobile README](mobile-frontend/README.md) |
-| `ai/` | Training, evaluation, comparison, and TFLite tooling | [AI README](ai/README.md) |
-| `datasets/` | Four-class dataset and label-review workspace | [Dataset README](datasets/README.md) |
-| `docs/` | Architecture, governance, experiments, and team checklists | [Documentation](#📚-documentation) |
+| `ai/`              | Training, evaluation, comparison, and TFLite tooling                     | [AI README](ai/README.md)                  |
+| `datasets/`        | Four-class dataset and label-review workspace                            | [Dataset README](datasets/README.md)       |
+| `docs/`            | Architecture, governance, experiments, and team checklists               | [Documentation](#📚-documentation)         |
 
 ---
 
@@ -184,7 +160,7 @@ Open Docker Desktop, then run from the main `DahonMD` folder:
 docker compose up
 ```
 
-Open <http://localhost:4173>. Press `Ctrl+C` when finished, then run `docker compose down`.
+Open [http://localhost:4173](http://localhost:4173). Press `Ctrl+C` when finished, then run `docker compose down`.
 
 #### Legacy web demo without Docker
 
@@ -209,7 +185,194 @@ cd web-frontend
 npm run dev -- --host 127.0.0.1 --port 4173
 ```
 
-Open <http://127.0.0.1:4173>.
+Open [http://127.0.0.1:4173](http://127.0.0.1:4173).
+
+#### Rebundling the website and APK (shareable updates)
+
+When new changes need to reach the rest of the team, rebuild the website bundle
+and generate a fresh Android APK, then share the two outputs:
+
+```powershell
+# 1. Website static bundle
+cd web-frontend
+npm run build
+
+# 2. Android release APK (signed, installable)
+cd ..\mobile-frontend\android
+.\gradlew.bat assembleRelease
+```
+
+Outputs:
+
+- **Website:** `web-frontend\dist\` — serve `dist/` behind the same-origin `/api`
+  proxy to Laravel on `127.0.0.1:8001` (same setup as the dev flow).
+- **APK:** `mobile-frontend\android\app\build\outputs\apk\release\app-release.apk`
+  — a release APK signed with the debug keystore; fine for internal testing and
+  demos, not for the Play Store (version name/code live in
+  `mobile-frontend\android\app\build.gradle`).
+
+> [!NOTE]
+> The Gradle `android\` project is generated by Expo. On a fresh clone, run
+> `npx expo prebuild --platform android` from `mobile-frontend` once before the
+> `gradlew.bat assembleRelease` step, and confirm `npm run release:status`
+> reports the bundled model is present. A release Gradle build takes several
+> minutes on the first run (Metro JS bundling plus native compilation for all
+> four ABIs); later builds are much faster.
+>
+> The first build also needs the Android SDK (set `ANDROID_HOME`, normally
+> `%LOCALAPPDATA%\Android\Sdk`).
+
+#### Mobile API URL for the connected features
+
+The sync/review features in the app need a public address so testers' phones can
+talk to the backend on your computer. We use a **free Cloudflare tunnel** for
+this. Each time the tunnel restarts, it gets a brand-new random address, which is
+why the app must be rebuilt afterwards.
+
+**Good news — there is a script that does everything for you.**
+
+##### Just run this one command
+
+Open PowerShell in the project folder, then run:
+
+```powershell
+.\refresh-tunnel.ps1
+```
+
+That's all. The script does the whole job automatically:
+
+1. Starts the backend (if it isn't already running).
+2. Starts the web demo on http://127.0.0.1:4173 (if it isn't already running; use
+   `-NoWeb` to skip it).
+3. Checks if the current tunnel address still works.
+   - **Works fine?** It keeps the same tunnel and moves on.
+   - **Broke / after a restart / after the computer rebooted?** It starts a fresh
+     tunnel and copies the new address into the app's settings.
+4. Checks whether the mobile app actually changed since the last successful build
+   (it fingerprints `src/`, `assets/`, the native module source, `app.json`, the
+   package files and `.env`):
+   - **Nothing changed?** It reuses the existing APK — no rebuild, finished in
+     seconds.
+   - **Mobile code/config changed?** It rebuilds the app (the APK), which takes a
+     few minutes. Changes to the web frontend, the backend, or this script alone
+     do **not** trigger a rebuild.
+5. If a phone is connected by USB (and the app was rebuilt), it installs the
+   freshly built app onto the phone automatically.
+6. At the end it prints a summary with the web URL, the mobile URL
+   (`https://something.trycloudflare.com/api`) and the APK path.
+
+The build fingerprint lives in `.dahonmd\mobile-build-state.json` (git-ignored).
+It is only updated after a successful rebuild, so if a build ever fails the
+previous APK and fingerprint are left untouched.
+
+###### Rebuilding the APK after code changes
+
+After editing any mobile code (`mobile-frontend\src`, `assets\`, a native
+module, `app.json`, `package.json`, or `.env`), re-run the same command from the
+project folder — it detects the change and rebuilds automatically:
+
+```powershell
+.\refresh-tunnel.ps1
+```
+
+This is **not** a file-watching command. It checks once, at the moment you run
+it: it compares a fingerprint of your mobile files against the last successful
+build, rebuilds the release APK whenever something changed, and installs it on a
+connected phone. Run it again any time you finish editing and you're done — the
+backend, web demo, and tunnel stay up in the background between runs.
+
+##### Automatic rebuild on save (watch mode)
+
+If you'd rather not re-run the command yourself, leave this watch loop open in a
+terminal. It watches the files that determine the APK contents (`.env`,
+`app.json`, `index.ts`, `package.json`, `package-lock.json`, `src\`, `assets\`,
+`modules\`) and invokes `.\refresh-tunnel.ps1` automatically after each batch of
+edits — which still only rebuilds when something really changed:
+
+```powershell
+.\watch-mobile.ps1
+```
+
+Options: `-DebounceMs 2000` waits longer between edits before rebuilding
+(default 1500), and `-DryRun` only announces that a rebuild would run (useful
+for testing). Press Ctrl+C to stop.
+
+Backend and web-frontend changes are deliberately **not** watched: the APK never
+contains that code — the app reaches the backend through the tunnel URL at
+runtime, so backend edits take effect on the next backend reload without any
+APK rebuild.
+
+When you need the address again later, just open this same file
+`mobile-frontend\.env` — it always holds the current address.
+
+##### Other handy options
+
+- Force a brand-new address even though the current one still works:
+  ```powershell
+  .\refresh-tunnel.ps1 -Restart
+  ```
+- Install the current app onto a connected phone right away, even if nothing was
+  rebuilt:
+  ```powershell
+  .\refresh-tunnel.ps1 -Install
+  ```
+- Don't touch the phone (useful when no tester is connected):
+  ```powershell
+  .\refresh-tunnel.ps1 -SkipInstall
+  ```
+- Skip the web demo this time (backend/tunnel only):
+  ```powershell
+  .\refresh-tunnel.ps1 -NoWeb
+  ```
+- Force an APK rebuild even though no change was detected:
+  ```powershell
+  .\refresh-tunnel.ps1 -ForceRebuild
+  ```
+- Only refresh the address without rebuilding the app (saves a few minutes if you
+  just want to test from your computer):
+  ```powershell
+  .\refresh-tunnel.ps1 -SkipBuild
+  ```
+- If you'd rather see the tunnel's own window with live logs, run the simple
+  launcher instead:
+  ```powershell
+  .\start-tunnel.bat
+  ```
+
+  It opens the backend and the tunnel, and prints the new address. Copy that
+  address, once you do, paste it into `mobile-frontend\.env` and rebuild the APK.
+
+##### For the curious (what the script is doing manually)
+
+You normally never need this — it's the same steps the script performs.
+
+```powershell
+# 1) Terminal 1: start the backend
+cd backend
+php artisan serve --host 127.0.0.1 --port 8001
+
+# 2) Terminal 2: create a fresh public tunnel (HTTP/2 avoids a known
+#    connection timeout some networks cause)
+cloudflared tunnel --url http://127.0.0.1:8001 --protocol http2 --no-autoupdate
+```
+
+3) Copy the printed `https://<random>.trycloudflare.com` address, add `/api` to
+   the end, and put it in `mobile-frontend\.env`:
+   ```dotenv
+   EXPO_PUBLIC_API_URL=https://<random>.trycloudflare.com/api
+   ```
+4) Rebuild the app:
+   ```powershell
+   cd mobile-frontend\android
+   .\gradlew.bat :app:createBundleReleaseJsAndAssets --rerun-tasks
+   .\gradlew.bat assembleRelease
+   ```
+
+   (The `--rerun-tasks` step matters: without it the new address may not make it
+   into the app.)
+
+**Keep the tunnel running** while testers use the online features. The offline
+classification and history always work — they don't need the tunnel.
 
 ---
 
@@ -273,7 +436,7 @@ This option is only for the old web/API demo. It is not required for the Android
 docker compose up --build
 ```
 
-4. Wait until both services are ready, then open <http://localhost:4173>.
+4. Wait until both services are ready, then open [http://localhost:4173](http://localhost:4173).
 5. When finished, press `Ctrl+C`, then run:
 
 ```powershell
@@ -325,7 +488,7 @@ php artisan config:clear
 php artisan serve --host=0.0.0.0 --port=8001
 ```
 
-Keep this terminal open. Visit <http://127.0.0.1:8001/api/health> and check that it reports `"status": "ok"`.
+Keep this terminal open. Visit [http://127.0.0.1:8001/api/health](http://127.0.0.1:8001/api/health) and check that it reports `"status": "ok"`.
 
 #### 2. Prepare the web app
 
@@ -338,7 +501,7 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 npm run dev -- --host 127.0.0.1 --port 4173
 ```
 
-Keep this terminal open, then visit <http://127.0.0.1:4173>.
+Keep this terminal open, then visit [http://127.0.0.1:4173](http://127.0.0.1:4173).
 
 After this first setup, use the shorter **Legacy web demo without Docker** instructions under “Already installed?” above.
 
@@ -350,7 +513,7 @@ This is needed only for the thesis comparison panel. It is not needed for the An
 .venv\Scripts\python.exe -m uvicorn ai.deployment.comparison_service:app --host 127.0.0.1 --port 8100
 ```
 
-Check <http://127.0.0.1:8100/health>.
+Check [http://127.0.0.1:8100/health](http://127.0.0.1:8100/health).
 
 ### Optional — GPU model training
 
@@ -412,12 +575,12 @@ training artifacts.
 
 Recovery modes:
 
-| Existing completed artifact | Selected option | What is repeated |
-| --- | --- | --- |
-| `ssl_checkpoint_epoch_*.complete` | `--resume-ssl-intermediate` | Only the unfinished SSL epoch |
-| `resnet101_ssl_pretrained.keras` | `--resume-ssl` | No SSL epochs; supervised fine-tuning starts again |
-| `best_teacher.keras` plus `teacher_finetune_history.json` | `--resume-finetune` | Only the unfinished fine-tuning epoch |
-| `teacher_training.complete.json` | None | The run is already complete |
+| Existing completed artifact                                   | Selected option               | What is repeated                                   |
+| ------------------------------------------------------------- | ----------------------------- | -------------------------------------------------- |
+| `ssl_checkpoint_epoch_*.complete`                           | `--resume-ssl-intermediate` | Only the unfinished SSL epoch                      |
+| `resnet101_ssl_pretrained.keras`                            | `--resume-ssl`              | No SSL epochs; supervised fine-tuning starts again |
+| `best_teacher.keras` plus `teacher_finetune_history.json` | `--resume-finetune`         | Only the unfinished fine-tuning epoch              |
+| `teacher_training.complete.json`                            | None                          | The run is already complete                        |
 
 The guarded helper appends recovery output to `training_bfc_resume.log`.
 Dataset integrity verification occurs before GPU progress appears. Do not start
@@ -433,11 +596,11 @@ for troubleshooting.
 
 `php artisan migrate --seed` creates one local account for each role. The default password is `DahonMD@2026` unless `DEV_USER_PASSWORD` is set.
 
-| Email | Role |
-| --- | --- |
-| `admin@dahonmd.test` | 🔐 Administrator |
-| `reviewer@dahonmd.test` | 🔬 Agricultural reviewer |
-| `maria.santos@dahonmd.test` | 🧑‍🌾 Farmer |
+| Email                         | Role                     |
+| ----------------------------- | ------------------------ |
+| `admin@dahonmd.test`        | 🔐 Administrator         |
+| `reviewer@dahonmd.test`     | 🔬 Agricultural reviewer |
+| `maria.santos@dahonmd.test` | 🧑‍🌾 Farmer            |
 
 These accounts are never seeded when `APP_ENV=production`.
 
@@ -449,16 +612,17 @@ These accounts are never seeded when `APP_ENV=production`.
 
 ## ⚙️ Configuration
 
-| Client or service | Variable | Local value |
-| --- | --- | --- |
-| Laravel | `APP_URL` | `http://127.0.0.1:8001` |
-| Laravel CORS | `WEB_FRONTEND_ORIGINS` | `http://127.0.0.1:4173,http://localhost:4173,http://localhost:5173` |
-| Laravel (tokens) | `SANCTUM_TOKEN_TTL_MINUTES` | `1440` (normal sessions) |
-| Laravel (tokens) | `SANCTUM_TOKEN_REMEMBER_DAYS` | `30` (remember-me sessions) |
-| Web | `VITE_WEB_API_URL` | `/api` (Vite/Nginx proxies it to Laravel) |
-| Thesis mobile | None | Bundled model and local native runtime only |
-| Research comparison | `AI_COMPARISON_URL` | `http://127.0.0.1:8100/compare` |
-| Research image consent | `RESEARCH_CONSENT_VERSION` | `research-image-consent-v1` |
+| Client or service           | Variable                        | Local value                                                                   |
+| --------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
+| Laravel                     | `APP_URL`                     | `http://127.0.0.1:8001`                                                     |
+| Laravel CORS                | `WEB_FRONTEND_ORIGINS`        | `http://127.0.0.1:4173,http://localhost:4173,http://localhost:5173`         |
+| Laravel (tokens)            | `SANCTUM_TOKEN_TTL_MINUTES`   | `1440` (normal sessions)                                                    |
+| Laravel (tokens)            | `SANCTUM_TOKEN_REMEMBER_DAYS` | `30` (remember-me sessions)                                                 |
+| Web                         | `VITE_WEB_API_URL`            | `/api` (Vite/Nginx proxies it to Laravel)                                   |
+| Thesis mobile               | None                            | Bundled model and local native runtime only                                   |
+| Thesis mobile optional sync | `EXPO_PUBLIC_API_URL`         | Temporary`<tunnel>.trycloudflare.com/api`; baked into the APK at build time |
+| Research comparison         | `AI_COMPARISON_URL`           | `http://127.0.0.1:8100/compare`                                             |
+| Research image consent      | `RESEARCH_CONSENT_VERSION`    | `research-image-consent-v1`                                                 |
 
 The optional comparison service is research-only. It runs both models side by side and does not save its output as a farmer diagnosis.
 
@@ -470,16 +634,16 @@ The active balanced-dataset pilot uses one fixed, leakage-free four-class split
 with 2,878 images per class. Model selection uses validation macro-F1; the test
 partition remains locked.
 
-| Pilot | Model | Best validation result | Status |
-| --- | --- | --- | --- |
-| PILOT-01 | MobileNetV3-Small ImageNet supervised baseline | Macro-F1 **0.92204**, accuracy **0.92245** | Complete |
-| PILOT-02 | Coordinate Attention MobileNetV3-Small, no KD | Macro-F1 **0.94950**, accuracy **0.94965** | Complete |
-| PILOT-03 | ResNet-101 ImageNet-only teacher | Macro-F1 **0.98320**, accuracy **0.98322** | Complete |
-| PILOT-04 | ResNet-101 fresh SSL plus supervised fine-tuning | Macro-F1 **0.65907**, accuracy **0.66551**, epoch 20 | **Complete** |
-| PILOT-05 | Validation-only teacher selection | Selected PILOT-03 ImageNet teacher | **Complete** |
-| PILOT-06 | Coordinate Attention student with KD | Macro-F1 **0.96178**, epoch 29 | **Complete** |
-| PILOT-07 | Multi-seed confirmation (seeds 42, 1337, 2026) | Mean macro-F1 **0.96229** ± **0.00097** | **Complete** |
-| PILOT-08 | One-time locked test evaluation (seed 42) | Test macro-F1 **0.96645**, accuracy **0.96644** | **Complete** |
+| Pilot    | Model                                            | Best validation result                                          | Status             |
+| -------- | ------------------------------------------------ | --------------------------------------------------------------- | ------------------ |
+| PILOT-01 | MobileNetV3-Small ImageNet supervised baseline   | Macro-F1**0.92204**, accuracy **0.92245**           | Complete           |
+| PILOT-02 | Coordinate Attention MobileNetV3-Small, no KD    | Macro-F1**0.94950**, accuracy **0.94965**           | Complete           |
+| PILOT-03 | ResNet-101 ImageNet-only teacher                 | Macro-F1**0.98320**, accuracy **0.98322**           | Complete           |
+| PILOT-04 | ResNet-101 fresh SSL plus supervised fine-tuning | Macro-F1**0.65907**, accuracy **0.66551**, epoch 20 | **Complete** |
+| PILOT-05 | Validation-only teacher selection                | Selected PILOT-03 ImageNet teacher                              | **Complete** |
+| PILOT-06 | Coordinate Attention student with KD             | Macro-F1**0.96178**, epoch 29                             | **Complete** |
+| PILOT-07 | Multi-seed confirmation (seeds 42, 1337, 2026)   | Mean macro-F1**0.96229** ± **0.00097**             | **Complete** |
+| PILOT-08 | One-time locked test evaluation (seed 42)        | Test macro-F1**0.96645**, accuracy **0.96644**      | **Complete** |
 
 > [!WARNING]
 > Results from the deleted 12,670-image exploratory split are not comparable
@@ -526,19 +690,20 @@ npm run release:status
 
 ## 🧯 Common Problems
 
-| Problem | Resolution |
-| --- | --- |
-| A command is not recognized | Install the missing runtime, reopen PowerShell, and verify its version. |
-| `cd backend` cannot find the folder | Open the terminal in the main `DahonMD` repository first. |
-| A server terminal appears stuck | That is expected; it is waiting for requests. Keep it open. |
-| Port `8001` or `4173` is occupied | Stop the other process using that port, then restart the service. |
-| The browser says `Failed to fetch` | Confirm the API health URL works, the browser origin appears in `WEB_FRONTEND_ORIGINS`, and Docker is not running beside native Laravel. |
-| Docker and native servers are both running | Press `Ctrl+C` in the native server terminal or run `docker compose down`, then keep only one workflow active. |
-| The web client cannot load data | Confirm both the Laravel and Vite terminals are running. |
-| Mobile release status reports a missing model | Produce and audit the final four-class artifact, then copy it to `mobile-frontend/assets/models/ca_mobilenetv3_small_fp32.tflite`. Do not substitute a simulated model. |
-| Expo Go opens but classification is unavailable | This is expected because Expo Go does not contain `DahonMDTFLite`. Start an emulator or connect a USB-debugging device, then run `cd mobile-frontend` followed by `npm run android`. |
-| Android reports that no device or emulator is available | Start an emulator from Android Studio's Device Manager or connect an Android phone with USB debugging enabled, then rerun `npm run android`. |
-| Android fails after an Expo SDK or native configuration update | From `mobile-frontend`, run `npm install`, `npx expo prebuild --clean --platform android`, and then `npm run android`. |
+| Problem                                                        | Resolution                                                                                                                                                                                |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A command is not recognized                                    | Install the missing runtime, reopen PowerShell, and verify its version.                                                                                                                   |
+| `cd backend` cannot find the folder                          | Open the terminal in the main`DahonMD` repository first.                                                                                                                                |
+| A server terminal appears stuck                                | That is expected; it is waiting for requests. Keep it open.                                                                                                                               |
+| Port`8001` or `4173` is occupied                           | Stop the other process using that port, then restart the service.                                                                                                                         |
+| The browser says`Failed to fetch`                            | Confirm the API health URL works, the browser origin appears in`WEB_FRONTEND_ORIGINS`, and Docker is not running beside native Laravel.                                                 |
+| Docker and native servers are both running                     | Press`Ctrl+C` in the native server terminal or run `docker compose down`, then keep only one workflow active.                                                                         |
+| The web client cannot load data                                | Confirm both the Laravel and Vite terminals are running.                                                                                                                                  |
+| Mobile release status reports a missing model                  | Produce and audit the final four-class artifact, then copy it to`mobile-frontend/assets/models/ca_mobilenetv3_small_fp32.tflite`. Do not substitute a simulated model.                  |
+| New APK cannot reach sync or review                            | The baked-in`EXPO_PUBLIC_API_URL` tunnel no longer resolves. Run `.\refresh-tunnel.ps1` — it starts a fresh tunnel, updates the address, and rebuilds the APK automatically.         |
+| Expo Go opens but classification is unavailable                | This is expected because Expo Go does not contain`DahonMDTFLite`. Start an emulator or connect a USB-debugging device, then run `cd mobile-frontend` followed by `npm run android`. |
+| Android reports that no device or emulator is available        | Start an emulator from Android Studio's Device Manager or connect an Android phone with USB debugging enabled, then rerun`npm run android`.                                             |
+| Android fails after an Expo SDK or native configuration update | From`mobile-frontend`, run `npm install`, `npx expo prebuild --clean --platform android`, and then `npm run android`.                                                             |
 
 ---
 
@@ -555,18 +720,14 @@ npm run release:status
 
 ## 📚 Documentation
 
-| Document | Purpose |
-| --- | --- |
-| [System architecture](docs/architecture/overview.md) | Components, boundaries, and data flow |
-| [Engineering quality attributes](docs/architecture/quality-attributes.md) | Maintainability, tests, security boundaries, and concurrent module work |
-| [Scientific content governance](docs/research/scientific-content-governance.md) | Evidence, review, and regulatory rules |
-| [Dataset/model checklist](docs/research/dataset-model-trainer-checklist.md) | Required experiment gates and evidence |
-| [Backend consolidation](docs/archive/historical-documents/backend-consolidation.md) | Historical record of the backend architecture |
+| Document                                                                           | Purpose                                                                 |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [System architecture](docs/architecture/overview.md)                                | Components, boundaries, and data flow                                   |
+| [Engineering quality attributes](docs/architecture/quality-attributes.md)           | Maintainability, tests, security boundaries, and concurrent module work |
+| [Scientific content governance](docs/research/scientific-content-governance.md)     | Evidence, review, and regulatory rules                                  |
+| [Dataset/model checklist](docs/research/dataset-model-trainer-checklist.md)         | Required experiment gates and evidence                                  |
+| [Backend consolidation](docs/archive/historical-documents/backend-consolidation.md) | Historical record of the backend architecture                           |
 
 ---
 
 <div align="center">
-
-Built with 💚 for careful, auditable banana-leaf screening across web, mobile, and offline field workflows.
-
-</div>

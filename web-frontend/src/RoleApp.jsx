@@ -240,6 +240,34 @@ function Shell({ role, user, path, navigate, onSignedOut, children, online }) {
   </div>;
 }
 
+function FarmerShell({ user, path, navigate, onSignedOut, online, children }) {
+  const items = FARMER_NAV.filter(([route]) => !route.endsWith('/profile'));
+  const initials = user.name.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+  const signOut = async () => { await onSignedOut(); };
+  return <div className="role-shell farmer-shell farmer-mobile-shell">
+    <header className="farmer-mobile-header">
+      <a className="farmer-mobile-brand" href="/farmer/dashboard" onClick={(event) => { event.preventDefault(); navigate('/farmer/dashboard'); }}>
+        <span><LogoMark /></span>
+        <div><strong>DahonMD</strong><small>Leaf health guide</small></div>
+      </a>
+      <div className="farmer-header-actions">
+        <IconButton label="Log out" title="Log out" onClick={signOut}><LogOut size={18} /></IconButton>
+        <button className="farmer-header-avatar" aria-label="Open profile" title="Profile" onClick={() => navigate('/farmer/profile')}>{initials}</button>
+      </div>
+    </header>
+    <main className="farmer-mobile-main">
+      <div className="role-page">{children}</div>
+    </main>
+    <nav className="farmer-mobile-nav" aria-label="Primary navigation">
+      {items.map(([route, label, Icon]) => {
+        const active = path === route;
+        return <button key={route} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => navigate(route)}><Icon size={21} /><span>{label}</span></button>;
+      })}
+    </nav>
+    <AssistantWidget user={user} online={online} />
+  </div>;
+}
+
 function RecentCard({ record, onOpen }) {
   const name = record.disease?.name || (record.diseaseId === 'development-unconfigured' ? 'Development result' : titleCase(record.diseaseId));
 
@@ -631,7 +659,7 @@ function ComparisonModelCard({ title, value }) {
 function ComparisonBarColumn({ pct, color, winner, side }) {
   const pixelHeight = Math.max(COMPARISON_MIN_BAR_HEIGHT, (pct / 100) * COMPARISON_PLOT_HEIGHT);
   return <span className={`comparison-bar-col ${side === 'left' ? 'left' : 'right'}${winner ? ' winner' : ''}`}>
-    <span className="comparison-bar-value">{comparisonBarLabel(pct)}</span>
+    <span className="comparison-bar-value" style={{ bottom: pixelHeight + 3 }}>{comparisonBarLabel(pct)}</span>
     <i className="comparison-bar" style={{ height: pixelHeight, backgroundColor: color }} />
   </span>;
 }
@@ -813,8 +841,8 @@ function DiagnosisDialog({ record, onClose, onRequestReview, onDelete }) {
       <div className="confidence-plain"><strong>{confidenceText(record.confidence)}</strong><span>{percent(record.confidence)}</span></div>
       <dl><div><dt>Date</dt><dd>{formatDate(record.date, true)}</dd></div><div><dt>Source</dt><dd>{titleCase(record.source)}</dd></div><div><dt>Save status</dt><dd>{record.synced ? 'Synced' : record.syncStatus === 'failed' ? 'Needs retry' : 'Waiting to sync'}</dd></div>{record.farmerNotes && <div><dt>Your notes</dt><dd>{record.farmerNotes}</dd></div>}</dl>
       {!record.synced && <section className="review-notice"><CloudOff size={20} /><div><strong>Safely stored in this browser</strong><p>Reconnect to upload this record before requesting another review action.</p></div></section>}
-      {record.review?.review_status === 'pending' && <section className="review-notice"><ShieldCheck size={20} /><div><strong>Review requested</strong><p>An agricultural reviewer can assess this saved image.</p></div></section>}
-      {reviewed && <section className="review-result"><span className="section-label">AGRICULTURAL REVIEW AVAILABLE</span><h3>{titleCase(record.review.review_status.replaceAll('_', '-'))}</h3><p><strong>AI screening:</strong> {titleCase(record.predictedClass)} ({percent(record.confidence)})</p>{record.review.verified_label && <p><strong>Reviewer assessment:</strong> {titleCase(record.review.verified_label)}</p>}<p><strong>Recommended follow-up:</strong> {record.review.farmer_follow_up}</p>{record.review.next_steps?.length > 0 && <p><strong>Next steps:</strong> {record.review.next_steps.map((step) => titleCase(step.replaceAll('_', '-'))).join(' · ')}</p>}</section>}
+      {record.review?.review_status === 'pending' && <section className="review-notice"><ShieldCheck size={20} /><div><strong>Review requested</strong><p>An agricultural reviewer can assess this saved image.</p>{record.review.requested_at && <p className="review-meta">Requested {formatDate(record.review.requested_at, true)}</p>}</div></section>}
+      {reviewed && <section className="review-result"><span className="section-label">AGRICULTURAL REVIEW AVAILABLE</span><h3>{titleCase(record.review.review_status.replaceAll('_', '-'))}</h3><p><strong>AI screening:</strong> {titleCase(record.predictedClass)} ({percent(record.confidence)})</p>{record.review.verified_label && <p><strong>Reviewer assessment:</strong> {titleCase(record.review.verified_label)}</p>}<p><strong>Recommended follow-up:</strong> {record.review.farmer_follow_up}</p>{record.review.next_steps?.length > 0 && <p><strong>Next steps:</strong> {record.review.next_steps.map((step) => titleCase(step.replaceAll('_', '-'))).join(' · ')}</p>}{(record.review.reviewer || record.review.reviewed_at) && <p className="review-meta">Reviewed{record.review.reviewer ? ` by ${record.review.reviewer.name}` : ''}{record.review.reviewed_at ? ` · ${formatDate(record.review.reviewed_at, true)}` : ''}</p>}</section>}
       {!record.review && record.synced && <ReviewRequestForm initialNotes={record.farmerNotes} onSubmit={(notes) => onRequestReview(record, notes)} />}
       <button className="danger-button full" onClick={() => { if (window.confirm('Delete this saved scan? This change will synchronize to your other devices.')) onDelete(record); }}><Trash2 size={17} />Delete saved scan</button>
       <Warning />
@@ -1130,7 +1158,7 @@ export default function RoleApp() {
     if (online) flushWebDiagnosisOutbox(user.id).then(loadRecords).catch(() => undefined);
   };
   if (loading) return <Loading text="Restoring your secure session..." />; if (!user) { const authMode = path === '/login' ? 'login' : path === '/signup' ? 'register' : null; const setAuthMode = (mode) => navigate(mode === 'login' ? '/login' : mode === 'register' ? '/signup' : '/', true); const authenticated = (nextUser) => { setUser(nextUser); navigate(roleHome(nextUser.role), true); }; return <PublicLanding online={online} authMode={authMode} onAuthMode={setAuthMode} onAuthenticated={authenticated} />; }
-  if (user.role === 'farmer') { const requestReview = async (record, farmerNotes = '') => { const payload = await api(`/diagnoses/${record.id}/review-request`, { method: 'POST', body: JSON.stringify({ farmer_notes: farmerNotes || null }) }); const updated = mapDiagnosis(payload.data); setRecords((current) => current.map((item) => item.id === updated.id ? updated : item)); setSelected(updated); }; let page = <FarmerHome user={user} records={records} online={online} navigate={navigate} onOpen={setSelected} pendingChanges={pendingChanges} syncing={syncing} onSync={syncNow} />; if (path === '/farmer/scan') page = <FarmerScan onSaved={save} navigate={navigate} online={online} />; if (path === '/farmer/history') page = <FarmerHistory records={records} navigate={navigate} onOpen={setSelected} />; if (path === '/farmer/diseases') page = <DiseaseGuide />; if (path === '/farmer/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <Shell role="farmer" user={user} path={path} navigate={navigate} onSignedOut={signedOut} online={online}>{page}<DiagnosisDialog record={selected} onClose={() => setSelected(null)} onRequestReview={requestReview} onDelete={removeDiagnosis} /></Shell>; }
+  if (user.role === 'farmer') { const requestReview = async (record, farmerNotes = '') => { const payload = await api(`/diagnoses/${record.id}/review-request`, { method: 'POST', body: JSON.stringify({ farmer_notes: farmerNotes || null }) }); const updated = mapDiagnosis(payload.data); setRecords((current) => current.map((item) => item.id === updated.id ? updated : item)); setSelected(updated); }; let page = <FarmerHome user={user} records={records} online={online} navigate={navigate} onOpen={setSelected} pendingChanges={pendingChanges} syncing={syncing} onSync={syncNow} />; if (path === '/farmer/scan') page = <FarmerScan onSaved={save} navigate={navigate} online={online} />; if (path === '/farmer/history') page = <FarmerHistory records={records} navigate={navigate} onOpen={setSelected} />; if (path === '/farmer/diseases') page = <DiseaseGuide />; if (path === '/farmer/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <FarmerShell user={user} path={path} navigate={navigate} onSignedOut={signedOut} online={online}>{page}<DiagnosisDialog record={selected} onClose={() => setSelected(null)} onRequestReview={requestReview} onDelete={removeDiagnosis} /></FarmerShell>; }
   if (user.role === 'agricultural_expert') { let page = <ExpertDashboard navigate={navigate} />; if (path.startsWith('/expert/cases')) page = <ExpertCases />; if (path === '/expert/diseases') page = <ExpertDiseases />; if (path === '/expert/sources') page = <ExpertSources />; if (path === '/expert/dataset') page = <ExpertDatasetCandidates />; if (path === '/expert/reviewed') page = <ExpertCases reviewed />; if (path === '/expert/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <Shell role="agricultural_expert" user={user} path={path.split('?')[0]} navigate={navigate} onSignedOut={signedOut} online={online}>{page}</Shell>; }
   let page = <AdminDashboard />; if (path === '/admin/accounts') page = <AccountsAdmin />; if (path === '/admin/farmers') page = <AccountsAdmin initialRole="farmer" />; if (path === '/admin/experts') page = <AccountsAdmin initialRole="agricultural_expert" />; if (path === '/admin/diagnoses') page = <DiagnosesAdmin />; if (path === '/admin/diseases') page = <DiseasesAdmin />; if (path === '/admin/sources') page = <ResearchSourcesAdmin />; if (path === '/admin/analytics') page = <AdminAnalytics />; if (path === '/admin/model-comparison') page = <ModelComparisonAdmin />; if (path === '/admin/system') page = <SystemAdmin />; if (path === '/admin/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <Shell role="admin" user={user} path={path} navigate={navigate} onSignedOut={signedOut} online={online}>{page}</Shell>;
 }

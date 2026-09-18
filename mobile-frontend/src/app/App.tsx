@@ -8,6 +8,7 @@ import { ChatAssistant } from '../features/chat/ChatAssistant';
 import { ConnectedWorkspace } from '../features/connected/ConnectedWorkspace';
 import { AuthModal, AuthMode } from '../features/connected/AuthModal';
 import { ModalCard } from '../features/connected/ui';
+import { FarmerHome } from '../features/farmer/FarmerHome';
 import { GuideScreen } from '../features/guide/GuideScreen';
 import { LocalHistory } from '../features/offline/LocalHistory';
 import { ScanScreen } from '../features/scan/ScanScreen';
@@ -20,9 +21,10 @@ import { deleteLocalAccountData, initializeLocalDatabase } from '../storage/loca
 
 const colors = { background: '#edf3ee', green: '#174d3a', ink: '#17231f' };
 
-type TabKey = 'scan' | 'history' | 'guide';
+type TabKey = 'home' | 'scan' | 'history' | 'guide';
 
 const NAV_ITEMS: { key: TabKey; label: string; active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'home', label: 'Home', active: 'home', inactive: 'home-outline' },
   { key: 'scan', label: 'Scan', active: 'scan', inactive: 'scan-outline' },
   { key: 'history', label: 'History', active: 'time', inactive: 'time-outline' },
   { key: 'guide', label: 'Guide', active: 'book', inactive: 'book-outline' },
@@ -30,15 +32,25 @@ const NAV_ITEMS: { key: TabKey; label: string; active: keyof typeof Ionicons.gly
 
 export default function App() {
   useMobilePrivacyProtection();
-  const [tab, setTab] = useState<TabKey>('scan');
+  const [tab, setTab] = useState<TabKey>('home');
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sessionUser, setSessionUser] = useState<SessionUser | null | undefined>(undefined);
   const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [online, setOnline] = useState(true);
   const modelStatus = useModelStatus();
 
   useEffect(() => { initializeLocalDatabase().catch((error) => Alert.alert('Offline storage unavailable', error instanceof Error ? error.message : 'The local database could not be opened.')); }, []);
   useEffect(() => { restoreSession().then(setSessionUser).catch(() => setSessionUser(null)); }, []);
+  useEffect(() => {
+    let active = true;
+    const update = (state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) => {
+      if (active) setOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+    };
+    const unsubscribe = NetInfo.addEventListener(update);
+    NetInfo.fetch().then((state) => update({ isConnected: state.isConnected, isInternetReachable: state.isInternetReachable })).catch(() => undefined);
+    return () => { active = false; unsubscribe(); };
+  }, []);
   useEffect(() => {
     if (sessionUser === undefined) return;
     configureBackgroundSync(sessionUser?.role === 'farmer').catch(() => undefined);
@@ -91,6 +103,7 @@ export default function App() {
           </Pressable>
         </View>
         <ScrollView style={styles.pageScroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
+          {tab === 'home' && <FarmerHome user={sessionUser ?? null} ownerUserId={sessionUser?.role === 'farmer' ? sessionUser.id : null} online={online} refreshKey={historyRefresh} onNavigate={setTab} onSynced={() => setHistoryRefresh((value) => value + 1)} />}
           {tab === 'scan' && <ScanScreen user={sessionUser ?? null} onStored={stored} modelStatus={modelStatus} />}
           {tab === 'history' && <LocalHistory ownerUserId={sessionUser?.role === 'farmer' ? sessionUser.id : null} refreshKey={historyRefresh} onChanged={stored} />}
           {tab === 'guide' && <GuideScreen />}

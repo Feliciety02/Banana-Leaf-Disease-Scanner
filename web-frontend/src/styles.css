@@ -3040,15 +3040,15 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--green); }
 .comparison-grid-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(147, 163, 155, 0.45); }
 .comparison-plot-row { display: grid; grid-template-columns: 8px repeat(4, 1fr); height: 150px; align-items: end; position: relative; }
 .comparison-gutter { width: 8px; }
-.comparison-plot-group { align-self: end; height: 150px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; align-items: end; justify-items: center; }
-.comparison-bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 100%; }
-.comparison-bar { display: block; width: 44px; max-width: 100%; border-radius: 5px 5px 0 0; }
-.comparison-bar-value { display: block; margin-bottom: 3px; color: var(--ink); font-size: 11px; font-weight: 800; line-height: 1; }
-.comparison-bar-col.left .comparison-bar-value { align-self: flex-start; }
-.comparison-bar-col.right .comparison-bar-value { align-self: flex-end; }
-.comparison-bar-col.winner .comparison-bar-value { color: var(--green); font-weight: 900; }
+.comparison-plot-group { align-self: end; height: 150px; display: flex; flex-direction: row; align-items: flex-end; justify-content: center; gap: 3px; position: relative; }
+.comparison-bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 42%; }
+.comparison-bar { display: block; width: 100%; border-radius: 5px 5px 0 0; }
+.comparison-bar-value { position: absolute; color: #5e6c64; font-size: 11px; font-weight: 800; line-height: 1; text-align: center; font-variant-numeric: tabular-nums; }
+.comparison-bar-col.left .comparison-bar-value { left: 0; width: 50%; padding-right: 3px; text-align: right; }
+.comparison-bar-col.right .comparison-bar-value { left: 50%; width: 50%; padding-left: 3px; text-align: left; }
+.comparison-bar-col.winner .comparison-bar-value { color: #1d3327; font-weight: 900; }
 .comparison-axis-row { display: grid; grid-template-columns: 8px repeat(4, 1fr); margin-top: 6px; }
-.comparison-axis-label { display: block; color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; }
+.comparison-axis-label { display: block; color: #4c5a52; font-size: 12px; font-weight: 700; line-height: 15px; text-align: center; }
 .comparison-gauge-caption { margin: 14px 0 0; color: var(--muted); font-size: 12px; }
 .comparison-calibration-note { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
 .guide-eyebrow { display: block; margin-bottom: 6px; color: var(--green); font-size: 12px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -3066,7 +3066,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--green); }
 @media (max-width: 760px) {
   .comparison-model-split { grid-template-columns: 1fr; }
   .comparison-plot-row, .comparison-axis-row { grid-template-columns: 8px repeat(4, 1fr); }
-  .comparison-bar { width: 34px; }
 }
 .recent-status.synced { color: var(--green); }
 .recent-status.failed { color: var(--red); }
@@ -3074,3 +3073,186 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--green); }
 @media (max-width: 760px) {
   .recent-status.synced, .recent-status.failed, .recent-status.waiting { display: none; }
 }
+
+/* Farmer mobile-first shell (header + content + bottom tab navigation) */
+.farmer-shell.farmer-mobile-shell { min-height: 100vh; background: var(--page, #f4f6f3); color: var(--ink); }
+.farmer-shell.farmer-mobile-shell .role-sidebar,
+.farmer-shell.farmer-mobile-shell .role-topbar { display: none; }
+.farmer-shell.farmer-mobile-shell .role-main { margin-left: 0; }
+
+.farmer-mobile-header {
+  position: sticky; top: 0; z-index: 30;
+  min-height: 92px;
+  padding: 10px clamp(18px, 3.5vw, 48px) 14px;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+  background: rgba(255, 255, 255, .97);
+  border-bottom: 1px solid var(--line);
+}
+.farmer-mobile-brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; border-radius: 10px; }
+.farmer-mobile-brand > span { width: 38px; height: 38px; display: grid; place-items: center; background: var(--green-soft); border-radius: 11px; }
+.farmer-mobile-brand > span img { width: 100%; height: 100%; object-fit: contain; }
+.farmer-mobile-brand > div { display: grid; gap: 1px; }
+.farmer-mobile-brand strong { color: var(--green); font-size: 20px; font-weight: 900; letter-spacing: .01em; }
+.farmer-mobile-brand small { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+.farmer-header-actions { display: flex; align-items: center; gap: 10px; }
+.farmer-header-actions .icon-button { width: 40px; height: 40px; border-radius: 50%; background: #f1f5f2; }
+.farmer-header-actions .icon-button:hover { background: #e6efea; }
+.farmer-header-avatar {
+  width: 40px; height: 40px; display: grid; place-items: center;
+  color: var(--green); background: #f1f5f2;
+  border: 1px solid var(--line); border-radius: 50%;
+  font-size: 13px; font-weight: 800; cursor: pointer;
+}
+.farmer-header-avatar:hover { background: #e6efea; }
+
+.farmer-mobile-main { min-height: 100vh; }
+.farmer-mobile-main .role-page { width: min(100%, 1240px); margin: 0 auto; padding: 36px clamp(16px, 3vw, 40px) 140px; }
+
+.farmer-mobile-nav {
+  position: fixed; inset: auto 14px 14px; z-index: 45;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  min-height: 68px; padding: 6px;
+  background: #fff;
+  border: 1px solid var(--line); border-radius: 22px;
+  box-shadow: 0 12px 32px rgba(13, 35, 26, .16);
+}
+.farmer-mobile-nav button {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 54px; padding: 0;
+  color: #79857f; background: transparent; border: 0; border-radius: 15px;
+  font-size: 10px; font-weight: 700; cursor: pointer;
+}
+.farmer-mobile-nav button:hover { background: var(--green-soft); }
+.farmer-mobile-nav button.active { color: var(--green); font-weight: 900; }
+.farmer-mobile-nav button.active::after { content: ""; position: absolute; bottom: 5px; width: 20px; height: 3px; background: var(--green); border-radius: 3px; }
+.farmer-mobile-nav button span { line-height: 1.1; }
+
+.farmer-mobile-shell .ai-assistant-launcher { bottom: 96px; }
+@media (max-width: 760px) {
+  .farmer-mobile-shell .ai-assistant-launcher { bottom: 96px; }
+}
+@media (max-width: 500px) {
+  .farmer-mobile-brand small { display: none; }
+  .farmer-mobile-nav { inset: auto 10px 10px; }
+  .farmer-mobile-main .role-page { padding: 26px 14px 132px; }
+}
+
+/* ============================================================
+   Batch 3 - Farmer shared-screen parity refinements
+   Matches the current mobile phone screens for the farmer views
+   that open on the web (scan, diagnosis result, model comparison,
+   saved-result detail, history list, and guide). Everything is
+   scoped to .farmer-mobile-shell so reviewer, admin, and expert
+   screens are never affected. No classification logic is touched.
+   ============================================================ */
+
+/* Scan + result: phone-width single column with 14px gutter. */
+.farmer-mobile-shell .farmer-scan-layout {
+  grid-template-columns: 1fr;
+  gap: 14px;
+  max-width: 640px;
+  margin-inline: auto;
+}
+.farmer-mobile-shell .scan-result-hero {
+  grid-template-columns: 1fr;
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+/* Model comparison: keep the phone-screen visual language. */
+.farmer-mobile-shell .farmer-output-comparison {
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+/* Grouped bars: small gap inside each pair, clear gap between
+   the four disease groups, and fatter bars that stay wide. */
+.farmer-mobile-shell .comparison-plot-group { gap: 3px; }
+.farmer-mobile-shell .comparison-plot-row,
+.farmer-mobile-shell .comparison-axis-row {
+  grid-template-columns: 8px repeat(4, minmax(0, 1fr));
+  column-gap: clamp(10px, 3vw, 20px);
+}
+@media (max-width: 420px) {
+  .farmer-mobile-shell .comparison-plot-row,
+  .farmer-mobile-shell .comparison-axis-row { column-gap: 8px; }
+}
+
+/* Saved-result detail: bottom sheet instead of a right drawer,
+   with mobile-sized image, score, facts, and review cards. */
+.farmer-mobile-shell .dialog-scrim {
+  background: rgba(9, 26, 21, .48);
+  backdrop-filter: blur(3px);
+}
+.farmer-mobile-shell .diagnosis-dialog {
+  inset: auto 0 0;
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 24px clamp(18px, 4vw, 30px) 34px;
+  border-top: 1px solid var(--line);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 52px rgba(9, 34, 25, .22);
+}
+.farmer-mobile-shell .diagnosis-dialog header h2 {
+  margin: 6px 0 0;
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -.02em;
+}
+.farmer-mobile-shell .dialog-image { height: 300px; border-radius: 18px; }
+.farmer-mobile-shell .diagnosis-dialog .confidence-plain {
+  margin: 16px 0 10px;
+  padding: 14px 15px;
+  background: #f2f6f3;
+  border-radius: 14px;
+}
+.farmer-mobile-shell .diagnosis-dialog dl div { padding: 14px 0; }
+.farmer-mobile-shell .diagnosis-dialog dt { font-size: 11px; }
+.farmer-mobile-shell .diagnosis-dialog dd { font-size: 13px; font-weight: 800; }
+.farmer-mobile-shell .review-notice,
+.farmer-mobile-shell .review-result { border-radius: 14px; padding: 14px 15px; }
+.farmer-mobile-shell .review-notice > svg { flex: 0 0 auto; }
+.farmer-mobile-shell .review-meta {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.farmer-mobile-shell .review-result h3 {
+  margin: 8px 0 4px;
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--ink);
+}
+.farmer-mobile-shell .review-result strong { font-weight: 800; }
+.farmer-mobile-shell .diagnosis-dialog .danger-button { border-radius: 13px; }
+
+/* History: mobile cards with rounded filters and thumbs. */
+.farmer-mobile-shell .history-role-panel { padding: 16px; border-radius: 18px; }
+.farmer-mobile-shell .friendly-filters {
+  grid-template-columns: minmax(200px, 1fr) auto auto;
+  gap: 9px;
+  padding-bottom: 14px;
+}
+.farmer-mobile-shell .friendly-filters label,
+.farmer-mobile-shell .friendly-filters input,
+.farmer-mobile-shell .friendly-filters select { border-radius: 12px; min-height: 44px; }
+.farmer-mobile-shell .recent-scan-card { padding: 12px 4px; border-radius: 16px; }
+.farmer-mobile-shell .recent-thumb { width: 58px; height: 58px; border-radius: 14px; }
+.farmer-mobile-shell .recent-copy strong { font-size: 14px; }
+
+/* Guide: mobile cards for the disease list and detail panel. */
+.farmer-mobile-shell .guide-role-list { border-radius: 18px; }
+.farmer-mobile-shell .guide-role-list button { min-height: 76px; padding: 10px 13px; }
+.farmer-mobile-shell .guide-role-list button > span,
+.farmer-mobile-shell .guide-role-list img { width: 50px; height: 50px; border-radius: 14px; }
+.farmer-mobile-shell .guide-role-list strong { font-size: 14px; }
+.farmer-mobile-shell .guide-role-list small { font-size: 11px; }
+.farmer-mobile-shell .guide-role-detail { border-radius: 18px; }
+
+/* Buttons on shared farmer screens use the mobile radius. */
+.farmer-mobile-shell .primary-button,
+.farmer-mobile-shell .secondary-button,
+.farmer-mobile-shell .danger-button { border-radius: 13px; }
