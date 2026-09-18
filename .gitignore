@@ -14,6 +14,8 @@
 *.py[cod]
 .venv/
 artifacts/
+# Local dev-automation build state (APK fingerprint + last-built URL)
+.dahonmd/
 
 # Dataset image content is ignored by default. Only dataset documentation
 # (markdown) files are tracked; image files must never be committed.
