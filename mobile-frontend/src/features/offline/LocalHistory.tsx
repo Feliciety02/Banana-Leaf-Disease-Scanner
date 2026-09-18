@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -8,14 +8,16 @@ import { CLASS_DISPLAY_NAMES } from '../classification/disease-data';
 import type { ClassKey } from '../classification/types';
 import {
   listLocalDiagnoses,
+  parseDiagnosisReview,
   requestLocalDiagnosisDeletion,
   retryLocalDiagnosis,
   subscribeToLocalDiagnosisChanges,
   type LocalDiagnosis,
   type LocalSyncStatus,
 } from '../../storage/localDiagnoses';
+import { hasLocalScanImage, requestAgriculturalReview, uploadReviewImage } from '../../services/diagnosisReview';
 import { ImageViewer } from '../../components/ImageViewer';
-import { palette } from '../connected/ui';
+import { formatDate, palette, titleCase } from '../connected/ui';
 import { ProbabilityRow } from '../scan/ProbabilityRow';
 import { authenticatedImageSource } from '../../services/api';
 import type { PredictionResult } from '../../types/prediction';
@@ -39,6 +41,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
   const [exporting, setExporting] = useState(false);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reviewDraft, setReviewDraft] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,6 +107,34 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
     }
   };
 
+  const requestReview = async (item: LocalDiagnosis) => {
+    setBusyId(item.local_id);
+    setError('');
+    try {
+      await requestAgriculturalReview(item.local_id);
+      setError('');
+      onChanged?.();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'The agricultural review could not be requested.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const resendImage = async (item: LocalDiagnosis) => {
+    setBusyId(item.local_id);
+    setError('');
+    try {
+      await uploadReviewImage(item.local_id);
+      setError('');
+      onChanged?.();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'The scan image could not be sent.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const exportCsv = async () => {
     setExporting(true);
     try {
@@ -153,6 +184,8 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
       const status = statusCopy[item.sync_status];
       const baseline = parseComparisonEntry(item.baseline_json);
       const enhanced = parseComparisonEntry(item.enhanced_json);
+      const review = parseDiagnosisReview(item.review_json);
+      const canRequestReview = !review && item.server_id != null && item.sync_uuid != null && item.sync_status === 'synced';
       const expanded = expandedId === item.local_id;
       const needsRetry = item.sync_status === 'failed' || item.sync_status === 'delete_failed';
       return <View key={item.local_id} style={styles.card}>
@@ -183,6 +216,39 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
               {(enhanced?.probabilities.length ? enhanced.probabilities : parseProbabilities(item)).map(({ classKey, probability }) => <ProbabilityRow key={classKey} label={CLASS_DISPLAY_NAMES[classKey]} probability={probability} selected={classKey === item.predicted_class} />)}
             </View>
             <View style={styles.statusRow}><Ionicons name="cloud-outline" size={14} color={status.color} /><Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text></View>
+            {canRequestReview && (
+              <View style={styles.reviewRequest}>
+                <View style={styles.reviewHeading}><Ionicons name="shield-checkmark-outline" size={18} color={palette.green} /><Text style={styles.reviewTitle}>Agricultural review</Text></View>
+                <Text style={styles.reviewHint}>An agricultural reviewer can assess this saved scan. This requires an internet connection.</Text>
+                <TextInput style={styles.reviewInput} placeholder="Notes for the reviewer (optional)" placeholderTextColor="#8a9892" maxLength={1000} value={reviewDraft[item.local_id] ?? item.farmer_notes ?? ''} onChangeText={(text) => setReviewDraft((current) => ({ ...current, [item.local_id]: text }))} />
+                <Pressable accessibilityRole="button" disabled={busyId === item.local_id} onPress={() => requestReview(item)} style={[styles.reviewButton, busyId === item.local_id && styles.dim]}>
+                  <Ionicons name="shield-checkmark" size={16} color="#fff" /><Text style={styles.reviewButtonText}>{busyId === item.local_id ? 'Requesting…' : 'Request Agricultural Review'}</Text>
+                </Pressable>
+              </View>
+            )}
+            {review && review.review_status === 'pending' && (
+              <View style={styles.reviewPending}>
+                <View style={styles.reviewHeading}><Ionicons name="shield-checkmark" size={18} color={palette.warning} /><Text style={[styles.reviewTitle, { color: palette.warning }]}>Review requested</Text></View>
+                <Text style={styles.reviewHint}>{review.farmer_follow_up || 'An agricultural reviewer can assess this saved scan.'}</Text>
+                {review.requested_at && <Text style={styles.reviewMeta}>Requested {formatDate(review.requested_at, true)}</Text>}
+                {hasLocalScanImage(item) && (
+                  <Pressable accessibilityRole="button" disabled={busyId === item.local_id} onPress={() => resendImage(item)} style={styles.reviewRetryButton}>
+                    <Ionicons name="cloud-upload-outline" size={15} color={palette.green} /><Text style={styles.reviewRetryText}>{busyId === item.local_id ? 'Sending…' : 'Send the scan image'}</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+            {review && review.review_status !== 'pending' && (
+              <View style={styles.reviewResult}>
+                <View style={styles.reviewHeading}><Ionicons name="shield-checkmark" size={18} color={palette.green} /><Text style={styles.reviewTitle}>Agricultural review available</Text></View>
+                <Text style={styles.reviewResultStatus}>{titleCase(review.review_status)}</Text>
+                <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>AI screening: </Text>{CLASS_DISPLAY_NAMES[item.predicted_class]} ({clampPercent(item.confidence)})</Text>
+                {review.verified_label && <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>Reviewer assessment: </Text>{titleCase(review.verified_label)}</Text>}
+                {review.farmer_follow_up && <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>Recommended follow-up: </Text>{review.farmer_follow_up}</Text>}
+                {review.next_steps.length > 0 && <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>Next steps: </Text>{review.next_steps.map((step) => titleCase(step)).join(' · ')}</Text>}
+                {(review.reviewer || review.reviewed_at) && <Text style={styles.reviewMeta}>Reviewed{review.reviewer ? ` by ${review.reviewer.name}` : ''}{review.reviewed_at ? ` · ${formatDate(review.reviewed_at, true)}` : ''}</Text>}
+              </View>
+            )}
             {needsRetry && (
               <Pressable accessibilityRole="button" disabled={busyId === item.local_id} onPress={() => retry(item)} style={styles.retryButton}>
                 <Ionicons name="refresh" size={15} color={palette.green} /><Text style={styles.retryText}>Retry</Text>
@@ -267,6 +333,21 @@ const styles = StyleSheet.create({
   modelLine: { color: palette.muted, fontSize: 12, fontWeight: '800' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statusText: { fontSize: 12, fontWeight: '700' },
+  reviewRequest: { gap: 9, padding: 12, borderRadius: 12, backgroundColor: '#e5eee8', borderWidth: 1, borderColor: '#b9d2c4' },
+  reviewPending: { gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.warningSoft, borderWidth: 1, borderColor: '#ead596' },
+  reviewResult: { gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.successSoft, borderWidth: 1, borderColor: '#bddfce' },
+  reviewHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  reviewTitle: { color: palette.green, fontSize: 13, fontWeight: '800' },
+  reviewHint: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+  reviewMeta: { color: palette.muted, fontSize: 11, lineHeight: 16, fontWeight: '600' },
+  reviewResultStatus: { color: palette.ink, fontSize: 16, lineHeight: 20, fontWeight: '900' },
+  reviewLine: { color: palette.ink, fontSize: 12, lineHeight: 18 },
+  reviewLineLabel: { color: palette.muted, fontWeight: '800' },
+  reviewInput: { minHeight: 46, borderRadius: 11, borderWidth: 1, borderColor: '#cbd7d0', backgroundColor: '#fff', paddingHorizontal: 11, color: palette.ink, fontSize: 14 },
+  reviewButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 42, borderRadius: 11, backgroundColor: palette.green },
+  reviewButtonText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  reviewRetryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, borderRadius: 11, borderWidth: 1, borderColor: palette.green, backgroundColor: '#fff' },
+  reviewRetryText: { color: palette.green, fontSize: 13, fontWeight: '800' },
   retryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: palette.green, backgroundColor: '#fff' },
   retryText: { color: palette.green, fontSize: 13, fontWeight: '800' },
   deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 42, borderRadius: 12, borderWidth: 1, borderColor: '#e7b3ae', backgroundColor: '#fff' },
