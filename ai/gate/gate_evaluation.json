@@ -1,0 +1,71 @@
+{
+  "threshold": 0.5,
+  "test_real_leaves_accepted": 0.9760479041916168,
+  "test_non_leaf_rejected": 0.9940365262765561,
+  "test_counts": {
+    "positive": 167,
+    "negative": 2683
+  },
+  "per_category": {
+    "negative/domainnet_clipart": {
+      "images": 195,
+      "wrongly_accepted": 0.0
+    },
+    "negative/domainnet_painting": {
+      "images": 605,
+      "wrongly_accepted": 0.0033
+    },
+    "negative/domainnet_real": {
+      "images": 456,
+      "wrongly_accepted": 0.0066
+    },
+    "negative/domainnet_sketch": {
+      "images": 521,
+      "wrongly_accepted": 0.0
+    },
+    "negative/flowers": {
+      "images": 224,
+      "wrongly_accepted": 0.0
+    },
+    "negative/imagenette": {
+      "images": 348,
+      "wrongly_accepted": 0.0
+    },
+    "negative/stylised_cartoon": {
+      "images": 48,
+      "wrongly_accepted": 0.0
+    },
+    "negative/stylised_oil": {
+      "images": 46,
+      "wrongly_accepted": 0.1522
+    },
+    "negative/stylised_pencil_color": {
+      "images": 44,
+      "wrongly_accepted": 0.0
+    },
+    "negative/stylised_pencil_gray": {
+      "images": 51,
+      "wrongly_accepted": 0.0
+    },
+    "negative/stylised_posterize": {
+      "images": 56,
+      "wrongly_accepted": 0.0714
+    },
+    "negative/stylised_stylization": {
+      "images": 53,
+      "wrongly_accepted": 0.0
+    },
+    "negative/stylised_watercolor": {
+      "images": 36,
+      "wrongly_accepted": 0.0
+    },
+    "positive/banana_bdr": {
+      "images": 32,
+      "accepted": 0.9688
+    },
+    "positive/banana_thesis": {
+      "images": 135,
+      "accepted": 0.9778
+    }
+  }
+}

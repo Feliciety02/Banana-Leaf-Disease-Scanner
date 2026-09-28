@@ -16,7 +16,7 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
     refreshSession().then((fresh) => { if (mounted) onUser(fresh); }).catch(async (requestError) => {
       if (!mounted) return;
       if (requestError instanceof Error && 'status' in requestError && requestError.status === 401) { await clearSession(); onUser(null); }
-      else setError('Using the saved identity. Live workspace data requires a connection.');
+      else setError("You're offline. Some account details may be out of date.");
     });
     return () => { mounted = false; };
   }, [user?.id]);
@@ -33,12 +33,12 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
   if (restoring) return <View style={styles.center}><ActivityIndicator color={palette.green} /><Text style={styles.muted}>Restoring secure session…</Text></View>;
   if (user?.role === 'admin') return <AdminWorkspace user={user} onSignOut={signOut} />;
   if (user?.role === 'farmer') return <FarmerWorkspace user={user} onSignOut={signOut} onAccountDeleted={() => onUser(null)} onChanged={onDataChanged} />;
-  if (user) return <View style={uiStyles.stack}><SectionHeader eyebrow="CONNECTED ACCOUNT" title={`Hello, ${user.name}`} text={`Signed in as ${titleCase(user.role)}. Offline Scan remains available without the server.`} />{error && <Notice tone="warning">{error}</Notice>}<View style={uiStyles.card}><Ionicons name="shield-checkmark-outline" size={32} color={palette.green} /><Text style={uiStyles.cardTitle}>Role-based workspace</Text><Text style={uiStyles.cardMeta}>The server returned the {titleCase(user.role)} role. This mobile build currently exposes administrator management tools only and does not infer elevated permissions.</Text><ActionButton variant="secondary" icon="log-out-outline" onPress={signOut}>Sign out</ActionButton></View></View>;
+  if (user) return <View style={uiStyles.stack}><SectionHeader eyebrow="CONNECTED ACCOUNT" title={`Hello, ${user.name}`} text={`Signed in as ${titleCase(user.role)}.`} />{error && <Notice tone="warning">{error}</Notice>}<View style={uiStyles.card}><Ionicons name="shield-checkmark-outline" size={32} color={palette.green} /><Text style={uiStyles.cardTitle}>Use the web dashboard</Text><Text style={uiStyles.cardMeta}>Tools for the {titleCase(user.role)} role are available on the DahonMD website. You can still scan leaves in this app.</Text><ActionButton variant="secondary" icon="log-out-outline" onPress={signOut}>Sign out</ActionButton></View></View>;
 
-  return <View style={uiStyles.stack}><SectionHeader eyebrow="OPTIONAL ONLINE WORKSPACE" title="Connect your account" text="Log in or create a farmer account when you want server-backed features. The offline scanner does not require either." />
-    {!hasConnectedConfiguration() && <Notice tone="warning">Connected features need EXPO_PUBLIC_API_URL. Offline Scan remains available.</Notice>}{error && <Notice>{error}</Notice>}
+  return <View style={uiStyles.stack}><SectionHeader eyebrow="ACCOUNT" title="Sign in (optional)" text="Sign in or create an account to back up your scans, ask Dahon questions, and request an agricultural review. Scanning works without an account." />
+    {!hasConnectedConfiguration() && <Notice tone="warning">Accounts are not available in this version of the app. You can still scan leaves.</Notice>}{error && <Notice>{error}</Notice>}
     <View style={styles.authActions}><ActionButton icon="log-in-outline" onPress={() => onOpenAuth('login')}>Log in</ActionButton><ActionButton variant="secondary" icon="person-add-outline" onPress={() => onOpenAuth('register')}>Sign up</ActionButton></View>
-    <View style={styles.boundary}><Ionicons name="cloud-offline-outline" size={22} color={palette.green} /><View style={uiStyles.flex}><Text style={styles.boundaryTitle}>Offline boundary</Text><Text style={styles.muted}>Camera/gallery classification stays local. Connected records require a reachable server and are never replaced with invented cached data.</Text></View></View>
+    <View style={styles.boundary}><Ionicons name="cloud-offline-outline" size={22} color={palette.green} /><View style={uiStyles.flex}><Text style={styles.boundaryTitle}>Works offline</Text><Text style={styles.muted}>Leaf checks run on your phone, so you can scan without internet. Account features need a connection.</Text></View></View>
     <View style={styles.authActions}><ActionButton variant="ghost" icon="document-text-outline" onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')}>Privacy policy</ActionButton><ActionButton variant="ghost" icon="open-outline" onPress={() => openPage(accountDeletionUrl(), 'The account deletion page')}>Delete an account</ActionButton></View>
   </View>;
 }

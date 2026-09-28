@@ -3256,3 +3256,250 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--green); }
 .farmer-mobile-shell .primary-button,
 .farmer-mobile-shell .secondary-button,
 .farmer-mobile-shell .danger-button { border-radius: 13px; }
+
+/* ============================================================
+   Thesis design system (Baseline-Enhanced-Thesis mobile app)
+   Plain white pages, thin borders, no shadows, one clear
+   primary action per screen. Applies to every role (farmer,
+   agricultural reviewer, admin); navigation is unchanged.
+   ============================================================ */
+:root {
+  --page: #ffffff;
+  --panel: #ffffff;
+  --ink: #1d2d24;
+  --muted: #68736d;
+  --line: #dde5e0;
+  --green: #236b4b;
+  --green-dark: #18583b;
+  --green-soft: #f0f6f2;
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 14px;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --control-height: 48px;
+}
+body { background: var(--page); }
+
+/* Page headings: 27px title, short muted subtitle. */
+.role-page-heading h1, .farmer-welcome h1, .result-title h1 {
+  font-size: clamp(26px, 2.4vw, 30px);
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+.scan-page .role-page-heading h1 { font-weight: 800; }
+.role-page-heading > p:last-child, .farmer-welcome > p:last-child,
+.scan-page .role-page-heading > p:last-child { color: var(--muted); font-size: 14px; line-height: 1.45; }
+.role-stack { gap: 20px; }
+
+/* Cards: flat, bordered, no lift on hover. */
+.panel, .guide-role-list, .guide-role-detail, .admin-stat-card, .history-role-panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+.admin-stat-card:hover, .panel:hover { transform: none; box-shadow: none; }
+.admin-stat-card > span { color: var(--green); background: var(--green-soft); border-radius: 10px; }
+.admin-stat-card strong { color: var(--green); font-weight: 800; }
+.admin-table-role > header { background: #f6f9f7; color: var(--muted); }
+
+/* Buttons: 48px tall, 12px radius, flat colours. */
+.primary-button, .secondary-button, .danger-button,
+.farmer-mobile-shell .primary-button, .farmer-mobile-shell .secondary-button, .farmer-mobile-shell .danger-button {
+  min-height: 48px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: none;
+  transform: none;
+}
+.primary-button { color: #fff; background: var(--green); border: 1px solid var(--green); }
+.primary-button:hover { background: var(--green-dark); box-shadow: none; transform: none; }
+.primary-button:disabled { color: #fff; background: var(--green); opacity: .5; }
+.secondary-button { color: #245f45; background: #fff; border: 1px solid #b9cbc1; }
+.secondary-button:hover { color: #245f45; background: #edf6f1; border-color: #b9cbc1; transform: none; }
+.text-button { color: var(--green); }
+
+/* Notices: soft fill, thin border, 10px radius. */
+.farmer-sync-banner, .screening-warning, .development-note, .success-message, .form-error, .scope-note {
+  border-radius: 10px;
+  box-shadow: none;
+}
+.farmer-sync-banner { background: #eff7f2; border: 1px solid #c7ddce; }
+.farmer-sync-banner.offline { background: #fff6e5; border-color: #e6d09e; }
+
+/* Tabs (accounts, sources): thesis tab look. */
+.admin-tabs { background: #f1f4f2; border: 1px solid var(--line); border-radius: 12px; }
+.admin-tabs button { min-height: 42px; font-size: 13px; font-weight: 600; border-radius: 9px; }
+.admin-tabs button.active { color: var(--green); background: #fff; box-shadow: none; font-weight: 800; }
+
+/* Reviewer + admin sidebar: white, like the thesis tab bar. */
+.role-sidebar {
+  color: var(--ink);
+  background: #fff;
+  border-right: 1px solid var(--line);
+}
+.role-brand { border-bottom: 1px solid var(--line); }
+.role-brand > span { background: var(--green); border-radius: 9px; }
+.role-brand strong { color: #173c2a; font-size: 17px; font-weight: 800; }
+.role-brand small { color: var(--muted); font-size: 11px; }
+.role-brand .icon-button { color: var(--ink); background: #f1f4f2; border-radius: 10px; }
+.role-sidebar nav { gap: 4px; }
+.role-sidebar nav button {
+  min-height: 46px;
+  padding: 0 12px;
+  color: #5d6862;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.role-sidebar nav button svg { color: #7b857f; }
+.role-sidebar nav button:hover { color: var(--ink); background: #f6f9f7; }
+.role-sidebar nav button.active { color: var(--green); background: var(--green-soft); font-weight: 800; }
+.role-sidebar nav button.active::before { display: none; }
+.role-sidebar nav button.active svg { color: var(--green); }
+.sidebar-footer { border-top: 1px solid var(--line); }
+.sidebar-account { color: var(--ink); }
+.sidebar-account:hover { background: #f6f9f7; }
+.sidebar-account > span { color: var(--green); background: var(--green-soft); border: 1px solid var(--line); }
+.sidebar-account strong { color: var(--ink); font-size: 13px; }
+.sidebar-account small { color: var(--muted); font-size: 11px; }
+.sidebar-network { color: var(--muted); font-size: 11px; }
+.sidebar-logout { color: #a0443d; font-size: 13px; }
+.sidebar-logout:hover { color: #a0443d; background: #fff1ef; }
+.role-topbar { background: #fff; border-bottom: 1px solid #e5eae7; backdrop-filter: none; }
+.role-header-brand strong { color: var(--ink); font-size: 16px; font-weight: 800; }
+
+/* Farmer shell: flat header and a docked thesis tab bar. */
+.farmer-shell.farmer-mobile-shell { background: #fff; }
+.farmer-mobile-header {
+  min-height: 64px;
+  padding: 10px clamp(18px, 3.5vw, 48px);
+  align-items: center;
+  background: #fff;
+  border-bottom: 1px solid #e5eae7;
+}
+.farmer-mobile-brand > span { width: 34px; height: 34px; background: transparent; border-radius: 9px; }
+.farmer-mobile-brand strong { color: #173c2a; font-size: 18px; font-weight: 800; letter-spacing: 0; }
+.farmer-mobile-brand small { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.farmer-header-actions .icon-button, .farmer-header-avatar { background: var(--green-soft); border: 1px solid var(--line); }
+.farmer-mobile-main .role-page { width: min(100%, 640px); padding: 26px 18px 110px; }
+.farmer-mobile-nav {
+  inset: auto 0 0;
+  min-height: 64px;
+  padding: 6px max(12px, calc((100vw - 640px) / 2));
+  gap: 4px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+}
+.farmer-mobile-nav button { min-height: 52px; color: #7b857f; border-radius: 10px; font-size: 13px; font-weight: 600; }
+.farmer-mobile-nav button:hover { background: #f6f9f7; }
+.farmer-mobile-nav button.active { color: var(--green); background: var(--green-soft); font-weight: 800; }
+.farmer-mobile-nav button.active::after { display: none; }
+.farmer-mobile-shell .ai-assistant-launcher { bottom: 84px; }
+@media (max-width: 760px) { .farmer-mobile-shell .ai-assistant-launcher { bottom: 84px; } }
+@media (max-width: 500px) {
+  .farmer-mobile-nav { inset: auto 0 0; }
+  .farmer-mobile-main .role-page { padding: 22px 16px 104px; }
+}
+
+/* Farmer home: one plain scan card instead of the green hero. */
+.farmer-mobile-shell .farmer-home-grid { grid-template-columns: 1fr; gap: 14px; }
+.farmer-scan-card {
+  padding: 22px 18px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.scan-card-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 4px;
+  display: grid;
+  place-items: center;
+  color: var(--green);
+  background: var(--green-soft);
+  border-radius: 50%;
+}
+.farmer-scan-card h2 { margin: 0; color: var(--ink); font-size: 20px; font-weight: 800; }
+.farmer-scan-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.farmer-scan-card .primary-button { margin-top: 10px; }
+.farmer-scan-card small { margin-top: 4px; color: #737d77; font-size: 12px; }
+
+/* Scan photo frame and history/guide cards: thesis radii. */
+.selected-photo-frame { border-radius: 14px; background: #edf1ee; }
+.scan-drop-frame { background: #f1f4f2; border: 1px dashed #ccd7d0; border-radius: 14px; }
+.scan-drop-frame h2 { color: #35433b; font-weight: 700; }
+.farmer-mobile-shell .history-role-panel, .farmer-mobile-shell .guide-role-list,
+.farmer-mobile-shell .guide-role-detail { border-radius: 14px; }
+.recent-thumb, .farmer-mobile-shell .recent-thumb { border-radius: 8px; }
+.farmer-mobile-shell .recent-copy strong { color: #21382b; font-size: 15px; font-weight: 700; }
+.farmer-mobile-shell .diagnosis-dialog { border-radius: 20px 20px 0 0; }
+.farmer-mobile-shell .diagnosis-dialog header h2 { font-weight: 800; }
+.farmer-mobile-shell .review-result h3 { font-weight: 800; }
+.crud-dialog { border-radius: 18px; }
+
+/* Login and sign-up dialogs */
+.crud-overlay.auth { padding: 16px; }
+.crud-overlay.auth .crud-scrim { background: rgba(12, 32, 23, .58); backdrop-filter: blur(6px); }
+.crud-dialog.auth.small {
+  width: min(448px, 100%);
+  border: 1px solid #dce7df;
+  border-radius: 24px;
+  box-shadow: 0 28px 80px rgba(9, 34, 25, .22);
+}
+.crud-dialog.auth .crud-dialog-header {
+  min-height: 0;
+  padding: 0;
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+}
+.crud-dialog.auth .crud-dialog-header > div { display: none; }
+.crud-dialog.auth .crud-dialog-header .icon-button {
+  width: 36px;
+  height: 36px;
+  color: #5b6b60;
+  background: #f4f7f4;
+  border: 1px solid #e5ebe6;
+  border-radius: 10px;
+}
+.crud-dialog.auth .crud-dialog-body { padding: 32px 34px 28px; }
+.crud-dialog.auth .auth-modal-content { gap: 0; }
+.crud-dialog.auth .auth-modal-content .auth-welcome { justify-items: start; gap: 0; text-align: left; }
+.auth-brand-row { display: flex; align-items: center; gap: 9px; color: #205c3d; font-size: 15px; font-weight: 800; letter-spacing: -.02em; }
+.crud-dialog.auth .auth-modal-mark { width: 36px; height: 36px; padding: 4px; background: #edf5ef; border-radius: 10px; }
+.auth-modal-mark .logo-mark { width: 100%; height: 100%; object-fit: contain; }
+.auth-eyebrow { margin-top: 27px; color: var(--green); font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.crud-dialog.auth .auth-welcome h3 { margin-top: 7px; color: var(--ink); font-size: clamp(25px, 6vw, 30px); line-height: 1.15; font-weight: 800; letter-spacing: -.035em; }
+.crud-dialog.auth .auth-welcome p { max-width: 330px; margin: 9px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.crud-dialog.auth .auth-form { margin-top: 26px; gap: 16px; }
+.crud-dialog.auth .auth-form label { color: #33463a; font-size: 13px; font-weight: 700; }
+.crud-dialog.auth .auth-field { min-height: 52px; padding: 0 14px; gap: 11px; color: #6d8272; background: #f8faf8; border: 1px solid #d9e4db; border-radius: 12px; box-shadow: none; transition: border-color .18s ease, box-shadow .18s ease; }
+.crud-dialog.auth .auth-field:focus-within { border-color: var(--green); box-shadow: 0 0 0 3px rgba(35, 107, 75, .12); }
+.crud-dialog.auth .auth-form .auth-field input { height: 50px; min-height: 50px; color: var(--ink); background: transparent; font-size: 14px; }
+.crud-dialog.auth .auth-field input::placeholder { color: #97a49a; }
+.crud-dialog.auth .auth-eye { width: 38px; height: 38px; color: #6d8272; }
+.crud-dialog.auth .auth-eye:hover { color: var(--green); background: #eaf2ec; }
+.crud-dialog.auth .auth-options { margin-top: 0; }
+.crud-dialog.auth .auth-options > button { color: var(--green); font-size: 12px; }
+.crud-dialog.auth .remember-control { color: #56665b; font-size: 12px; font-weight: 600; }
+.crud-dialog.auth .remember-control > span { width: 18px; height: 18px; border-color: #a9b9ac; border-radius: 5px; }
+.crud-dialog.auth .remember-control > input:checked + span { background: var(--green); border-color: var(--green); }
+.crud-dialog.auth .remember-control > input:focus-visible + span { outline: 3px solid rgba(35, 107, 75, .28); outline-offset: 2px; }
+.crud-dialog.auth .auth-submit { min-height: 52px; margin-top: 3px; background: var(--green); border-radius: 12px; box-shadow: none; font-size: 15px; }
+.crud-dialog.auth .auth-submit:hover { background: var(--green-dark); }
+.crud-dialog.auth .auth-switch { margin: 24px 0 0; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; text-align: center; }
+.crud-dialog.auth .auth-switch button { color: var(--green); font-size: 13px; font-weight: 800; }
+.crud-dialog.auth .auth-notice { color: #245f43; background: #eff7f2; border: 1px solid #c7ddce; border-radius: 10px; font-size: 12px; text-align: left; }
+@media (max-width: 500px) {
+  .crud-dialog.auth .crud-dialog-body { padding: 28px 22px 24px; }
+  .crud-dialog.auth .auth-welcome p { padding-right: 28px; }
+}

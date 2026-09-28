@@ -5,6 +5,8 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { palette } from '../connected/ui';
 import { analyzeLeaf, analyzeBaselineLeaf, type InferenceResult } from '../classification/inference';
+import { prepareImageForInference } from '../classification/preprocessing';
+import { checkBananaLeafPhoto, LEAF_GATE_BLOCKING } from '../classification/leafGate';
 import { TreatmentGuide } from '../classification/TreatmentGuide';
 import { saveLocalDiagnosis, type ModelComparisonEntry } from '../../storage/localDiagnoses';
 import type { SessionUser } from '../../services/api';
@@ -15,7 +17,7 @@ import { SelectedImagePreview } from './SelectedImagePreview';
 import { ImageSelector } from './ImageSelector';
 import { CameraCapture } from './CameraCapture';
 import { ImageQualityNotice } from './ImageQualityNotice';
-import { ModelComparison } from './ModelComparison';
+import { ScanResult } from './ScanResult';
 import { evaluateImageQuality, type ImageQualityIssue } from './scanQuality';
 
 function toPredictionResult(result: InferenceResult): PredictionResult {
@@ -43,22 +45,23 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [photoIssues, setPhotoIssues] = useState<ImageQualityIssue[] | null>(null);
   const [result, setResult] = useState<InferenceResult | null>(null);
-  const [baseline, setBaseline] = useState<InferenceResult | null>(null);
-  const [phase, setPhase] = useState<'scan' | 'ready' | 'checking' | 'result'>('scan');
+  const [phase, setPhase] = useState<'scan' | 'ready' | 'checking' | 'result' | 'rejected'>('scan');
   const [saveError, setSaveError] = useState('');
   const [modelError, setModelError] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const savedIdRef = useRef<string | null>(null);
+  const scanIdRef = useRef(0);
 
+  // 'prototype' only means no server is configured; the on-device model still runs.
   const modelReady = modelStatus.status === 'real' || modelStatus.status === 'prototype';
-  const prototype = modelStatus.status === 'prototype';
+  const modelUnavailable = modelStatus.status === 'unavailable';
 
   const reset = () => {
+    scanIdRef.current += 1;
     setImageUri(null);
     setPhotoIssues(null);
     setResult(null);
-    setBaseline(null);
     setPhase('scan');
     setSaveError('');
     setModelError('');
@@ -82,68 +85,96 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
 
   const checkLeaf = async () => {
     if (!imageUri || phase === 'checking') return;
+    const scanId = ++scanIdRef.current;
+    const isCurrent = () => scanIdRef.current === scanId;
     setPhase('checking');
     setSaveError('');
     setModelError('');
+    const started = Date.now();
+    let next: InferenceResult;
+    let prepared: string;
     try {
-      const quality = await evaluateImageQuality(imageUri);
+      // Resize once and reuse the 224x224 image for both models; the quality
+      // check runs alongside it.
+      const [quality, preparedUri] = await Promise.all([evaluateImageQuality(imageUri), prepareImageForInference(imageUri)]);
+      prepared = preparedUri;
+      const preparedAt = Date.now();
+      // Only real photos of banana leaves are diagnosed. Anything else
+      // (other plants, objects, paintings, drawings) is blocked and not saved.
+      const gate = await checkBananaLeafPhoto(prepared).catch((gateError: unknown) => {
+        // In shadow mode a gate failure must not stop the scan.
+        if (LEAF_GATE_BLOCKING) throw gateError;
+        return null;
+      });
+      if (gate) console.info(`[scan-timing] leaf-gate score=${gate.score.toFixed(3)} wouldReject=${gate.wouldReject} blocking=${LEAF_GATE_BLOCKING} (${gate.latencyMs.toFixed(1)}ms)`);
+      if (!isCurrent()) return;
+      if (gate && !gate.accepted) {
+        setPhase('rejected');
+        return;
+      }
+      next = await analyzeLeaf(imageUri, prepared);
+      if (!isCurrent()) return;
       setPhotoIssues(quality.issues);
-      const next = await analyzeLeaf(imageUri);
       setResult(next);
-      let baselineResult: InferenceResult | null = null;
-      try {
-        baselineResult = await analyzeBaselineLeaf(imageUri);
-        setBaseline(baselineResult);
-      } catch {
-        setBaseline(null);
-      }
-      let savedLocalId: string | null = null;
-      try {
-        const saved = await saveLocalDiagnosis({
-          predictedClass: next.classKey,
-          confidence: next.confidence * 100,
-          modelVersion: next.modelVersion,
-          inferenceTimeMs: next.latencyMs,
-          imageUri,
-          ownerUserId: user?.role === 'farmer' ? user.id : null,
-          probabilities: next.probabilities,
-          baseline: baselineResult ? toComparisonEntry(baselineResult) : null,
-          enhanced: toComparisonEntry(next),
-        });
-        if (saved?.local_id) savedLocalId = saved.local_id;
-        savedIdRef.current = savedLocalId;
-        onStored();
-      } catch (storageError) {
-        setSaveError(storageError instanceof Error ? storageError.message : 'The local database could not save this result.');
-      }
       setPhase('result');
+      console.info(`[scan-timing] prepare+quality=${preparedAt - started}ms enhanced=${Date.now() - preparedAt}ms (model ${next.latencyMs.toFixed(1)}ms) result-shown=${Date.now() - started}ms`);
     } catch (error) {
-      setModelError(error instanceof Error ? error.message : 'The on-device model could not analyze this leaf.');
+      if (!isCurrent()) return;
+      // Technical details go to the log; farmers get a plain message.
+      console.warn('[scan] analysis failed', error);
+      setModelError('This photo could not be checked. Please try again or choose another photo.');
       setPhase('ready');
+      return;
     }
+
+    // The enhanced result is already on screen. The baseline still runs in the
+    // background so saved records and CSV exports keep the thesis comparison;
+    // it is not shown to the user.
+    const baselineStarted = Date.now();
+    let baselineResult: InferenceResult | null = null;
+    try {
+      baselineResult = await analyzeBaselineLeaf(imageUri, prepared);
+    } catch {
+      baselineResult = null;
+    }
+    const savedStarted = Date.now();
+    try {
+      const saved = await saveLocalDiagnosis({
+        predictedClass: next.classKey,
+        confidence: next.confidence * 100,
+        modelVersion: next.modelVersion,
+        inferenceTimeMs: next.latencyMs,
+        imageUri,
+        ownerUserId: user?.role === 'farmer' ? user.id : null,
+        probabilities: next.probabilities,
+        baseline: baselineResult ? toComparisonEntry(baselineResult) : null,
+        enhanced: toComparisonEntry(next),
+      });
+      if (isCurrent()) savedIdRef.current = saved?.local_id ?? null;
+      onStored();
+    } catch (storageError) {
+      if (isCurrent()) setSaveError(storageError instanceof Error ? storageError.message : 'The local database could not save this result.');
+    }
+    console.info(`[scan-timing] baseline=${savedStarted - baselineStarted}ms save=${Date.now() - savedStarted}ms total=${Date.now() - started}ms`);
   };
 
   const resultPrediction: InferenceResult | null = result;
   const enhanced: PredictionResult | null = resultPrediction ? toPredictionResult(resultPrediction) : null;
-  const baselinePrediction: PredictionResult | null = baseline ? toPredictionResult(baseline) : null;
 
   if (phase === 'result' && result && enhanced) {
     return (
       <View style={styles.screen}>
-        <Text style={styles.heading}>{prototype ? 'Prototype result' : 'Result'}</Text>
+        <Text style={styles.heading}>Result</Text>
 
         {imageUri && (
-          <View style={styles.photoCard}>
-            <Pressable accessibilityRole="button" accessibilityLabel="View full size image" onPress={() => setViewerVisible(true)}>
-              <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" />
-            </Pressable>
-            <Text style={styles.caption}>Same photo used for both</Text>
-          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="View full size image" onPress={() => setViewerVisible(true)}>
+            <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" />
+          </Pressable>
         )}
 
         {photoIssues && <ImageQualityNotice issues={photoIssues} />}
 
-        <ModelComparison result={enhanced} baseline={baselinePrediction} prototype={prototype} />
+        <ScanResult result={enhanced} />
 
         <TreatmentGuide classKey={result.classKey} />
 
@@ -166,6 +197,27 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
     );
   }
 
+  if (phase === 'rejected' && imageUri) {
+    return (
+      <View style={styles.screen}>
+        <Text style={styles.heading}>Not a banana leaf</Text>
+        <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" accessibilityLabel="Photo that was not accepted" />
+        <View style={styles.rejectCard}>
+          <Ionicons name="close-circle" size={22} color="#8e3028" />
+          <View style={styles.rejectCopy}>
+            <Text style={styles.rejectTitle}>This doesn't look like a real banana leaf photo</Text>
+            <Text style={styles.rejectText}>DahonMD only checks real photos of banana leaves. Paintings, drawings, screenshots, other plants and other objects can't be diagnosed.</Text>
+          </View>
+        </View>
+        <Text style={styles.tipText}>Take a clear photo of one banana leaf in good light, with the leaf filling most of the picture.</Text>
+        <Pressable accessibilityRole="button" onPress={reset} style={({ pressed }) => [styles.checkButton, pressed && styles.dim]}>
+          <Ionicons name="camera-outline" size={20} color="#fff" />
+          <Text style={styles.checkText}>Take another photo</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <Text style={styles.heading}>Scan a leaf</Text>
@@ -183,7 +235,12 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
         </>
       ) : (
         <>
-          {!modelReady ? (
+          {modelUnavailable ? (
+            <View style={styles.errorCard}>
+              <Ionicons name="alert-circle" size={18} color="#8e3028" />
+              <Text style={styles.errorText}>The leaf checker could not start on this phone. Close and reopen DahonMD, then try again.</Text>
+            </View>
+          ) : !modelReady ? (
             <View style={styles.readyRow}><ActivityIndicator color={palette.green} /><Text style={styles.readyText}>Getting ready…</Text></View>
           ) : (
             <Pressable accessibilityRole="button" accessibilityLabel="Check leaf" disabled={phase === 'checking'} onPress={checkLeaf} style={[styles.checkButton, phase === 'checking' && styles.dim]}>
@@ -214,23 +271,25 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
 
 const styles = StyleSheet.create({
   screen: { gap: 14, paddingTop: 16, paddingBottom: 24 },
-  heading: { color: palette.ink, fontSize: 32, lineHeight: 38, fontWeight: '900', letterSpacing: -0.5 },
-  subtitle: { color: '#6c7d77', fontSize: 16, lineHeight: 23, fontWeight: '500', marginTop: -8 },
+  heading: { color: palette.ink, fontSize: 27, lineHeight: 33, fontWeight: '800', letterSpacing: -0.4 },
+  subtitle: { color: palette.muted, fontSize: 14, lineHeight: 20, marginTop: -10 },
   tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4 },
-  tipText: { flex: 1, color: palette.muted, fontSize: 13, lineHeight: 19 },
+  tipText: { flex: 1, color: '#737d77', fontSize: 12, lineHeight: 18 },
   readyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 4 },
   readyText: { color: palette.green, fontSize: 15, fontWeight: '700' },
-  checkButton: { minHeight: 56, borderRadius: 16, backgroundColor: palette.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  checkText: { color: '#fff', fontSize: 17, fontWeight: '900' },
+  checkButton: { minHeight: 52, borderRadius: 12, backgroundColor: palette.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+  checkText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   dim: { opacity: 0.65 },
-  statusCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, backgroundColor: '#e6f4ed', borderWidth: 1, borderColor: '#bddfce', padding: 14 },
+  statusCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 52, borderRadius: 10, backgroundColor: '#eef5f1' },
   statusText: { color: palette.green, fontSize: 14, fontWeight: '700' },
-  errorCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: 13, backgroundColor: '#ffeeec', borderWidth: 1, borderColor: '#efc2bd', padding: 12 },
+  errorCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: 10, backgroundColor: '#fff0ee', padding: 12 },
+  rejectCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, backgroundColor: '#fff0ee', borderWidth: 1, borderColor: '#efc2bd', padding: 14 },
+  rejectCopy: { flex: 1, gap: 4 },
+  rejectTitle: { color: '#8e3028', fontSize: 15, fontWeight: '800' },
+  rejectText: { color: '#80534f', fontSize: 13, lineHeight: 19 },
   errorText: { flex: 1, color: '#8e3028', fontSize: 13, lineHeight: 18 },
-  photoCard: { gap: 6 },
-  photo: { width: '100%', height: 240, borderRadius: 16, backgroundColor: '#0b3328' },
-  caption: { color: palette.muted, fontSize: 12, textAlign: 'center', fontWeight: '600' },
-  againButton: { minHeight: 54, borderRadius: 16, borderWidth: 1.5, borderColor: palette.green, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  againText: { color: palette.green, fontSize: 16, fontWeight: '800' },
-  footer: { color: '#8a9892', fontSize: 12, textAlign: 'center', fontWeight: '600', marginTop: 4 },
+  photo: { width: '100%', height: 240, borderRadius: 16, backgroundColor: '#edf1ee' },
+  againButton: { minHeight: 50, borderRadius: 11, borderWidth: 1, borderColor: '#aac1b4', backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  againText: { color: '#245f43', fontSize: 15, fontWeight: '700' },
+  footer: { color: '#89918c', fontSize: 11, textAlign: 'center', fontWeight: '600', marginTop: 4 },
 });

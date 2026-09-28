@@ -119,6 +119,9 @@ type NativeModule = {
   getDeviceInfo(): Promise<DeviceInfo>;
   preprocessImage(uri: string): Promise<PreprocessResult>;
   prepareModel(): Promise<PrepareResult>;
+  prepareBaselineModel(): Promise<{ ready: boolean }>;
+  prepareGateModel(): Promise<{ ready: boolean }>;
+  checkLeafPhoto(uri: string): Promise<LeafGateResult>;
   getModelFingerprints(): Promise<ModelFingerprints>;
   analyzeImageQuality(uri: string): Promise<ImageQualityResult>;
   benchmarkModel(
@@ -200,6 +203,34 @@ export function prepareModel(): Promise<PrepareResult> {
     return Promise.reject(new Error('DahonMDTFLite native module is not available.'));
   }
   return native.prepareModel();
+}
+
+export type LeafGateResult = {
+  /** 0..1 score that the image is a real photograph of a banana leaf. */
+  score: number;
+  latencyMs: number;
+  modelVersion: string;
+};
+
+export function checkLeafPhoto(uri: string): Promise<LeafGateResult> {
+  if (!native) {
+    return Promise.reject(new Error('DahonMDTFLite native module is not available.'));
+  }
+  return native.checkLeafPhoto(uri);
+}
+
+export function prepareGateModel(): Promise<{ ready: boolean }> {
+  if (!native) {
+    return Promise.reject(new Error('DahonMDTFLite native module is not available.'));
+  }
+  return native.prepareGateModel();
+}
+
+export function prepareBaselineModel(): Promise<{ ready: boolean }> {
+  if (!native) {
+    return Promise.reject(new Error('DahonMDTFLite native module is not available.'));
+  }
+  return native.prepareBaselineModel();
 }
 
 export function getModelFingerprints(): Promise<ModelFingerprints> {

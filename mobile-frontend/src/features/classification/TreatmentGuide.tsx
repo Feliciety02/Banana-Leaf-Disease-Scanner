@@ -15,7 +15,6 @@ export function TreatmentGuide({ classKey }: { classKey: ClassKey }) {
         <View style={styles.heroCopy}>
           <Text style={styles.eyebrow}>WHAT TO DO</Text>
           <Text style={styles.heading}>{guide.heading}</Text>
-          <Text style={styles.basedOn}>Based on the Enhanced model</Text>
         </View>
         {guide.leafImage ? <Image source={guide.leafImage} style={styles.leafImage} resizeMode="cover" accessibilityLabel={`Example of ${classKey}`} /> : null}
       </View>
@@ -70,7 +69,6 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1, gap: 3 },
   eyebrow: { color: colors.green, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
   heading: { color: colors.ink, fontSize: 20, lineHeight: 26, fontWeight: '900' },
-  basedOn: { color: colors.muted, fontSize: 13, fontWeight: '600' },
   leafImage: { width: 72, height: 72, borderRadius: 12, backgroundColor: '#0b3328' },
   healthyCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 13, backgroundColor: colors.successSoft, borderWidth: 1, borderColor: '#bddfce', padding: 13 },
   healthyCopy: { flex: 1, gap: 2 },

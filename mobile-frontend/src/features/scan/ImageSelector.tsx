@@ -20,10 +20,10 @@ export function ImageSelector({ onSelectCamera, onSelectGallery, disabled }: { o
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10 },
-  button: { flex: 1, minHeight: 56, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  button: { flex: 1, minHeight: 52, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   cameraButton: { backgroundColor: palette.green, borderWidth: 1, borderColor: palette.green },
-  galleryButton: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: palette.green },
-  cameraText: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  galleryText: { color: palette.green, fontSize: 16, fontWeight: '800' },
+  galleryButton: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#b9cbc1' },
+  cameraText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  galleryText: { color: '#245f45', fontSize: 15, fontWeight: '700' },
   dim: { opacity: 0.55 },
 });

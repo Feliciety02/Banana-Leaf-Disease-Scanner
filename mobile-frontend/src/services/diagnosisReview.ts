@@ -16,7 +16,7 @@ type ReviewRequestResult = {
   imageUploaded: boolean;
 };
 
-export async function requestAgriculturalReview(localId: string): Promise<ReviewRequestResult> {
+export async function requestAgriculturalReview(localId: string, farmerNotes?: string): Promise<ReviewRequestResult> {
   const record = await getLocalDiagnosis(localId);
   if (!record) throw new Error('This saved scan could not be found.');
   if (!record.sync_uuid || !record.server_id) {
@@ -30,7 +30,7 @@ export async function requestAgriculturalReview(localId: string): Promise<Review
     throw new Error('This scan already has an agricultural reviewer assessment.');
   }
 
-  const notes = (record.farmer_notes ?? '').trim();
+  const notes = (farmerNotes ?? record.farmer_notes ?? '').trim();
   const payload = await api<ReviewRequestResponse>(`/diagnoses/${record.server_id}/review-request`, {
     method: 'POST',
     body: JSON.stringify({ farmer_notes: notes || null }),

@@ -51,7 +51,7 @@ export class ApiError extends Error {
 
 function apiUrl(path: string) {
   if (!configuredUrl) {
-    throw new ApiError('Connected features are not configured. Set EXPO_PUBLIC_API_URL to the Laravel API URL.');
+    throw new ApiError('Online features are not available in this version of the app.');
   }
   if (!isDevelopmentBuild() && !configuredUrl.startsWith('https://')) {
     throw new ApiError('Connected features require an HTTPS API URL in production builds.');

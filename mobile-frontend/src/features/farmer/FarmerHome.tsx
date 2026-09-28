@@ -31,7 +31,6 @@ const confidenceText = (value: number) => (value < LOW_CONFIDENCE ? 'Uncertain r
 
 function recentTitle(item: LocalDiagnosis) {
   if (item.confidence < LOW_CONFIDENCE) return 'Uncertain result';
-  if (item.predicted_class === 'healthy') return 'No supported pattern detected';
   return CLASS_DISPLAY_NAMES[item.predicted_class];
 }
 
@@ -115,24 +114,25 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
             <Text style={[styles.bannerTitle, { color: '#315c4e' }]}>{pending > 0 ? `${pending} scan${pending === 1 ? '' : 's'} waiting to upload` : 'Your scans are connected'}</Text>
             <Text style={styles.bannerText}>Saved scans stay on this device. Use Sync now to check for updates from your account.</Text>
           </View>
-          <Pressable accessibilityRole="button" disabled={syncing} onPress={syncNow} style={[styles.syncButton, syncing && styles.dim]}>
+          <Pressable accessibilityRole="button" disabled={syncing} onPress={syncNow} style={({ pressed }) => [styles.syncButton, (syncing || pressed) && styles.dim]}>
             <Ionicons name={syncing ? 'sync' : 'refresh'} size={15} color={palette.green} />
             <Text style={styles.syncButtonText}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
           </Pressable>
         </View>
       )}
 
-      <Pressable accessibilityRole="button" accessibilityLabel="Start a scan" onPress={() => onNavigate('scan')} style={styles.hero}>
-        <View style={styles.heroIcon}>
-          <Ionicons name="camera" size={30} color={palette.green} />
+      <View style={styles.scanCard}>
+        <View style={styles.scanIcon}>
+          <Ionicons name="leaf-outline" size={28} color={palette.green} />
         </View>
-        <Text style={styles.heroTitle}>Check a leaf</Text>
-        <Text style={styles.heroText}>Take a clear photo or choose one from your gallery.</Text>
-        <View style={styles.heroAction}>
-          <Text style={styles.heroActionText}>Start scan</Text>
-          <Ionicons name="chevron-forward" size={18} color={palette.lime} />
-        </View>
-      </Pressable>
+        <Text style={styles.scanTitle}>Check a leaf</Text>
+        <Text style={styles.scanText}>Take a clear photo or choose one from your gallery.</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Start a scan" onPress={() => onNavigate('scan')} style={({ pressed }) => [styles.scanButton, pressed && styles.scanButtonPressed]}>
+          <Ionicons name="camera-outline" size={20} color="#fff" />
+          <Text style={styles.scanButtonText}>Start scan</Text>
+        </Pressable>
+        <Text style={styles.scanTip}>Keep the whole leaf visible and avoid shadows.</Text>
+      </View>
 
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>Useful links</Text>
@@ -188,41 +188,43 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
 
 const styles = StyleSheet.create({
   screen: { gap: 14, paddingTop: 14, paddingBottom: 24 },
-  hello: { color: palette.ink, fontSize: 30, lineHeight: 36, fontWeight: '900', letterSpacing: -0.5 },
-  subtitle: { color: '#6c7d77', fontSize: 16, lineHeight: 23, fontWeight: '500', marginTop: -4 },
-  banner: { flexDirection: 'row', alignItems: 'flex-start', gap: 11, padding: 14, borderRadius: 14, borderLeftWidth: 4 },
-  bannerOnline: { backgroundColor: '#e6f1eb', borderLeftColor: palette.green },
-  bannerOffline: { backgroundColor: palette.warningSoft, borderLeftColor: palette.warning },
+  hello: { color: palette.ink, fontSize: 27, lineHeight: 33, fontWeight: '800', letterSpacing: -0.4 },
+  subtitle: { color: palette.muted, fontSize: 14, lineHeight: 20, marginTop: -8 },
+  banner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 10, borderWidth: 1 },
+  bannerOnline: { backgroundColor: palette.successSoft, borderColor: '#c7ddce' },
+  bannerOffline: { backgroundColor: palette.warningSoft, borderColor: '#e6d09e' },
   bannerCopy: { flex: 1, gap: 3 },
   bannerTitle: { fontSize: 13, fontWeight: '800', lineHeight: 18 },
-  bannerText: { color: palette.muted, fontSize: 12, lineHeight: 18 },
-  syncButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 13, borderRadius: 12, borderWidth: 1, borderColor: palette.green, backgroundColor: '#fff', marginTop: 8 },
-  syncButtonText: { color: palette.green, fontSize: 13, fontWeight: '800' },
+  bannerText: { color: palette.muted, fontSize: 12, lineHeight: 17 },
+  syncButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 42, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: '#b9cbc1', backgroundColor: '#fff' },
+  syncButtonText: { color: palette.green, fontSize: 13, fontWeight: '700' },
   dim: { opacity: 0.55 },
-  hero: { borderRadius: 18, backgroundColor: palette.green, padding: 20, gap: 5 },
-  heroIcon: { width: 64, height: 64, borderRadius: 19, backgroundColor: palette.lime, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  heroTitle: { color: '#fff', fontSize: 24, lineHeight: 30, fontWeight: '900', letterSpacing: -0.3 },
-  heroText: { color: '#c9ddd5', fontSize: 13, lineHeight: 19 },
-  heroAction: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 8 },
-  heroActionText: { color: palette.lime, fontSize: 13, fontWeight: '800' },
-  panel: { borderRadius: 18, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff', overflow: 'hidden' },
-  panelHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 },
-  sectionTitle: { color: palette.ink, fontSize: 16, lineHeight: 22, fontWeight: '900' },
-  panelTitle: { color: palette.ink, fontSize: 16, lineHeight: 22, fontWeight: '900', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 },
-  viewAll: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6, paddingLeft: 8 },
-  viewAllText: { color: palette.green, fontSize: 12, fontWeight: '800' },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: palette.border },
-  linkIcon: { width: 36, height: 36, borderRadius: 11, backgroundColor: palette.greenSoft, alignItems: 'center', justifyContent: 'center' },
+  scanCard: { alignItems: 'center', gap: 6, borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff', paddingHorizontal: 18, paddingVertical: 22 },
+  scanIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: palette.greenSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  scanTitle: { color: palette.ink, fontSize: 20, fontWeight: '800' },
+  scanText: { color: palette.muted, fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  scanButton: { alignSelf: 'stretch', minHeight: 52, borderRadius: 12, backgroundColor: palette.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10 },
+  scanButtonPressed: { backgroundColor: palette.greenPressed },
+  scanButtonText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  scanTip: { color: '#737d77', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 4 },
+  panel: { borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff', overflow: 'hidden' },
+  panelHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  sectionTitle: { color: palette.ink, fontSize: 16, lineHeight: 22, fontWeight: '800' },
+  panelTitle: { color: palette.ink, fontSize: 16, lineHeight: 22, fontWeight: '800', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+  viewAll: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 40, paddingLeft: 8 },
+  viewAllText: { color: palette.green, fontSize: 13, fontWeight: '700' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: palette.border },
+  linkIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: palette.greenSoft, alignItems: 'center', justifyContent: 'center' },
   linkCopy: { flex: 1, gap: 2 },
-  linkTitle: { color: palette.ink, fontSize: 14, fontWeight: '800' },
+  linkTitle: { color: palette.ink, fontSize: 15, fontWeight: '700' },
   linkText: { color: palette.muted, fontSize: 12, lineHeight: 17 },
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderTopWidth: 1, borderTopColor: palette.border },
-  thumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: palette.greenSoft },
-  thumbPlaceholder: { width: 52, height: 52, borderRadius: 12, backgroundColor: palette.greenSoft, alignItems: 'center', justifyContent: 'center' },
+  thumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: '#eef2ef' },
+  thumbPlaceholder: { width: 56, height: 56, borderRadius: 8, backgroundColor: '#eef2ef', alignItems: 'center', justifyContent: 'center' },
   recentCopy: { flex: 1, minWidth: 0, gap: 2 },
-  recentTitle: { color: palette.ink, fontSize: 14, fontWeight: '800' },
-  recentMeta: { color: palette.muted, fontSize: 11, fontWeight: '600' },
-  recentDate: { color: palette.muted, fontSize: 11, fontWeight: '600' },
+  recentTitle: { color: '#21382b', fontSize: 15, fontWeight: '700' },
+  recentMeta: { color: palette.muted, fontSize: 12 },
+  recentDate: { color: '#758078', fontSize: 11 },
   recentStatus: { maxWidth: 96, alignItems: 'flex-end', gap: 3 },
-  recentStatusText: { fontSize: 9, fontWeight: '800' },
+  recentStatusText: { fontSize: 10, fontWeight: '700' },
 });

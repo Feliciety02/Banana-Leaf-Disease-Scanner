@@ -26,6 +26,8 @@ class DahonMDTFLiteModule : Module() {
     private var inputBuffer: ByteBuffer? = null
     private var outputBuffer: ByteBuffer? = null
     private var baselineInterpreter: Interpreter? = null
+    private var gateInterpreter: Interpreter? = null
+    private val gateMutex = Mutex()
     private var baselineInputBuffer: ByteBuffer? = null
     private var baselineOutputBuffer: ByteBuffer? = null
     private var baselineInputZeroPoint = 0
@@ -72,6 +74,20 @@ class DahonMDTFLiteModule : Module() {
             )
         }
 
+        AsyncFunction("checkLeafPhoto") Coroutine { uri: String ->
+            checkLeafPhoto(uri)
+        }
+
+        AsyncFunction("prepareGateModel") Coroutine { ->
+            ensureGateLoaded()
+            mapOf("ready" to true)
+        }
+
+        AsyncFunction("prepareBaselineModel") Coroutine { ->
+            ensureBaselineLoaded()
+            mapOf("ready" to true)
+        }
+
         AsyncFunction("getModelFingerprints") {
             getModelFingerprints()
         }
@@ -87,6 +103,8 @@ class DahonMDTFLiteModule : Module() {
             outputBuffer = null
             baselineInterpreter?.close()
             baselineInterpreter = null
+            gateInterpreter?.close()
+            gateInterpreter = null
             baselineInputBuffer = null
             baselineOutputBuffer = null
         }
@@ -98,7 +116,7 @@ class DahonMDTFLiteModule : Module() {
         if (interpreter != null) return
         initMutex.withLock {
             if (interpreter != null) return
-            loadModel(FP32_MODEL_ASSET, 1)
+            loadModel(FP32_MODEL_ASSET, PRODUCTION_THREADS)
         }
     }
 
@@ -106,7 +124,7 @@ class DahonMDTFLiteModule : Module() {
         if (interpreter != null) return
         synchronized(initLock) {
             if (interpreter != null) return
-            loadModel(FP32_MODEL_ASSET, 1)
+            loadModel(FP32_MODEL_ASSET, PRODUCTION_THREADS)
         }
     }
 
@@ -268,7 +286,7 @@ class DahonMDTFLiteModule : Module() {
         if (baselineInterpreter != null) return
         baselineMutex.withLock {
             if (baselineInterpreter != null) return
-            val current = loadModelFresh(INT8_MODEL_ASSET, 1)
+            val current = loadModelFresh(INT8_MODEL_ASSET, PRODUCTION_THREADS)
             try {
                 val inputDetails = current.getInputTensor(0)
                 require(inputDetails.dataType() == DataType.INT8) {
@@ -369,6 +387,72 @@ class DahonMDTFLiteModule : Module() {
         )
     }
 
+    // ── Banana-leaf photo gate ────────────────────────────────────────────
+    // A binary MobileNetV3-Small classifier that runs before diagnosis. It
+    // scores whether the image is a real photograph of a banana leaf (1.0)
+    // rather than another object, plant, painting, drawing or clipart (0.0).
+    // Input is the same 224x224 image as the disease model, as raw 0..255
+    // floats (the model contains its own rescaling).
+
+    private suspend fun ensureGateLoaded() {
+        if (gateInterpreter != null) return
+        gateMutex.withLock {
+            if (gateInterpreter != null) return
+            val current = loadModelFresh(GATE_MODEL_ASSET, PRODUCTION_THREADS)
+            try {
+                val input = current.getInputTensor(0)
+                require(input.dataType() == DataType.FLOAT32 && input.shape().contentEquals(intArrayOf(1, MODEL_HEIGHT, MODEL_WIDTH, CHANNELS))) {
+                    "Leaf gate input must be FLOAT32 [1,$MODEL_HEIGHT,$MODEL_WIDTH,$CHANNELS], received ${input.dataType()} ${input.shape().contentToString()}"
+                }
+                val output = current.getOutputTensor(0)
+                require(output.dataType() == DataType.FLOAT32 && output.shape().contentEquals(intArrayOf(1, 1))) {
+                    "Leaf gate output must be FLOAT32 [1,1], received ${output.dataType()} ${output.shape().contentToString()}"
+                }
+            } catch (t: Throwable) {
+                current.close()
+                throw t
+            }
+            gateInterpreter = current
+        }
+    }
+
+    private suspend fun checkLeafPhoto(uri: String): Map<String, Any> {
+        ensureGateLoaded()
+        val currentInterpreter = gateInterpreter ?: throw IllegalStateException("Leaf gate model is not loaded")
+        if (uri.isBlank()) throw IllegalArgumentException("Image URI must not be blank")
+
+        val bitmap = withContext(Dispatchers.IO) { readBitmapFromUri(uri) }
+            ?: throw IllegalArgumentException("Could not decode image from URI: $uri")
+        val resized = if (bitmap.width != MODEL_WIDTH || bitmap.height != MODEL_HEIGHT) {
+            Bitmap.createScaledBitmap(bitmap, MODEL_WIDTH, MODEL_HEIGHT, true).also { if (it !== bitmap) bitmap.recycle() }
+        } else {
+            bitmap
+        }
+        val pixels = IntArray(MODEL_WIDTH * MODEL_HEIGHT)
+        resized.getPixels(pixels, 0, MODEL_WIDTH, 0, 0, MODEL_WIDTH, MODEL_HEIGHT)
+        resized.recycle()
+
+        val input = ByteBuffer.allocateDirect(INPUT_SIZE * Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
+        for (pixel in pixels) {
+            input.putFloat(((pixel shr 16) and 0xFF).toFloat())
+            input.putFloat(((pixel shr 8) and 0xFF).toFloat())
+            input.putFloat((pixel and 0xFF).toFloat())
+        }
+        input.rewind()
+        val output = ByteBuffer.allocateDirect(Float.SIZE_BYTES).order(ByteOrder.nativeOrder())
+
+        val startTime = System.nanoTime()
+        gateMutex.withLock { currentInterpreter.run(input, output) }
+        val elapsedMs = (System.nanoTime() - startTime) / 1_000_000.0
+        output.rewind()
+
+        return mapOf(
+            "score" to output.getFloat(0).toDouble(),
+            "latencyMs" to elapsedMs,
+            "modelVersion" to GATE_MODEL_ASSET.removeSuffix(".tflite"),
+        )
+    }
+
     // ── Image quality and model fingerprints ─────────────────────────────
 
     private fun getModelFingerprints(): Map<String, String> {
@@ -399,12 +483,10 @@ class DahonMDTFLiteModule : Module() {
             throw IllegalArgumentException("Image URI must not be blank")
         }
 
-        val original = withContext(Dispatchers.IO) {
-            readBitmapFromUri(uri)
+        val (original, width, height) = withContext(Dispatchers.IO) {
+            readSampledBitmapFromUri(uri, QUALITY_DECODE_MIN_SIDE)
         } ?: throw IllegalArgumentException("Could not decode image from URI: $uri")
 
-        val width = original.width
-        val height = original.height
         if (width <= 0 || height <= 0) {
             original.recycle()
             throw IllegalArgumentException("Image has invalid dimensions: ${width}x${height}")
@@ -730,6 +812,35 @@ class DahonMDTFLiteModule : Module() {
         return quantized.coerceIn(Byte.MIN_VALUE.toInt(), Byte.MAX_VALUE.toInt()).toByte()
     }
 
+    /** Decodes a reduced-size bitmap and returns it with the original width and height. */
+    private fun readSampledBitmapFromUri(uriString: String, minSide: Int): Triple<Bitmap, Int, Int>? {
+        return try {
+            val uri = Uri.parse(uriString)
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            decodeWithOptions(uri, uriString, bounds)
+            val width = bounds.outWidth
+            val height = bounds.outHeight
+            if (width <= 0 || height <= 0) return null
+            var sampleSize = 1
+            while (minOf(width, height) / (sampleSize * 2) >= minSide) sampleSize *= 2
+            val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+            val bitmap = decodeWithOptions(uri, uriString, options) ?: return null
+            Triple(bitmap, width, height)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun decodeWithOptions(uri: Uri, uriString: String, options: BitmapFactory.Options): Bitmap? {
+        return if (uri.scheme == "content" || uri.scheme == "file") {
+            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { fd ->
+                BitmapFactory.decodeFileDescriptor(fd.fileDescriptor, null, options)
+            }
+        } else {
+            BitmapFactory.decodeFile(uriString, options)
+        }
+    }
+
     private fun readBitmapFromUri(uriString: String): Bitmap? {
         return try {
             val uri = Uri.parse(uriString)
@@ -747,7 +858,17 @@ class DahonMDTFLiteModule : Module() {
 
     companion object {
         private const val INT8_MODEL_ASSET = "ca_mobilenetv3_small_int8.tflite"
+
+        // CPU threads for the in-app scan. Predictions are identical for any
+        // thread count; only the reported latency changes. Set to 1 to match
+        // single-thread latency figures. The benchmark API sets its own count.
+        private const val PRODUCTION_THREADS = 4
+
+        // The quality check only needs a 64x64 sample, so decode camera photos
+        // at a reduced size instead of loading every megapixel.
+        private const val QUALITY_DECODE_MIN_SIDE = 512
         private const val FP32_MODEL_ASSET = "ca_mobilenetv3_small_fp32.tflite"
+        private const val GATE_MODEL_ASSET = "banana_leaf_gate_fp32.tflite"
         private const val MODEL_WIDTH = 224
         private const val MODEL_HEIGHT = 224
         private const val CHANNELS = 3

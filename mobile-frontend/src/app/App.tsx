@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import NetInfo from '@react-native-community/netinfo';
 import { StatusBar } from 'expo-status-bar';
@@ -19,7 +19,7 @@ import { restoreSession, setSessionExpiredHandler, SessionUser } from '../servic
 import { useMobilePrivacyProtection } from '../services/mobileSecurity';
 import { deleteLocalAccountData, initializeLocalDatabase } from '../storage/localDiagnoses';
 
-const colors = { background: '#edf3ee', green: '#174d3a', ink: '#17231f' };
+const colors = { background: '#ffffff', green: '#236b4b', ink: '#1d2d24', muted: '#7b857f', border: '#e5eae7', activeTab: '#f0f6f2' };
 
 type TabKey = 'home' | 'scan' | 'history' | 'guide';
 
@@ -108,13 +108,12 @@ export default function App() {
           {tab === 'history' && <LocalHistory ownerUserId={sessionUser?.role === 'farmer' ? sessionUser.id : null} refreshKey={historyRefresh} onChanged={stored} />}
           {tab === 'guide' && <GuideScreen />}
         </ScrollView>
-        <View style={styles.bottomNav}>
+        <View accessibilityRole="tablist" style={styles.bottomNav}>
           {NAV_ITEMS.map((item) => {
             const active = tab === item.key;
             return (
-              <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => setTab(item.key)} style={styles.navButton}>
-                {active ? <View style={styles.navIndicator} /> : null}
-                <Ionicons name={active ? item.active : item.inactive} size={23} color={active ? colors.green : '#8a9892'} />
+              <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => setTab(item.key)} style={({ pressed }) => [styles.navButton, active && styles.navButtonActive, pressed && styles.navPressed]}>
+                <Ionicons name={active ? item.active : item.inactive} size={23} color={active ? colors.green : colors.muted} />
                 <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
               </Pressable>
             );
@@ -134,16 +133,17 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   app: { flex: 1 },
   pageScroll: { flex: 1 },
-  page: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 108, gap: 14 },
-  topHeader: { height: 88, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e6ece8' },
+  page: { alignSelf: 'center', width: '100%', maxWidth: 600, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 96, gap: 14 },
+  topHeader: { minHeight: 60, paddingTop: (Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 0) + 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.border },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  logo: { width: 30, height: 30, borderRadius: 9 },
-  appName: { color: colors.green, fontSize: 20, fontWeight: '900', letterSpacing: 0.2 },
-  avatarButton: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: '#dce5df', backgroundColor: '#f1f5f2', alignItems: 'center', justifyContent: 'center' },
+  logo: { width: 34, height: 34, borderRadius: 9 },
+  appName: { color: '#173c2a', fontSize: 18, fontWeight: '800' },
+  avatarButton: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: '#dde5e0', backgroundColor: colors.activeTab, alignItems: 'center', justifyContent: 'center' },
   avatarInitials: { color: colors.green, fontSize: 14, fontWeight: '800' },
-  bottomNav: { position: 'absolute', left: 14, right: 14, bottom: 12, flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 4, borderRadius: 22, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dce5df', shadowColor: '#10251d', shadowOpacity: 0.13, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 7 },
-  navButton: { flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', gap: 3, paddingBottom: 7 },
-  navIndicator: { position: 'absolute', bottom: 5, width: 20, height: 3, borderRadius: 2, backgroundColor: colors.green },
-  navLabel: { color: '#8a9892', fontSize: 12, fontWeight: '700' },
-  navLabelActive: { color: colors.green, fontWeight: '900' },
+  bottomNav: { flexDirection: 'row', minHeight: 64, paddingHorizontal: 12, paddingTop: 6, paddingBottom: 6, gap: 4, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#dde5e0' },
+  navButton: { flex: 1, minHeight: 52, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  navButtonActive: { backgroundColor: colors.activeTab },
+  navPressed: { opacity: 0.7 },
+  navLabel: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  navLabelActive: { color: colors.green, fontWeight: '800' },
 });
