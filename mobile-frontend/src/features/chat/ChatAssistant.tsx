@@ -145,7 +145,7 @@ export function ChatAssistant({ user, onSignIn }: { user: SessionUser | null | u
 }
 
 const styles = StyleSheet.create({
-  launcher: { position: 'absolute', right: 20, bottom: 88, zIndex: 40, width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.green, borderWidth: 1, borderColor: '#2f725b', shadowColor: '#08271c', shadowOpacity: 0.2, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
+  launcher: { position: 'absolute', right: 18, bottom: 80, zIndex: 40, width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.green, borderWidth: 1, borderColor: '#2f725b', shadowColor: '#08271c', shadowOpacity: 0.2, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
   launcherPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7, 25, 19, 0.32)' },

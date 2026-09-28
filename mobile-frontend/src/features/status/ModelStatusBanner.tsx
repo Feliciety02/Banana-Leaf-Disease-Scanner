@@ -7,7 +7,7 @@ import { ModelStatus, ModelStatusState } from './modelStatus';
 const tones: Record<ModelStatus, { icon: keyof typeof Ionicons.glyphMap; title: string; subtitle: string; color: string; soft: string; border: string }> = {
   loading: { icon: 'cloud-outline', title: 'Checking models', subtitle: 'Warming up the on-device classifier', color: '#5e6d67', soft: '#f0f3f1', border: '#dbe3de' },
   real: { icon: 'checkmark-circle', title: 'Real models ready', subtitle: '', color: '#1f6a4d', soft: '#e6f4ed', border: '#bddfce' },
-  prototype: { icon: 'flask', title: 'Prototype mode', subtitle: 'Sample data — no model was run', color: '#8a5a00', soft: '#fff6d9', border: '#ead596' },
+  prototype: { icon: 'phone-portrait-outline', title: 'On-device model ready', subtitle: 'Not connected to a server', color: '#8a5a00', soft: '#fff6d9', border: '#ead596' },
   unavailable: { icon: 'close-circle', title: 'Models unavailable', subtitle: 'The on-device model could not be loaded', color: '#8e3028', soft: '#ffeeec', border: '#efc2bd' },
 };
 

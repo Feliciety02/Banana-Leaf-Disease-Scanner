@@ -80,12 +80,29 @@ function AuthPanel({ mode, onAuthenticated, onMode }) {
   const [showPassword, setShowPassword] = useState(false); const [remember, setRemember] = useState(true); const [notice, setNotice] = useState('');
   const submit = async (event) => { event.preventDefault(); setBusy(true); setError(''); setErrors({}); setNotice(''); try { const user = await authenticate(mode, form, remember); onAuthenticated(user); } catch (exception) { setError(exception.message); setErrors(exception.errors || {}); } finally { setBusy(false); } };
   const forgotPassword = async () => { if (!form.email.trim()) { setNotice(''); setError('Enter your email address first.'); return; } setBusy(true); setError(''); setNotice(''); try { setNotice(await requestPasswordReset(form.email)); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
-  return <div className="auth-modal-content"><div className="auth-welcome"><span className="auth-modal-mark"><LogoMark /></span><h3>{signup ? 'Create account' : 'Log in'}</h3>{signup && <p>Save and sync your scans.</p>}</div><form className="auth-form" onSubmit={submit}>{signup && <label>Full name<div className="auth-field"><CircleUserRound size={18} /><input autoComplete="name" placeholder="Your name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></div>{errors.name && <small>{errors.name[0]}</small>}</label>}<label>Email address<div className="auth-field"><Mail size={18} /><input type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></div>{errors.email && <small>{errors.email[0]}</small>}</label><label>Password<div className="auth-field"><LockKeyhole size={18} /><input type={showPassword ? 'text' : 'password'} autoComplete={signup ? 'new-password' : 'current-password'} placeholder="Enter your password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required /><button type="button" className="auth-eye" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{errors.password && <small>{errors.password[0]}</small>}</label>{signup && <label>Confirm password<div className="auth-field"><LockKeyhole size={18} /><input type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Repeat your password" value={form.password_confirmation} onChange={(event) => setForm({ ...form, password_confirmation: event.target.value })} required /></div></label>}<div className="auth-options"><label className="remember-control"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><span><Check size={12} /></span>Remember me</label>{!signup && <button type="button" disabled={busy} onClick={forgotPassword}>Forgot password?</button>}</div>{(error || notice) && <div className={error ? 'form-error' : 'auth-notice'} role="status">{error || notice}</div>}<button className="primary-button auth-submit" disabled={busy}>{busy ? <RefreshCw className="spin" size={17} /> : <Leaf size={18} fill="currentColor" />}{busy ? 'Please wait' : signup ? 'Create account' : 'Log in'}</button></form><p className="auth-switch">{signup ? 'Already have an account?' : 'New to DahonMD?'} <button type="button" onClick={() => onMode(signup ? 'login' : 'register')}>{signup ? 'Log in' : 'Sign up'} <ChevronRight size={14} /></button></p></div>;
+  return <div className="auth-modal-content">
+    <div className="auth-welcome">
+      <div className="auth-brand-row"><span className="auth-modal-mark"><LogoMark /></span><span>DahonMD</span></div>
+      <span className="auth-eyebrow">{signup ? 'GET STARTED' : 'WELCOME BACK'}</span>
+      <h3>{signup ? 'Create your account' : 'Log in to your account'}</h3>
+      <p>{signup ? 'Save your scans and keep them in sync across devices.' : 'Your scans and account are ready when you are.'}</p>
+    </div>
+    <form className="auth-form" onSubmit={submit}>
+      {signup && <label>Full name<div className="auth-field"><CircleUserRound size={18} /><input autoComplete="name" placeholder="Your name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></div>{errors.name && <small>{errors.name[0]}</small>}</label>}
+      <label>Email address<div className="auth-field"><Mail size={18} /><input type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></div>{errors.email && <small>{errors.email[0]}</small>}</label>
+      <label>Password<div className="auth-field"><LockKeyhole size={18} /><input type={showPassword ? 'text' : 'password'} autoComplete={signup ? 'new-password' : 'current-password'} placeholder="Enter your password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required /><button type="button" className="auth-eye" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{errors.password && <small>{errors.password[0]}</small>}</label>
+      {signup && <label>Confirm password<div className="auth-field"><LockKeyhole size={18} /><input type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Repeat your password" value={form.password_confirmation} onChange={(event) => setForm({ ...form, password_confirmation: event.target.value })} required /></div></label>}
+      <div className="auth-options"><label className="remember-control"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><span><Check size={12} /></span>Remember me</label>{!signup && <button type="button" disabled={busy} onClick={forgotPassword}>Forgot password?</button>}</div>
+      {(error || notice) && <div className={error ? 'form-error' : 'auth-notice'} role="status">{error || notice}</div>}
+      <button className="primary-button auth-submit" disabled={busy}>{busy ? <RefreshCw className="spin" size={17} /> : <Leaf size={18} />}{busy ? 'Please wait' : signup ? 'Create account' : 'Log in'}</button>
+    </form>
+    <p className="auth-switch">{signup ? 'Already have an account?' : 'New to DahonMD?'} <button type="button" onClick={() => onMode(signup ? 'login' : 'register')}>{signup ? 'Log in' : 'Sign up'} <ChevronRight size={14} /></button></p>
+  </div>;
 }
 
 function AuthModal({ mode, onClose, onMode, onAuthenticated }) {
   const signup = mode === 'register';
-  return <ModalShell open={Boolean(mode)} title={signup ? 'Sign up' : 'Log in'} onClose={onClose} size="small"><AuthPanel key={mode} mode={mode || 'login'} onMode={onMode} onAuthenticated={onAuthenticated} /></ModalShell>;
+  return <ModalShell open={Boolean(mode)} title={signup ? 'Sign up' : 'Log in'} onClose={onClose} size="small" variant="auth"><AuthPanel key={mode} mode={mode || 'login'} onMode={onMode} onAuthenticated={onAuthenticated} /></ModalShell>;
 }
 
 const CHAT_INTRO = { id: 'intro', role: 'assistant', content: 'Ask me about banana leaf symptoms, care, or taking a clear photo.' };
@@ -304,11 +321,13 @@ function FarmerHome({ user, records, online, navigate, onOpen, pendingChanges, s
     </section>}
 
     <section className="farmer-home-grid">
-      <button className="farmer-scan-hero" onClick={() => navigate('/farmer/scan')}>
-        <span className="scan-hero-icon"><Camera size={36} /></span>
-        <span><strong>Check a leaf</strong><p>Take a clear photo or choose one from your gallery.</p></span>
-        <span className="scan-hero-action">Start scan <ChevronRight size={19} /></span>
-      </button>
+      <section className="panel farmer-scan-card">
+        <span className="scan-card-icon"><Leaf size={28} /></span>
+        <h2>Check a leaf</h2>
+        <p>Take a clear photo or choose one from your gallery.</p>
+        <button className="primary-button full" onClick={() => navigate('/farmer/scan')}><Camera size={19} />Start scan</button>
+        <small>Keep the whole leaf visible and avoid shadows.</small>
+      </section>
 
       <nav className="panel quick-help" aria-label="Farmer shortcuts">
         <h2>Useful links</h2>

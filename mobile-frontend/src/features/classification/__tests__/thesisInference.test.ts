@@ -427,7 +427,8 @@ describe('offline operation', () => {
     );
     const source = fs.readFileSync(nativePath, 'utf8');
     expect(source).toContain('FP32_MODEL_ASSET = "ca_mobilenetv3_small_fp32.tflite"');
-    expect(source).toContain('loadModel(FP32_MODEL_ASSET, 1)');
+    expect(source).toContain('loadModel(FP32_MODEL_ASSET, PRODUCTION_THREADS)');
+    expect(source).toContain('PRODUCTION_THREADS = 4');
     expect(source).not.toContain('models/ca_mobilenetv3_small_fp32.tflite');
   });
 });

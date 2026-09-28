@@ -33,7 +33,7 @@ export function FarmerWorkspace({ user, onSignOut, onAccountDeleted, onChanged }
     try {
       const result: SyncSummary = await synchronizeDiagnoses(user.id);
       setMessage(result.pushed || result.pulled || result.deleted
-        ? `Sync complete: ${result.pushed} uploaded, ${result.deleted} deleted, and ${result.pulled} server changes applied.`
+        ? `Sync complete. ${result.pushed} scan${result.pushed === 1 ? '' : 's'} uploaded.`
         : 'Everything is already up to date.');
       onChanged();
     } catch (requestError) {
@@ -150,13 +150,13 @@ export function FarmerWorkspace({ user, onSignOut, onAccountDeleted, onChanged }
   };
 
   return <View style={uiStyles.stack}>
-    <SectionHeader eyebrow="FARMER WORKSPACE" title={`Hello, ${user.name}`} text="Your device database remains usable offline and reconnects to your account when the API is reachable." />
+    <SectionHeader eyebrow="MY ACCOUNT" title={`Hello, ${user.name}`} text="Your scans are saved on this phone and upload to your account when you are online." />
     {message && <Notice tone="success">{message}</Notice>}
     {error && <Notice>{error}</Notice>}
     <View style={uiStyles.card}>
       <View style={styles.statusRow}>
         <View style={styles.icon}><Ionicons name={pending ? 'cloud-upload-outline' : 'cloud-done-outline'} size={27} color={palette.green} /></View>
-        <View style={uiStyles.flex}><Text style={uiStyles.cardTitle}>{pending ? `${pending} record${pending === 1 ? '' : 's'} waiting` : 'Device is up to date'}</Text><Text style={uiStyles.cardMeta}>A UUID prevents duplicate server records if a retry happens after an interrupted request.</Text></View>
+        <View style={uiStyles.flex}><Text style={uiStyles.cardTitle}>{pending ? `${pending} scan${pending === 1 ? '' : 's'} waiting to upload` : 'All scans are uploaded'}</Text><Text style={uiStyles.cardMeta}>Scans upload automatically when you are online.</Text></View>
       </View>
       <ActionButton icon="sync" disabled={syncing} onPress={sync}>{syncing ? 'Synchronizing…' : 'Sync now'}</ActionButton>
     </View>
@@ -167,7 +167,7 @@ export function FarmerWorkspace({ user, onSignOut, onAccountDeleted, onChanged }
       </View>
       <ActionButton variant="secondary" icon="person-add-outline" disabled={syncing} onPress={claimLocalScans}>Add to my account</ActionButton>
     </View>}
-    <View style={styles.privacy}><Ionicons name="image-outline" size={22} color={palette.green} /><Text style={styles.privacyText}>The SQL sync sends prediction metadata only. Leaf images remain in local storage unless you separately provide explicit research consent.</Text></View>
+    <View style={styles.privacy}><Ionicons name="image-outline" size={22} color={palette.green} /><Text style={styles.privacyText}>Only scan results are uploaded to your account. Leaf photos stay on this phone unless you request an agricultural review.</Text></View>
     <View style={uiStyles.card}>
       <Text style={uiStyles.cardTitle}>Privacy and account</Text>
       <Text style={uiStyles.cardMeta}>Review how DahonMD handles data or permanently remove your account and its synchronized data.</Text>

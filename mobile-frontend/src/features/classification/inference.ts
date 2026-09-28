@@ -35,8 +35,9 @@ export function validateBaselineNativeResult(result: NativeResult): void {
   if (!result.scores.every(Number.isFinite)) throw new Error('The baseline model returned invalid confidence scores.');
 }
 
-export async function analyzeLeaf(imageUri: string): Promise<InferenceResult> {
-  const nativeResult = await nativeClassify(await prepareImageForInference(imageUri));
+/** Pass `preparedUri` (from prepareImageForInference) to reuse one resized photo across models. */
+export async function analyzeLeaf(imageUri: string, preparedUri?: string): Promise<InferenceResult> {
+  const nativeResult = await nativeClassify(preparedUri ?? await prepareImageForInference(imageUri));
   validateNativeResult(nativeResult);
   const probabilities = softmax(nativeResult.scores, CALIBRATION_TEMPERATURE);
   const predictedIndex = probabilities.reduce((best, value, index) => value > probabilities[best] ? index : best, 0);
@@ -49,8 +50,8 @@ export async function analyzeLeaf(imageUri: string): Promise<InferenceResult> {
   };
 }
 
-export async function analyzeBaselineLeaf(imageUri: string): Promise<InferenceResult> {
-  const nativeResult = await nativeBaselineClassify(await prepareImageForInference(imageUri));
+export async function analyzeBaselineLeaf(imageUri: string, preparedUri?: string): Promise<InferenceResult> {
+  const nativeResult = await nativeBaselineClassify(preparedUri ?? await prepareImageForInference(imageUri));
   validateBaselineNativeResult(nativeResult);
   const probabilities = softmax(nativeResult.scores);
   const predictedIndex = probabilities.reduce((best, value, index) => value > probabilities[best] ? index : best, 0);

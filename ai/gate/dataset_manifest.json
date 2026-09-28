@@ -1,0 +1,35 @@
+{
+  "positives": {
+    "banana_thesis": 900,
+    "banana_bdr": 217
+  },
+  "negatives": {
+    "stylised_oil": 326,
+    "stylised_cartoon": 303,
+    "stylised_watercolor": 310,
+    "stylised_posterize": 338,
+    "stylised_pencil_color": 299,
+    "stylised_pencil_gray": 332,
+    "stylised_stylization": 326,
+    "domainnet_painting": 4117,
+    "flowers": 1500,
+    "domainnet_real": 2861,
+    "domainnet_clipart": 1380,
+    "domainnet_sketch": 3307,
+    "imagenette": 2500
+  },
+  "splits": {
+    "train": {
+      "positive": 782,
+      "negative": 12530
+    },
+    "val": {
+      "positive": 168,
+      "negative": 2686
+    },
+    "test": {
+      "positive": 167,
+      "negative": 2683
+    }
+  }
+}

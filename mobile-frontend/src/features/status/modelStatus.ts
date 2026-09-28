@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getModelFingerprints, isNativeAvailable, prepareModel, type ModelFingerprints } from '../../../modules/dahonmd-tflite';
+import { getModelFingerprints, isNativeAvailable, prepareBaselineModel, prepareGateModel, prepareModel, type ModelFingerprints } from '../../../modules/dahonmd-tflite';
 import { hasConnectedConfiguration } from '../../services/api';
 
 export type ModelStatus = 'loading' | 'real' | 'prototype' | 'unavailable';
@@ -21,6 +21,10 @@ export function useModelStatus(): ModelStatusState {
       }
       try {
         await prepareModel();
+        // Load the baseline too so the first scan does not wait for it; a
+        // failure here is non-fatal because the scan loads it on demand.
+        prepareBaselineModel().catch(() => undefined);
+        prepareGateModel().catch(() => undefined);
         const fingerprints = await getModelFingerprints();
         if (!active) return;
         setState({

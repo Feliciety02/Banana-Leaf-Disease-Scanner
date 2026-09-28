@@ -32,6 +32,10 @@ const statusCopy: Record<LocalSyncStatus, { label: string; color: string }> = {
   delete_failed: { label: 'Delete needs retry', color: '#a13a2f' },
 };
 const clampPercent = (value: number) => `${Math.min(99.99, Math.max(0, value)).toFixed(2)}%`;
+const LOW_CONFIDENCE = 70;
+// The CSV carries the baseline-vs-enhanced research comparison, so it is only
+// offered in development builds, not to farmers.
+const SHOW_RESEARCH_EXPORT = __DEV__;
 
 export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { ownerUserId: number | null; refreshKey?: number; onChanged?: () => void }) {
   const [items, setItems] = useState<LocalDiagnosis[]>([]);
@@ -111,7 +115,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
     setBusyId(item.local_id);
     setError('');
     try {
-      await requestAgriculturalReview(item.local_id);
+      await requestAgriculturalReview(item.local_id, reviewDraft[item.local_id]);
       setError('');
       onChanged?.();
     } catch (requestError) {
@@ -174,15 +178,16 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
         <Text style={styles.title}>History</Text>
         <Text style={styles.count}>{items.length === 1 ? '1 scan' : `${items.length} scans`}</Text>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Export scan history as CSV" disabled={items.length === 0 || exporting} onPress={exportCsv} style={[styles.exportButton, (items.length === 0 || exporting) && styles.dim]}>
-        <Ionicons name="download-outline" size={17} color={palette.green} />
-        <Text style={styles.exportText}>{exporting ? 'Exporting…' : 'Export CSV'}</Text>
-      </Pressable>
+      {SHOW_RESEARCH_EXPORT && (
+        <Pressable accessibilityRole="button" accessibilityLabel="Export scan history as CSV" disabled={items.length === 0 || exporting} onPress={exportCsv} style={[styles.exportButton, (items.length === 0 || exporting) && styles.dim]}>
+          <Ionicons name="download-outline" size={17} color={palette.green} />
+          <Text style={styles.exportText}>{exporting ? 'Exporting…' : 'Export CSV'}</Text>
+        </Pressable>
+      )}
     </View>
     {error && <Text style={styles.error}>{error}</Text>}
     {loading ? <Text style={styles.muted}>Loading history…</Text> : items.length ? items.map((item) => {
       const status = statusCopy[item.sync_status];
-      const baseline = parseComparisonEntry(item.baseline_json);
       const enhanced = parseComparisonEntry(item.enhanced_json);
       const review = parseDiagnosisReview(item.review_json);
       const canRequestReview = !review && item.server_id != null && item.sync_uuid != null && item.sync_status === 'synced';
@@ -192,27 +197,15 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
         <Pressable accessibilityRole="button" accessibilityLabel={expanded ? 'Hide scan details' : 'Show scan details'} onPress={() => setExpandedId(expanded ? null : item.local_id)} style={styles.cardRow}>
           {item.image_uri ? <Pressable accessibilityRole="button" accessibilityLabel="View scan image" onPress={() => setViewerImage(item.image_uri)}><Image source={authenticatedImageSource(item.image_uri)} style={styles.thumb} /></Pressable> : <View style={styles.placeholder}><Ionicons name="leaf-outline" size={25} color={palette.green} /></View>}
           <View style={styles.cardCopy}>
-            <Text style={styles.cardClass}>{CLASS_DISPLAY_NAMES[item.predicted_class]}</Text>
+            <Text style={styles.cardClass}>{item.confidence < LOW_CONFIDENCE ? 'Uncertain result' : CLASS_DISPLAY_NAMES[item.predicted_class]}</Text>
             <Text style={styles.cardDate}>{formatLocalDate(item.diagnosed_at)}</Text>
           </View>
           <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={palette.muted} />
         </Pressable>
         {expanded && (
           <View style={styles.details}>
-            {baseline && enhanced && (
-              <View style={styles.verdictRow}>
-                <Ionicons name={baseline.predictedClass === enhanced.predictedClass ? 'checkmark-circle' : 'swap-horizontal'} size={17} color={baseline.predictedClass === enhanced.predictedClass ? palette.success : palette.warning} />
-                <Text style={[styles.verdictText, { color: baseline.predictedClass === enhanced.predictedClass ? palette.success : palette.warning }]}>
-                  {baseline.predictedClass === enhanced.predictedClass ? 'Models agree' : 'Different results'}
-                </Text>
-              </View>
-            )}
             <View style={styles.modelBlock}>
-              <Text style={styles.modelLine}>Baseline{baseline ? ` · ${clampPercent(baseline.confidence)} · ${baseline.inferenceTimeMs.toFixed(1)}ms` : ' not available'}</Text>
-              {baseline?.probabilities && baseline.probabilities.map((item) => <ProbabilityRow key={item.classKey} label={CLASS_DISPLAY_NAMES[item.classKey]} probability={item.probability} selected={item.classKey === baseline.predictedClass} />)}
-            </View>
-            <View style={styles.modelBlock}>
-              <Text style={styles.modelLine}>Enhanced · {clampPercent(enhanced ? enhanced.confidence * 100 : item.confidence)}{enhancedTimeLabel(enhanced, item)}</Text>
+              <Text style={styles.modelLine}>{CLASS_DISPLAY_NAMES[item.predicted_class]} · {clampPercent(enhanced ? enhanced.confidence * 100 : item.confidence)}</Text>
               {(enhanced?.probabilities.length ? enhanced.probabilities : parseProbabilities(item)).map(({ classKey, probability }) => <ProbabilityRow key={classKey} label={CLASS_DISPLAY_NAMES[classKey]} probability={probability} selected={classKey === item.predicted_class} />)}
             </View>
             <View style={styles.statusRow}><Ionicons name="cloud-outline" size={14} color={status.color} /><Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text></View>
@@ -242,7 +235,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
               <View style={styles.reviewResult}>
                 <View style={styles.reviewHeading}><Ionicons name="shield-checkmark" size={18} color={palette.green} /><Text style={styles.reviewTitle}>Agricultural review available</Text></View>
                 <Text style={styles.reviewResultStatus}>{titleCase(review.review_status)}</Text>
-                <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>AI screening: </Text>{CLASS_DISPLAY_NAMES[item.predicted_class]} ({clampPercent(item.confidence)})</Text>
+                <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>DahonMD scan: </Text>{CLASS_DISPLAY_NAMES[item.predicted_class]} ({clampPercent(item.confidence)})</Text>
                 {review.verified_label && <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>Reviewer assessment: </Text>{titleCase(review.verified_label)}</Text>}
                 {review.farmer_follow_up && <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>Recommended follow-up: </Text>{review.farmer_follow_up}</Text>}
                 {review.next_steps.length > 0 && <Text style={styles.reviewLine}><Text style={styles.reviewLineLabel}>Next steps: </Text>{review.next_steps.map((step) => titleCase(step)).join(' · ')}</Text>}
@@ -260,7 +253,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged }: { owner
           </View>
         )}
       </View>;
-    }) : <View style={styles.empty}><Ionicons name="leaf-outline" size={30} color={palette.green} /><Text style={styles.emptyTitle}>No saved scans.</Text></View>}
+    }) : <View style={styles.empty}><Ionicons name="leaf-outline" size={30} color={palette.green} /><Text style={styles.emptyTitle}>No saved scans yet.</Text><Text style={styles.muted}>Your scan results will appear here.</Text></View>}
     <ImageViewer uri={viewerImage} visible={viewerImage !== null} onClose={() => setViewerImage(null)} />
   </View>;
 }
@@ -280,11 +273,6 @@ function parseProbabilities(item: LocalDiagnosis): StoredProbability[] {
 }
 
 type StoredComparisonEntry = PredictionResult;
-
-function enhancedTimeLabel(enhanced: StoredComparisonEntry | null, item: LocalDiagnosis) {
-  const timeMs = enhanced && enhanced.inferenceTimeMs > 0 ? enhanced.inferenceTimeMs : item.inference_time_ms;
-  return timeMs != null && timeMs > 0 ? ` · ${timeMs.toFixed(1)}ms` : '';
-}
 
 function parseComparisonEntry(raw: string | null): StoredComparisonEntry | null {
   if (!raw) return null;
@@ -312,28 +300,26 @@ const styles = StyleSheet.create({
   stack: { gap: 12 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   headerCopy: { flex: 1 },
-  title: { color: palette.ink, fontSize: 32, lineHeight: 38, fontWeight: '900', letterSpacing: -0.5 },
-  count: { color: palette.muted, fontSize: 14, fontWeight: '600', marginTop: 1 },
-  exportButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 42, paddingHorizontal: 13, borderRadius: 13, borderWidth: 1, borderColor: palette.green, backgroundColor: '#fff' },
-  exportText: { color: palette.green, fontSize: 13, fontWeight: '800' },
+  title: { color: palette.ink, fontSize: 27, lineHeight: 33, fontWeight: '800', letterSpacing: -0.4 },
+  count: { color: '#748078', fontSize: 13, marginTop: 1 },
+  exportButton: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 42, paddingHorizontal: 11, borderRadius: 9, borderWidth: 1, borderColor: '#bdd0c5', backgroundColor: '#fff' },
+  exportText: { color: '#2d684b', fontSize: 12, fontWeight: '700' },
   dim: { opacity: 0.5 },
   error: { color: '#8e3028', fontSize: 13, lineHeight: 18, backgroundColor: '#ffeeec', borderWidth: 1, borderColor: '#efc2bd', borderRadius: 12, padding: 11 },
   muted: { color: palette.muted, fontSize: 14 },
-  card: { backgroundColor: '#fff', borderRadius: 18, borderWidth: 1, borderColor: palette.border, overflow: 'hidden' },
+  card: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: palette.border, overflow: 'hidden' },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  thumb: { width: 68, height: 68, borderRadius: 14, backgroundColor: palette.greenSoft },
-  placeholder: { width: 68, height: 68, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.greenSoft },
+  thumb: { width: 68, height: 68, borderRadius: 8, backgroundColor: '#eef2ef' },
+  placeholder: { width: 68, height: 68, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ef' },
   cardCopy: { flex: 1, gap: 3 },
-  cardClass: { color: palette.ink, fontSize: 18, fontWeight: '800' },
-  cardDate: { color: palette.muted, fontSize: 13, fontWeight: '600' },
-  details: { gap: 10, borderTopWidth: 1, borderTopColor: palette.border, padding: 12 },
-  verdictRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  verdictText: { fontSize: 14, fontWeight: '800' },
-  modelBlock: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#f5f8f6' },
+  cardClass: { color: '#21382b', fontSize: 16, fontWeight: '700' },
+  cardDate: { color: '#758078', fontSize: 12 },
+  details: { gap: 10, borderTopWidth: 1, borderTopColor: '#e1e7e3', padding: 14, backgroundColor: '#f6f9f7' },
+  modelBlock: { gap: 8, padding: 12, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e1e7e3' },
   modelLine: { color: palette.muted, fontSize: 12, fontWeight: '800' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statusText: { fontSize: 12, fontWeight: '700' },
-  reviewRequest: { gap: 9, padding: 12, borderRadius: 12, backgroundColor: '#e5eee8', borderWidth: 1, borderColor: '#b9d2c4' },
+  reviewRequest: { gap: 9, padding: 12, borderRadius: 10, backgroundColor: palette.greenSoft, borderWidth: 1, borderColor: '#c7ddce' },
   reviewPending: { gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.warningSoft, borderWidth: 1, borderColor: '#ead596' },
   reviewResult: { gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.successSoft, borderWidth: 1, borderColor: '#bddfce' },
   reviewHeading: { flexDirection: 'row', alignItems: 'center', gap: 6 },
