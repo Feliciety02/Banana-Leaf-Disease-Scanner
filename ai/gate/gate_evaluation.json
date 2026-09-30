@@ -1,71 +1,94 @@
 {
-  "threshold": 0.5,
-  "test_real_leaves_accepted": 0.9760479041916168,
-  "test_non_leaf_rejected": 0.9940365262765561,
+  "threshold": 0.12762774527072906,
+  "test_real_leaves_accepted": 0.9864285714285714,
+  "test_non_leaf_rejected": 0.8306040268456376,
   "test_counts": {
-    "positive": 167,
-    "negative": 2683
+    "positive": 1400,
+    "negative": 3725
   },
   "per_category": {
     "negative/domainnet_clipart": {
-      "images": 195,
-      "wrongly_accepted": 0.0
+      "images": 203,
+      "wrongly_accepted": 0.3399
     },
     "negative/domainnet_painting": {
-      "images": 605,
-      "wrongly_accepted": 0.0033
+      "images": 653,
+      "wrongly_accepted": 0.4165
     },
-    "negative/domainnet_real": {
-      "images": 456,
-      "wrongly_accepted": 0.0066
+    "negative/domainnet_real_objects": {
+      "images": 106,
+      "wrongly_accepted": 0.3113
     },
     "negative/domainnet_sketch": {
-      "images": 521,
-      "wrongly_accepted": 0.0
-    },
-    "negative/flowers": {
-      "images": 224,
-      "wrongly_accepted": 0.0
+      "images": 461,
+      "wrongly_accepted": 0.0846
     },
     "negative/imagenette": {
-      "images": 348,
-      "wrongly_accepted": 0.0
+      "images": 382,
+      "wrongly_accepted": 0.1361
     },
     "negative/stylised_cartoon": {
-      "images": 48,
-      "wrongly_accepted": 0.0
+      "images": 271,
+      "wrongly_accepted": 0.048
     },
     "negative/stylised_oil": {
-      "images": 46,
-      "wrongly_accepted": 0.1522
+      "images": 270,
+      "wrongly_accepted": 0.0704
     },
     "negative/stylised_pencil_color": {
-      "images": 44,
-      "wrongly_accepted": 0.0
+      "images": 271,
+      "wrongly_accepted": 0.1402
     },
     "negative/stylised_pencil_gray": {
-      "images": 51,
-      "wrongly_accepted": 0.0
+      "images": 302,
+      "wrongly_accepted": 0.0099
     },
     "negative/stylised_posterize": {
-      "images": 56,
-      "wrongly_accepted": 0.0714
+      "images": 272,
+      "wrongly_accepted": 0.2647
     },
     "negative/stylised_stylization": {
-      "images": 53,
-      "wrongly_accepted": 0.0
+      "images": 280,
+      "wrongly_accepted": 0.0607
     },
     "negative/stylised_watercolor": {
-      "images": 36,
-      "wrongly_accepted": 0.0
+      "images": 254,
+      "wrongly_accepted": 0.0157
+    },
+    "positive/banana_bananalsd": {
+      "images": 126,
+      "accepted": 1.0
     },
     "positive/banana_bdr": {
-      "images": 32,
-      "accepted": 0.9688
+      "images": 37,
+      "accepted": 0.973
+    },
+    "positive/banana_nutrient": {
+      "images": 208,
+      "accepted": 1.0
     },
     "positive/banana_thesis": {
-      "images": 135,
-      "accepted": 0.9778
+      "images": 149,
+      "accepted": 1.0
+    },
+    "positive/plant_domainnet_real": {
+      "images": 445,
+      "accepted": 0.9753
+    },
+    "positive/plant_flowers": {
+      "images": 220,
+      "accepted": 0.9682
+    },
+    "positive/plant_other_crops": {
+      "images": 215,
+      "accepted": 1.0
     }
+  },
+  "unseen_source": {
+    "source": "field_plants",
+    "real_photos": 1000,
+    "accepted_at_threshold": 1.0,
+    "accepted_at_0.5": 0.987,
+    "painted_copies_blocked_at_threshold": 0.6925
   }
 }
