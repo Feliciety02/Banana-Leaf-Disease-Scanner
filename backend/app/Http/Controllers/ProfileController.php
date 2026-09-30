@@ -27,7 +27,11 @@ class ProfileController extends Controller
 
     public function password(UpdatePasswordRequest $request): JsonResponse
     {
-        $this->accounts->updatePassword($request->user(), $request->password);
+        $this->accounts->updatePassword(
+            $request->user(),
+            $request->password,
+            $request->hasSession() ? $request->session()->getId() : null,
+        );
 
         return response()->json(['success' => true, 'message' => 'Password updated.', 'data' => (object) []]);
     }

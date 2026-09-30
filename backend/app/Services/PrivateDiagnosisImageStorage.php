@@ -76,6 +76,22 @@ class PrivateDiagnosisImageStorage
         return $path;
     }
 
+    /**
+     * Removes stored diagnosis media. New uploads live on the private local
+     * disk; records created before private storage may still point at the
+     * public disk, so both are cleared.
+     */
+    public function delete(?string ...$paths): void
+    {
+        $paths = array_values(array_unique(array_filter($paths)));
+        if (! $paths) {
+            return;
+        }
+
+        Storage::disk('local')->delete($paths);
+        Storage::disk('public')->delete($paths);
+    }
+
     private function normalizeJpegOrientation(\GdImage $image, string $path): \GdImage
     {
         if (! function_exists('exif_read_data')) {

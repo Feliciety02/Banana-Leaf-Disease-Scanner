@@ -31,6 +31,14 @@ class DatasetCandidateService
     public function decide(User $reviewer, DatasetCandidate $candidate, array $attributes): DatasetCandidate
     {
         $candidate->load('diagnosis');
+        if (! $candidate->diagnosis) {
+            throw ValidationException::withMessages(['status' => 'The diagnosis for this candidate was deleted, so no dataset decision can be recorded.']);
+        }
+        // Separation of duties: the person who nominated an image cannot also
+        // approve or reject it. Another reviewer or an administrator decides.
+        if ($candidate->proposed_by !== null && $candidate->proposed_by === $reviewer->id) {
+            throw ValidationException::withMessages(['status' => 'You nominated this image. Another agricultural reviewer or an administrator must record the dataset decision.']);
+        }
         if ($attributes['status'] === 'approved' && ! $candidate->diagnosis->hasActiveResearchConsent()) {
             throw ValidationException::withMessages(['status' => 'This candidate cannot be approved because research consent is missing or was withdrawn.']);
         }

@@ -22,6 +22,7 @@ class DiagnosisResource extends JsonResource
             'research_consent_withdrawn_at' => $this->research_consent_withdrawn_at,
             'model_version' => $this->model_version, 'inference_time_ms' => $this->inference_time_ms,
             'source' => $this->source, 'is_simulated' => $this->is_simulated, 'sync_uuid' => $this->sync_uuid, 'sync_status' => $this->sync_status,
+            'class_probabilities' => $this->class_probabilities, 'model_comparison' => $this->model_comparison,
             'diagnosed_at' => $this->diagnosed_at, 'created_at' => $this->created_at,
             'review' => new DiagnosisReviewResource($this->whenLoaded('review')),
             'review_priority' => $this->when($this->review_priority !== null, $this->review_priority),

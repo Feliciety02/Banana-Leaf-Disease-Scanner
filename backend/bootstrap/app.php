@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\AssignRequestContext;
 use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\EnsureVerifiedEmailWhenRequired;
 use App\Http\Middleware\NormalizeApiInput;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -19,9 +20,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // HTTPS tunnels (Cloudflare, localhost.run) terminate TLS and connect from
+        // this machine; trust their X-Forwarded-* headers only from loopback so
+        // generated links (signed image URLs, reset links) keep the https scheme.
+        $middleware->trustProxies(at: ['127.0.0.1', '::1']);
         $middleware->statefulApi();
         $middleware->api(prepend: [NormalizeApiInput::class, AssignRequestContext::class]);
-        $middleware->alias(['role' => EnsureRole::class]);
+        $middleware->alias(['role' => EnsureRole::class, 'verified.required' => EnsureVerifiedEmailWhenRequired::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(fn ($request) => $request->is('api/*'));

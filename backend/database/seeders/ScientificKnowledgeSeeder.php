@@ -14,22 +14,30 @@ class ScientificKnowledgeSeeder extends Seeder
 
     public function run(): void
     {
-        if (app()->environment('production')) {
-            $this->command?->warn('Development scientific knowledge was not seeded in production.');
-
-            return;
-        }
+        // Production receives the same source-audited content, but only as
+        // "researched": a real agricultural reviewer must verify it before it is
+        // published, and records an expert has already worked on are left alone.
+        $production = app()->environment('production');
 
         $this->reviewedAt = CarbonImmutable::parse('2026-08-14 00:00:00', 'Asia/Manila');
         $sources = $this->seedSources();
-        $reviewer = User::query()->where('email', 'reviewer@dahonmd.test')->first();
+        $reviewer = $production ? null : User::query()->where('email', 'reviewer@dahonmd.test')->first();
 
         foreach ($this->diseases() as $record) {
+            if ($production && $this->hasExpertWork($record['slug'])) {
+                $this->command?->info("Kept existing reviewed content for {$record['slug']}.");
+
+                continue;
+            }
+
             $symptoms = $record['symptom_records'];
             $management = $record['management_records'];
             $evidence = $record['evidence'];
             $regulatoryCheck = $record['regulatory_check'] ?? null;
             $verificationStatus = $record['verification_status'] ?? 'verified';
+            if ($production && $verificationStatus === 'verified') {
+                $verificationStatus = 'researched';
+            }
             $isVerified = $verificationStatus === 'verified';
             unset($record['symptom_records'], $record['management_records'], $record['evidence'], $record['regulatory_check'], $record['verification_status']);
             $record['symptoms'] = array_values(array_filter(array_column($symptoms, 'farmer_friendly_text')));
@@ -118,6 +126,15 @@ class ScientificKnowledgeSeeder extends Seeder
         }
     }
 
+    /** A record counts as expert work once it has left the draft state. */
+    private function hasExpertWork(string $slug): bool
+    {
+        return Disease::query()
+            ->where('slug', $slug)
+            ->where('verification_status', '!=', 'draft')
+            ->exists();
+    }
+
     /** @return array<string, ResearchSource> */
     private function seedSources(): array
     {
@@ -174,6 +191,24 @@ class ScientificKnowledgeSeeder extends Seeder
                 'reference_url' => 'https://www.biotaxa.org/Phytotaxa/article/view/phytotaxa.205.4.2', 'country_or_region' => 'Global taxonomy',
                 'peer_reviewed' => true, 'philippines_specific' => false, 'publication_date' => '2015-04-24',
                 'notes' => 'Formal morphological and phylogenetic basis for transferring Cordana musae to Neocordana musae.',
+            ],
+            'ploetz_2015' => [
+                'title' => 'Fusarium wilt of banana',
+                'authors' => 'Randy C. Ploetz',
+                'year' => 2015, 'journal_or_institution' => 'Phytopathology', 'source_type' => 'review_article',
+                'volume' => '105', 'issue' => '12', 'pages' => '1512-1521', 'doi' => '10.1094/PHYTO-04-15-0101-RVW',
+                'reference_url' => 'https://apsjournals.apsnet.org/doi/10.1094/PHYTO-04-15-0101-RVW', 'country_or_region' => 'Global review',
+                'peer_reviewed' => true, 'philippines_specific' => false, 'publication_date' => '2015-11-23',
+                'notes' => 'Review of Fusarium wilt (Panama disease) symptoms, survival and spread of Fusarium oxysporum f. sp. cubense, tropical race 4, and management limited to exclusion and resistant cultivars.',
+            ],
+            'solpot_2016' => [
+                'title' => 'Occurrence of Fusarium oxysporum f. sp. cubense tropical race 4 and other genotypes in banana in South-Central Mindanao, Philippines',
+                'authors' => 'Tamie C. Solpot; Irene B. Pangga; Rowena D. T. Baconguis; Christian Joseph R. Cumagun',
+                'year' => 2016, 'journal_or_institution' => 'The Philippine Agricultural Scientist', 'source_type' => 'peer_reviewed_article',
+                'volume' => '99', 'issue' => '4', 'pages' => '370-378', 'doi' => null,
+                'reference_url' => 'https://www.ukdr.uplb.edu.ph/journal-articles/1523/', 'country_or_region' => 'South-Central Mindanao, Philippines',
+                'peer_reviewed' => true, 'philippines_specific' => true, 'publication_date' => null,
+                'notes' => 'Molecular detection found Foc TR4 in 25 of 75 isolates (22 confirmed as VCG 01213/16) from North Cotabato, South Cotabato, Sarangani, Davao del Sur and General Santos City, on Lakatan, Cavendish and Latundan.',
             ],
             'fpa_registered_2026' => [
                 'title' => 'Registered pesticide products as of June 30, 2026', 'authors' => 'Philippine Fertilizer and Pesticide Authority',
@@ -271,19 +306,37 @@ class ScientificKnowledgeSeeder extends Seeder
                 ],
             ],
             [
-                'slug' => 'panama-disease', 'model_class_key' => 'panama-disease', 'name' => 'Panama Disease', 'alternative_names' => ['Banana Fusarium wilt'],
-                'scientific_name' => null, 'causal_agent' => null, 'pathogen_type' => 'fungus',
-                'short_description' => 'New model class with source-labeled leaf candidates awaiting expert review and scientific content verification',
-                'farmer_summary' => 'Panama disease support is being added. Disease-specific guidance remains unavailable until image review, scientific sourcing, and agricultural review are complete.',
-                'curative_status' => 'unclear_evidence', 'verification_status' => 'draft', 'evidence_level' => 'limited',
-                'image_only_limitations' => 'The source-labeled leaf candidates have not completed expert review, and no trained or validated Panama disease model is available under the new class contract yet.',
-                'professional_referral' => 'Seek agricultural assessment for unexplained yellowing, wilting, or plant decline rather than relying on this pending class.',
-                'description' => 'Scientific and image-visible symptom content is pending source review.',
-                'management' => 'Disease-specific management guidance is pending source and agricultural review.',
-                'prevention' => 'Prevention guidance is pending source and agricultural review.',
-                'symptom_records' => [],
-                'management_records' => [],
-                'evidence' => [],
+                'slug' => 'panama-disease', 'model_class_key' => 'panama-disease', 'name' => 'Panama Disease', 'alternative_names' => ['Fusarium wilt of banana', 'Banana Fusarium wilt'],
+                'scientific_name' => 'Fusarium oxysporum f. sp. cubense', 'causal_agent' => 'Fusarium oxysporum f. sp. cubense (Foc), including tropical race 4 (TR4)', 'pathogen_type' => 'fungus',
+                'short_description' => 'A soil-borne fungal wilt that blocks the water-conducting tissue of the banana plant',
+                'farmer_summary' => 'Panama disease (Fusarium wilt) is caused by a soil fungus that blocks the water-conducting tissue of the banana plant. The oldest leaves turn yellow, wilt and collapse around the stem. It cannot be cured, stays in the soil for many years, and spreads on soil, water, tools, footwear and infected planting material.',
+                'curative_status' => 'no_known_cure', 'evidence_level' => 'high',
+                'image_only_limitations' => 'Yellowing and wilting leaves can also come from drought, nutrient problems, root damage or other diseases. Panama disease is confirmed by reddish-brown discoloration inside the pseudostem and by laboratory testing; a leaf photo cannot confirm it or identify tropical race 4.',
+                'professional_referral' => 'Report a suspected case to your municipal or provincial agriculturist promptly, and do not move soil, suckers or plant material from the affected plant while waiting for assessment.',
+                'description' => 'A soil-borne fungal wilt that enters through the roots and blocks the water-conducting tissue. Affected plants wilt from the oldest leaves upward and eventually collapse.',
+                'management' => 'There is no cure once the fungus is in the soil. Keep it out of clean areas, stop soil and plant material from moving off affected spots, and use resistant varieties where the disease is already present.',
+                'prevention' => 'Use disease-free planting material, clean soil off tools, footwear and equipment, avoid moving soil or water from affected areas, and do not replant susceptible varieties on infested ground.',
+                'symptom_records' => [
+                    ['stage' => 'early', 'plant_part' => 'leaves', 'symptom' => 'The oldest leaves yellow (chlorosis) and die; non-yellowing wilt also occurs.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'The oldest leaves turn yellow and dry out first.', 'sort_order' => 1],
+                    ['stage' => 'typical', 'plant_part' => 'leaves', 'symptom' => 'Affected leaves wilt, buckle and collapse against the pseudostem and often split at their base.', 'visible_in_leaf_image' => true, 'farmer_friendly_text' => 'Wilted leaves bend and hang down around the stem like a skirt.', 'sort_order' => 2],
+                    ['stage' => 'advanced', 'plant_part' => 'leaves', 'symptom' => 'Younger leaves become affected, a bunched appearance develops at the top of the pseudostem, and the plant eventually collapses.', 'visible_in_leaf_image' => false, 'farmer_friendly_text' => 'Newer leaves are affected next and the whole plant can collapse.', 'sort_order' => 3],
+                    ['stage' => 'typical', 'plant_part' => 'pseudostem', 'symptom' => 'Brown to brick-red discoloration of the vascular tissue, from discrete dots to large confluent areas.', 'visible_in_leaf_image' => false, 'farmer_friendly_text' => 'Inside the stem, the water channels show reddish-brown streaks or dots.', 'sort_order' => 4],
+                ],
+                'management_records' => [
+                    ['category' => 'prevention', 'recommendation' => 'Exclude the pathogen from non-infested areas with disease-free planting material and quarantine measures, because it cannot be eradicated once established.', 'farmer_friendly_text' => 'Plant only disease-free suckers or seedlings and keep the disease out of clean fields.', 'evidence_strength' => 'high', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 1],
+                    ['category' => 'sanitation', 'recommendation' => 'Prevent movement of infested soil, water and plant material on tools, farm equipment, clothes and footwear.', 'farmer_friendly_text' => 'Clean soil off tools, boots and equipment, and do not move soil, water or plant parts from affected areas.', 'evidence_strength' => 'high', 'requires_professional' => false, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 2],
+                    ['category' => 'cultural', 'recommendation' => 'Where the pathogen is established, use resistant cultivars; susceptible monocultures on infested soil are usually lost.', 'farmer_friendly_text' => 'On affected ground, ask your agriculturist about resistant banana varieties instead of replanting the same type.', 'evidence_strength' => 'high', 'requires_professional' => true, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 3],
+                    ['category' => 'expert_referral', 'recommendation' => 'Seek laboratory confirmation and official advice for suspected cases, particularly for tropical race 4.', 'farmer_friendly_text' => 'Report suspected Panama disease to your agriculturist so it can be confirmed and contained.', 'evidence_strength' => 'high', 'requires_professional' => true, 'regulatory_check_required' => false, 'regulatory_checked_at' => null, 'sort_order' => 4],
+                ],
+                'evidence' => [
+                    ['source' => 'ploetz_2015', 'claim_type' => 'causal_agent', 'claim_text' => 'Fusarium wilt (Panama disease) of banana is caused by Fusarium oxysporum f. sp. cubense; tropical race 4 affects Cavendish cultivars.', 'evidence_strength' => 'high'],
+                    ['source' => 'ploetz_2015', 'claim_type' => 'symptom', 'claim_text' => 'The oldest leaves wilt, die and often split at their base; yellowing of the lamina is common but non-yellowing wilt also occurs; affected xylem becomes reddish brown.', 'evidence_strength' => 'high'],
+                    ['source' => 'ploetz_2015', 'claim_type' => 'transmission', 'claim_text' => 'The pathogen survives in infested soil for decades and is moved on contaminated tools, farm equipment, clothes, footwear, planting material and irrigation water.', 'evidence_strength' => 'high'],
+                    ['source' => 'ploetz_2015', 'claim_type' => 'curative_status', 'claim_text' => 'The pathogen cannot be eradicated from an area once it is infested.', 'evidence_strength' => 'high'],
+                    ['source' => 'ploetz_2015', 'claim_type' => 'management', 'claim_text' => 'Management is largely restricted to excluding the pathogen from non-infested areas and using resistant cultivars where it has established.', 'evidence_strength' => 'high'],
+                    ['source' => 'solpot_2016', 'claim_type' => 'philippine_relevance', 'claim_text' => 'Foc tropical race 4 was confirmed in South-Central Mindanao, including Davao del Sur, on Lakatan, Cavendish and Latundan bananas.', 'evidence_strength' => 'high'],
+                    ['source' => 'fpa_banned_restricted', 'claim_type' => 'prevention', 'claim_text' => 'No chemical cure for Panama disease is published in DahonMD; any pesticide claim must be checked against current Philippine regulatory restrictions.', 'evidence_strength' => 'high'],
+                ],
             ],
             [
                 'slug' => 'cordana-leaf-spot', 'model_class_key' => 'cordana-leaf-spot', 'name' => 'Cordana Leaf Spot', 'alternative_names' => ['Cordana leafspot', 'Cordana musae leaf spot'],

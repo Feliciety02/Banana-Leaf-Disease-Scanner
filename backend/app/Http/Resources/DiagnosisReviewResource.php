@@ -21,6 +21,18 @@ class DiagnosisReviewResource extends JsonResource
             'reviewed_at' => $this->reviewed_at,
             'reviewer' => $this->whenLoaded('expert', fn () => $this->expert?->only(['id', 'name'])),
             'farmer_follow_up' => $this->farmerFollowUp(),
+            'revisions' => $this->when(
+                $this->relationLoaded('revisions') && ($request->user()?->isAdmin() || $request->user()?->isAgriculturalExpert()),
+                fn () => $this->revisions->map(fn ($revision) => [
+                    'review_status' => $revision->review_status,
+                    'verified_label' => $revision->verified_label,
+                    'image_quality' => $revision->image_quality,
+                    'next_steps' => $revision->next_steps ?? [],
+                    'notes' => $revision->notes,
+                    'reviewed_at' => $revision->reviewed_at,
+                    'reviewer' => $revision->expert?->only(['id', 'name']),
+                ])->values(),
+            ),
         ];
     }
 

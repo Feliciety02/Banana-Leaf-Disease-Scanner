@@ -9,7 +9,10 @@ use Illuminate\Support\Facades\Hash;
 
 class UserManagementService
 {
-    public function __construct(private readonly UserRepositoryInterface $users) {}
+    public function __construct(
+        private readonly UserRepositoryInterface $users,
+        private readonly AccountService $accounts,
+    ) {}
 
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
@@ -28,7 +31,10 @@ class UserManagementService
         }
         $attributes['password'] = Hash::make($attributes['password']);
 
-        return $this->users->create($attributes);
+        $user = $this->users->create($attributes);
+        $user->sendEmailVerificationNotification();
+
+        return $user;
     }
 
     public function update(User $user, array $attributes, ?string $forcedRole = null): User
@@ -42,11 +48,18 @@ class UserManagementService
             $attributes['password'] = Hash::make($attributes['password']);
         }
 
-        return $this->users->update($user, $attributes);
+        $emailChanged = isset($attributes['email']) && $attributes['email'] !== $user->email;
+        $user = $this->users->update($user, $attributes);
+        if ($emailChanged) {
+            $user->forceFill(['email_verified_at' => null])->save();
+            $user->sendEmailVerificationNotification();
+        }
+
+        return $user->fresh();
     }
 
     public function delete(User $user): void
     {
-        $this->users->delete($user);
+        $this->accounts->delete($user);
     }
 }

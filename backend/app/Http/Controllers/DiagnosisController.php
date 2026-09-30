@@ -68,9 +68,21 @@ class DiagnosisController extends Controller
         return response()->json(status: 204);
     }
 
+    public function grantResearchConsent(Request $request, Diagnosis $diagnosis): JsonResponse
+    {
+        abort_unless($diagnosis->user_id === $request->user()->id, 403);
+        $diagnosis = $this->diagnoses->grantResearchConsent($diagnosis);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Research consent recorded. The scan image can now be shared for research review.',
+            'data' => new DiagnosisResource($this->diagnoses->details($diagnosis)),
+        ]);
+    }
+
     public function withdrawResearchConsent(Request $request, Diagnosis $diagnosis): JsonResponse
     {
-        $this->authorize('view', $diagnosis);
+        abort_unless($diagnosis->user_id === $request->user()->id, 403);
         $result = $this->diagnoses->withdrawResearchConsent($diagnosis);
         if ($result === DiagnosisService::CONSENT_INACTIVE) {
             return response()->json(['success' => false, 'message' => 'This diagnosis has no active research consent.', 'errors' => (object) []], 422);

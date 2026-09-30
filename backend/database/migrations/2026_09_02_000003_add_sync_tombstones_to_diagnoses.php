@@ -23,8 +23,11 @@ return new class extends Migration
             $table->index(['user_id', 'id'], 'diagnosis_sync_changes_user_cursor');
         });
 
+        // Legacy rows created before user_id was required have no owner to sync
+        // to; skip them instead of failing the non-null foreign key.
         DB::table('diagnoses')
             ->select(['id', 'user_id', 'sync_uuid', 'created_at', 'updated_at'])
+            ->whereNotNull('user_id')
             ->orderBy('id')
             ->chunkById(500, function ($diagnoses) {
                 DB::table('diagnosis_sync_changes')->insert($diagnoses->map(fn ($diagnosis) => [

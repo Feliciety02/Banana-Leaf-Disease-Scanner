@@ -14,7 +14,9 @@ class UpsertDiseaseRequest extends ApiRequest
         $id = $this->route('disease')?->id ?? $this->route('disease');
 
         return [
-            'slug' => ['required', 'string', 'max:100', Rule::unique('diseases')->ignore($id)],
+            // Diagnoses resolve their disease through the model class key, so the
+            // public slug must stay identical to it.
+            'slug' => ['required', 'string', 'max:100', 'same:model_class_key', Rule::unique('diseases')->ignore($id)],
             'model_class_key' => ['required', 'string', 'max:100', Rule::unique('diseases')->ignore($id)],
             'name' => ['required', 'string', 'max:255'],
             'alternative_names' => ['nullable', 'array'],
@@ -31,6 +33,13 @@ class UpsertDiseaseRequest extends ApiRequest
             'prevention' => ['nullable', 'string'],
             'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('slug') && $this->filled('model_class_key')) {
+            $this->merge(['slug' => $this->input('model_class_key')]);
+        }
     }
 
     public function after(): array

@@ -44,7 +44,7 @@ class DashboardService
             'uncertain_predictions' => $uncertainPredictions,
             'uncertain_prediction_rate' => $totalDiagnoses ? round(($uncertainPredictions / $totalDiagnoses) * 100, 2) : 0,
             'simulated_predictions' => $snapshot['simulated_predictions'],
-            'pending_or_failed_syncs' => $snapshot['pending_or_failed_syncs'],
+            'awaiting_image_uploads' => $snapshot['awaiting_image_uploads'],
             'healthy_predictions' => $snapshot['healthy_predictions'],
             'diseased_predictions' => $snapshot['diseased_predictions'],
             'confidence_threshold' => $confidenceThreshold,

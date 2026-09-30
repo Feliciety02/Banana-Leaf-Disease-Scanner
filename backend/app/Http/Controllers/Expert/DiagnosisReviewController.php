@@ -30,7 +30,7 @@ class DiagnosisReviewController extends Controller
     {
         $data = $request->validate([
             'review_status' => ['required', Rule::in(['confirmed', 'alternate_class', 'cannot_determine', 'field_or_laboratory_required', 'possible_outside_supported_classes'])],
-            'verified_label' => ['nullable', 'string', 'max:255', Rule::requiredIf($request->input('review_status') === 'alternate_class'), Rule::exists('diseases', 'model_class_key')],
+            'verified_label' => ['nullable', 'string', 'max:255', Rule::requiredIf($request->input('review_status') === 'alternate_class'), Rule::in(config('banana.class_labels', []))],
             'image_quality' => ['required', Rule::in(['good', 'blurry', 'poor_lighting', 'disease_area_not_visible', 'insufficient_image'])],
             'next_steps' => ['required', 'array', 'min:1'],
             'next_steps.*' => ['required', 'distinct', Rule::in(['retake_photo', 'monitor_plant', 'isolate_affected_plant', 'seek_field_inspection', 'other'])],

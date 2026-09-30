@@ -99,7 +99,8 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
 
     public function withDetails(Diagnosis $diagnosis, bool $includeUser = false): Diagnosis
     {
-        return $diagnosis->load($includeUser ? ['user', ...self::DETAILS] : self::DETAILS);
+        // Staff views also carry the review's revision history.
+        return $diagnosis->load($includeUser ? ['user', ...self::DETAILS, 'review.revisions.expert:id,name'] : self::DETAILS);
     }
 
     public function update(Diagnosis $diagnosis, array $attributes): Diagnosis
@@ -116,7 +117,7 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
 
     public function reviewCases(string $scope, float $threshold, int $limit = 100): Collection
     {
-        $query = Diagnosis::query()->with(['user', ...self::DETAILS])->latest('diagnosed_at');
+        $query = Diagnosis::query()->with(['user', ...self::DETAILS, 'review.revisions.expert:id,name'])->latest('diagnosed_at');
 
         if ($scope === 'reviewed') {
             $query->whereHas('review', fn ($review) => $review->where('review_status', '!=', 'pending'));
@@ -133,7 +134,7 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
         $this->applyPendingReviewScope($query, $threshold);
 
         return [
-            'pending_requests' => DiagnosisReview::query()->where('review_status', 'pending')->count(),
+            'pending_requests' => DiagnosisReview::query()->whereHas('diagnosis')->where('review_status', 'pending')->count(),
             'uncertain' => Diagnosis::query()
                 ->where('confidence', '<', $threshold)
                 ->whereDoesntHave('review', fn ($review) => $review->where('review_status', '!=', 'pending'))

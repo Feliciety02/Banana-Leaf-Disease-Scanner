@@ -7,6 +7,8 @@ use App\Contracts\Repositories\DiseaseRepositoryInterface;
 use App\Models\Diagnosis;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ExpertReviewService
 {
@@ -45,16 +47,32 @@ class ExpertReviewService
 
     public function save(User $expert, Diagnosis $diagnosis, array $attributes): Diagnosis
     {
+        $diagnosis->loadMissing(['review', 'datasetCandidate']);
+        if ($diagnosis->datasetCandidate?->status === 'approved') {
+            throw ValidationException::withMessages([
+                'review_status' => 'This image is in an approved research dataset, so its agricultural assessment is locked.',
+            ]);
+        }
         if ($attributes['review_status'] !== 'alternate_class') {
             $attributes['verified_label'] = $attributes['review_status'] === 'confirmed' ? $diagnosis->predicted_class : null;
         }
 
-        return $this->diagnoses->saveReview($diagnosis, [
-            ...$attributes,
-            'expert_id' => $expert->id,
-            'requires_field_inspection' => $attributes['review_status'] === 'field_or_laboratory_required'
-                || in_array('seek_field_inspection', $attributes['next_steps'], true),
-            'reviewed_at' => now(),
-        ]);
+        return DB::transaction(function () use ($expert, $diagnosis, $attributes) {
+            $previous = $diagnosis->review;
+            if ($previous && $previous->review_status !== 'pending') {
+                $previous->revisions()->create([
+                    ...$previous->only(['expert_id', 'review_status', 'verified_label', 'image_quality', 'next_steps', 'notes', 'requires_field_inspection', 'reviewed_at']),
+                    'replaced_by' => $expert->id,
+                ]);
+            }
+
+            return $this->diagnoses->saveReview($diagnosis, [
+                ...$attributes,
+                'expert_id' => $expert->id,
+                'requires_field_inspection' => $attributes['review_status'] === 'field_or_laboratory_required'
+                    || in_array('seek_field_inspection', $attributes['next_steps'], true),
+                'reviewed_at' => now(),
+            ]);
+        });
     }
 }

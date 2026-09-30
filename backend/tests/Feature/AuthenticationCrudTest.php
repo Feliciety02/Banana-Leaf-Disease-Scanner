@@ -8,7 +8,9 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Password;
 use Laravel\Sanctum\Sanctum;
+use Laravel\Sanctum\PersonalAccessToken;
 use Tests\TestCase;
 
 class AuthenticationCrudTest extends TestCase
@@ -71,6 +73,21 @@ class AuthenticationCrudTest extends TestCase
         $response->assertCookie(config('session.cookie'), null, false);
     }
 
+    public function test_mobile_remember_me_token_outlives_normal_token(): void
+    {
+        $user = User::factory()->create(['password' => 'Secret123!']);
+        $credentials = ['email' => $user->email, 'password' => 'Secret123!', 'device_name' => 'mobile'];
+        $normal = $this->postJson('/api/auth/login', [...$credentials, 'remember' => false])->assertOk()->json('data.token');
+        $remembered = $this->postJson('/api/auth/login', [...$credentials, 'remember' => true])->assertOk()->json('data.token');
+        $this->assertNull(config('sanctum.expiration'));
+        $this->assertTrue(PersonalAccessToken::findToken($remembered)->expires_at->greaterThan(now()->addDays(2)));
+
+        $this->travel(2)->days();
+
+        $this->withToken($normal)->getJson('/api/auth/me')->assertUnauthorized();
+        $this->withToken($remembered)->getJson('/api/auth/me')->assertOk()->assertJsonPath('data.user.id', $user->id);
+    }
+
     public function test_profile_update_and_password_require_current_password(): void
     {
         $user = User::factory()->create(['password' => 'Secret123!']);
@@ -79,6 +96,48 @@ class AuthenticationCrudTest extends TestCase
         $this->putJson('/api/profile', ['name' => 'Updated Name', 'email' => 'updated@example.test', 'current_password' => 'Secret123!'])->assertOk()->assertJsonPath('data.user.name', 'Updated Name');
         $this->putJson('/api/profile/password', ['current_password' => 'wrong', 'password' => 'Changed123!', 'password_confirmation' => 'Changed123!'])->assertUnprocessable();
         $this->putJson('/api/profile/password', ['current_password' => 'Secret123!', 'password' => 'Changed123!', 'password_confirmation' => 'Changed123!'])->assertOk();
+    }
+
+    public function test_password_change_revokes_other_mobile_tokens_and_browser_sessions(): void
+    {
+        $user = User::factory()->create(['password' => 'Secret123!']);
+        $oldToken = $user->createToken('other phone')->accessToken;
+        $this->assertDatabaseHas('personal_access_tokens', ['id' => $oldToken->id]);
+        \Illuminate\Support\Facades\DB::table('sessions')->insert([
+            'id' => 'old-browser-session', 'user_id' => $user->id,
+            'ip_address' => null, 'user_agent' => null, 'payload' => '', 'last_activity' => time(),
+        ]);
+
+        Sanctum::actingAs($user);
+        $this->putJson('/api/profile/password', [
+            'current_password' => 'Secret123!',
+            'password' => 'Changed123!',
+            'password_confirmation' => 'Changed123!',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $oldToken->id]);
+        $this->assertDatabaseMissing('sessions', ['id' => 'old-browser-session']);
+    }
+
+    public function test_password_reset_revokes_mobile_tokens_and_browser_sessions(): void
+    {
+        $user = User::factory()->create(['password' => 'Secret123!']);
+        $token = $user->createToken('phone')->accessToken;
+        \Illuminate\Support\Facades\DB::table('sessions')->insert([
+            'id' => 'reset-browser-session', 'user_id' => $user->id,
+            'ip_address' => null, 'user_agent' => null, 'payload' => '', 'last_activity' => time(),
+        ]);
+        $resetToken = Password::createToken($user);
+
+        $this->postJson('/api/auth/reset-password', [
+            'token' => $resetToken,
+            'email' => $user->email,
+            'password' => 'Changed123!',
+            'password_confirmation' => 'Changed123!',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('personal_access_tokens', ['id' => $token->id]);
+        $this->assertDatabaseMissing('sessions', ['id' => 'reset-browser-session']);
     }
 
     public function test_api_account_deletion_requires_current_password(): void
@@ -184,6 +243,7 @@ class AuthenticationCrudTest extends TestCase
 
     public function test_admin_dashboard_and_system_information_use_persisted_and_configured_values(): void
     {
+        config(['banana.ai_mode' => 'PRODUCTION']);
         User::factory()->farmer()->count(2)->create();
         $admin = User::factory()->admin()->create();
         $this->diagnosis(User::factory()->farmer()->create(), ['confidence' => 65]);

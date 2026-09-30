@@ -9,7 +9,7 @@ interface DiseaseRepositoryInterface
 {
     public function verified(): Collection;
 
-    public function findBySlug(string $slug): ?Disease;
+    public function findByModelClassKey(string $classKey): ?Disease;
 
     public function withScientificContent(Disease $disease): Disease;
 

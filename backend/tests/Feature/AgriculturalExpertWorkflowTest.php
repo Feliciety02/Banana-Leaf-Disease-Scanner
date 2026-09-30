@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\Diagnosis;
 use App\Models\Disease;
 use App\Models\User;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -82,6 +84,7 @@ class AgriculturalExpertWorkflowTest extends TestCase
 
     public function test_admin_manages_reviewer_accounts_without_granting_admin_access(): void
     {
+        Notification::fake();
         $admin = User::factory()->admin()->create();
         Sanctum::actingAs($admin);
         $created = $this->postJson('/api/admin/experts', [
@@ -93,8 +96,15 @@ class AgriculturalExpertWorkflowTest extends TestCase
         ])->assertCreated()->assertJsonPath('data.role', 'agricultural_expert');
         $this->getJson('/api/admin/experts')->assertOk()->assertJsonCount(1, 'data.items');
 
-        Sanctum::actingAs(User::query()->findOrFail($created->json('data.id')));
+        $reviewer = User::query()->findOrFail($created->json('data.id'));
+        Notification::assertSentTo($reviewer, VerifyEmail::class);
+
+        Sanctum::actingAs($reviewer);
         $this->getJson('/api/admin/users')->assertForbidden();
+        $this->getJson('/api/expert/diagnosis-reviews')->assertForbidden()
+            ->assertJsonPath('errors.email.0', 'Your email address is not verified.');
+
+        $reviewer->markEmailAsVerified();
         $this->getJson('/api/expert/diagnosis-reviews')->assertOk();
     }
 
@@ -127,6 +137,12 @@ class AgriculturalExpertWorkflowTest extends TestCase
         $this->assertDatabaseMissing('dataset_candidates', ['diagnosis_id' => $diagnosis->id, 'status' => 'approved']);
 
         $this->putJson('/api/expert/dataset-candidates/'.$candidate->json('data.id'), [
+            'status' => 'uncertain', 'review_notes' => 'Deciding on my own nomination.',
+        ])->assertUnprocessable()->assertJsonValidationErrors('status');
+
+        $secondReviewer = User::factory()->agriculturalExpert()->create();
+        Sanctum::actingAs($secondReviewer);
+        $this->putJson('/api/expert/dataset-candidates/'.$candidate->json('data.id'), [
             'status' => 'uncertain', 'review_notes' => 'Retain outside training data pending better evidence.',
         ])->assertOk()->assertJsonPath('data.status', 'uncertain');
 
@@ -135,7 +151,7 @@ class AgriculturalExpertWorkflowTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.research_consent', false);
 
-        Sanctum::actingAs($expert);
+        Sanctum::actingAs($secondReviewer);
         $this->putJson('/api/expert/dataset-candidates/'.$candidate->json('data.id'), [
             'status' => 'approved', 'review_notes' => 'Attempted after withdrawal.',
         ])->assertUnprocessable()->assertJsonValidationErrors('status');

@@ -49,23 +49,24 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
 
     Route::middleware('role:'.User::ROLE_FARMER)->group(function () {
         Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
-        Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview']);
+        Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview'])->middleware('verified.required');
+        Route::post('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'grantResearchConsent'])->middleware('verified.required');
         Route::delete('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'withdrawResearchConsent']);
         Route::post('/inference', InferenceController::class);
         Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
         Route::get('/mobile/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
-        Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
+        Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware(['throttle:sync', 'verified.required']);
         Route::post('/sync', MobileSyncController::class)->middleware('throttle:sync');
         Route::get('/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
-        Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
+        Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware(['throttle:sync', 'verified.required']);
         Route::prefix('v1')->group(function () {
             Route::post('/sync', MobileSyncController::class)->middleware('throttle:sync');
             Route::get('/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
-            Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
+            Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware(['throttle:sync', 'verified.required']);
         });
     });
 
-    Route::prefix('admin')->middleware('role:'.User::ROLE_ADMIN)->group(function () {
+    Route::prefix('admin')->middleware(['role:'.User::ROLE_ADMIN, 'verified.required'])->group(function () {
         Route::get('/', DashboardController::class);
         Route::get('/dashboard', DashboardController::class);
         Route::get('/analytics', DashboardController::class);
@@ -92,9 +93,13 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
         Route::delete('/diseases/{disease}/evidence/{evidence}', [AdminDiseaseController::class, 'destroyEvidence']);
         Route::apiResource('research-sources', ResearchSourceController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::apiResource('diagnoses', AdminDiagnosisController::class)->only(['index', 'show', 'destroy']);
+        // Administrators can decide on reviewer nominations, so a single
+        // reviewer never has to approve their own nomination.
+        Route::get('/dataset-candidates', [DatasetCandidateController::class, 'index']);
+        Route::put('/dataset-candidates/{candidate}', [DatasetCandidateController::class, 'update']);
     });
 
-    Route::prefix('expert')->middleware('role:'.User::ROLE_AGRICULTURAL_EXPERT)->group(function () {
+    Route::prefix('expert')->middleware(['role:'.User::ROLE_AGRICULTURAL_EXPERT, 'verified.required'])->group(function () {
         Route::get('/dashboard', ExpertDashboardController::class);
         Route::get('/diagnosis-reviews', [DiagnosisReviewController::class, 'index']);
         Route::get('/diagnosis-reviews/{diagnosis}', [DiagnosisReviewController::class, 'show']);
