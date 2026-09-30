@@ -92,6 +92,14 @@ Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_URL`,
 features are needed. For a physical development device, use the development
 computer's LAN address rather than `127.0.0.1`. Production URLs must use HTTPS.
 The app can be built and used for offline scans without a reachable API.
+If the build has no `EXPO_PUBLIC_API_URL`, open **Account → Server address** on
+the phone and enter the public HTTPS address of the deployed DahonMD backend.
+The app checks `/api/health` before saving it. Logging in or signing up then
+uses the same server account as the website. Changing the server address signs
+out the current account so its token cannot be sent to another server. For the
+free temporary test setup, run `start-free-test.ps1` from the project root. It
+builds the APK when code changes and sends each new tunnel address to a phone
+connected through USB debugging without another rebuild for the address change.
 
 The validated model is bundled and the release check passes. Create and run the
 native Android project:
