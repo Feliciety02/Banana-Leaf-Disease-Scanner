@@ -25,7 +25,9 @@ describe('mobile API security boundaries', () => {
     secureStore.getItemAsync.mockImplementation((key: string, options?: object) => {
       if (!options) return Promise.resolve(null);
       if (key === 'dahonmd-mobile-token') return Promise.resolve('secret-token');
-      return Promise.resolve(JSON.stringify({ id: 7, name: 'Field User', email: 'field@example.test', role: 'farmer' }));
+      if (key === 'dahonmd-mobile-session-server') return Promise.resolve('https://api.dahonmd.example/api');
+      if (key === 'dahonmd-mobile-user') return Promise.resolve(JSON.stringify({ id: 7, name: 'Field User', email: 'field@example.test', role: 'farmer' }));
+      return Promise.resolve(null);
     });
     const service = require('../api') as typeof import('../api');
     await service.restoreSession();
@@ -48,12 +50,14 @@ describe('mobile API security boundaries', () => {
     secureStore.getItemAsync.mockImplementation((key: string, options?: object) => {
       if (options) return Promise.resolve(null);
       if (key === 'dahonmd-mobile-token') return Promise.resolve('legacy-token');
-      return Promise.resolve(JSON.stringify({ id: 4, name: 'Legacy User', email: 'legacy@example.test', role: 'farmer' }));
+      if (key === 'dahonmd-mobile-session-server') return Promise.resolve('https://api.dahonmd.example/api');
+      if (key === 'dahonmd-mobile-user') return Promise.resolve(JSON.stringify({ id: 4, name: 'Legacy User', email: 'legacy@example.test', role: 'farmer' }));
+      return Promise.resolve(null);
     });
     const service = require('../api') as typeof import('../api');
 
     await expect(service.restoreSession()).resolves.toMatchObject({ id: 4, role: 'farmer' });
-    expect(secureStore.setItemAsync).toHaveBeenCalledTimes(2);
+    expect(secureStore.setItemAsync).toHaveBeenCalledTimes(3);
     expect(secureStore.setItemAsync).toHaveBeenCalledWith(
       'dahonmd-mobile-token',
       'legacy-token',

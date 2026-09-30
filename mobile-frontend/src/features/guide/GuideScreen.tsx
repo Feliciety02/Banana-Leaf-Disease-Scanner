@@ -3,14 +3,14 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { CLASS_DISPLAY_NAMES, CLASS_KEYS } from '../classification/disease-data';
-import { getTreatmentGuide } from '../classification/treatment-data';
+import { getTreatmentGuide, PRODUCT_SAFETY_NOTICE, PRODUCT_SECTION_TITLE } from '../classification/treatment-data';
 import type { ClassKey } from '../classification/types';
 import { palette } from '../connected/ui';
 
 const GUIDE_SUMMARIES: Record<ClassKey, string> = {
   healthy: 'A healthy banana leaf — no disease patterns found. Keep up regular care and monitoring.',
   sigatoka: 'Yellowish streaks and dark blotches that spread across the leaf.',
-  'panama-disease': 'Yellowing from the leaf edges, wilting older leaves, and a broken reddish stem inside the trunk.',
+  'panama-disease': 'The oldest leaves yellow, wilt and collapse around the stem; inside the stem the water channels show reddish-brown streaks.',
   'cordana-leaf-spot': 'Brown oval spots with pale halos that join together near the leaf edge.',
 };
 
@@ -19,7 +19,7 @@ export function GuideScreen() {
   return (
     <View style={styles.screen}>
       <Text style={styles.heading}>Guide</Text>
-      <Text style={styles.subtitle}>Look up a banana leaf symptom, recommended medication, and care tips.</Text>
+      <Text style={styles.subtitle}>Look up a banana leaf symptom and care tips.</Text>
 
       {CLASS_KEYS.map((classKey) => {
         const open = selected === classKey;
@@ -46,7 +46,11 @@ export function GuideScreen() {
 
                 {guide.products.length > 0 && (
                   <View style={styles.group}>
-                    <Text style={styles.subLabel}>Recommended medication</Text>
+                    <Text style={styles.subLabel}>{PRODUCT_SECTION_TITLE}</Text>
+                    <View style={styles.notice}>
+                      <Ionicons name="warning-outline" size={17} color="#76591e" />
+                      <Text style={styles.noticeText}>{PRODUCT_SAFETY_NOTICE}</Text>
+                    </View>
                     {guide.products.map((product, index) => (
                       <View key={product.name} style={styles.productRow}>
                         <View style={styles.stepBadge}><Text style={styles.stepText}>{index + 1}</Text></View>
@@ -97,6 +101,8 @@ const styles = StyleSheet.create({
   healthyText: { flex: 1, color: palette.success, fontSize: 13, lineHeight: 19, fontWeight: '700' },
   group: { gap: 8 },
   subLabel: { color: '#22372c', fontSize: 15, fontWeight: '800' },
+  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, backgroundColor: '#fff6e5', borderWidth: 1, borderColor: '#e6d09e', padding: 11 },
+  noticeText: { flex: 1, color: '#76591e', fontSize: 12, lineHeight: 18 },
   productRow: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 11, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: palette.border },
   stepBadge: { width: 24, height: 24, borderRadius: 999, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
   stepText: { color: '#fff', fontSize: 13, fontWeight: '800' },

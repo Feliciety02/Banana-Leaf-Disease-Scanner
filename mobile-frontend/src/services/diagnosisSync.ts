@@ -1,4 +1,5 @@
 import { api, resolveServerUrl } from './api';
+import { predictionDetails } from './predictionDetails';
 import {
   applyRemoteDeletion,
   completeLocalDeletion,
@@ -79,6 +80,7 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
             diagnosed_at: item.diagnosed_at,
             research_consent: Boolean(item.research_consent),
             source: 'mobile',
+            ...predictionDetails(item),
           })),
           deletions: deletions.map((item) => ({ server_id: item.server_id, sync_uuid: item.sync_uuid })),
         }),

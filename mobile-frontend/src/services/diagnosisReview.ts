@@ -3,6 +3,7 @@ import {
   getLocalDiagnosis,
   parseDiagnosisReview,
   saveDiagnosisReview,
+  saveLocalResearchConsent,
   type DiagnosticReview,
   type LocalDiagnosis,
 } from '../storage/localDiagnoses';
@@ -43,7 +44,7 @@ export async function requestAgriculturalReview(localId: string, farmerNotes?: s
   if (!image) return { review, imageUploaded: true };
 
   try {
-    await uploadImage(record.sync_uuid, image);
+    await uploadImage(record.sync_uuid, image, 'review');
     return { review, imageUploaded: true };
   } catch (error) {
     throw new Error(`Review requested, but the scan image could not be uploaded: ${messageOf(error)} Retry sending the image from the scan details.`);
@@ -63,7 +64,41 @@ export async function uploadReviewImage(localId: string): Promise<void> {
   const image = localImageFile(record);
   if (!image) throw new Error('There is no local scan image left to send.');
 
-  await uploadImage(record.sync_uuid, image);
+  await uploadImage(record.sync_uuid, image, 'review');
+}
+
+/**
+ * Records research consent for a synchronized scan, then uploads the device
+ * photo so reviewers can consider it for a research dataset.
+ */
+export async function shareScanForResearch(localId: string): Promise<{ imageUploaded: boolean }> {
+  const record = await syncedRecord(localId);
+  await api(`/diagnoses/${record.server_id}/research-consent`, { method: 'POST' });
+  await saveLocalResearchConsent(localId, true);
+
+  const image = localImageFile(record);
+  if (!image) return { imageUploaded: false };
+  try {
+    await uploadImage(record.sync_uuid as string, image, 'research');
+    return { imageUploaded: true };
+  } catch (error) {
+    throw new Error(`Research consent was saved, but the scan photo could not be uploaded: ${messageOf(error)} Try sharing again from the scan details.`);
+  }
+}
+
+export async function withdrawScanResearchConsent(localId: string): Promise<void> {
+  const record = await syncedRecord(localId);
+  await api(`/diagnoses/${record.server_id}/research-consent`, { method: 'DELETE' });
+  await saveLocalResearchConsent(localId, false);
+}
+
+async function syncedRecord(localId: string) {
+  const record = await getLocalDiagnosis(localId);
+  if (!record) throw new Error('This saved scan could not be found.');
+  if (!record.sync_uuid || !record.server_id || record.sync_status !== 'synced') {
+    throw new Error('Synchronize this scan with your account first.');
+  }
+  return record;
 }
 
 export function hasLocalScanImage(item: LocalDiagnosis) {
@@ -80,10 +115,10 @@ function localImageFile(record: LocalDiagnosis): { uri: string; type: string; na
   return { uri, type, name: `scan-${record.sync_uuid ?? record.local_id}.${fileExtension}` };
 }
 
-async function uploadImage(syncUuid: string, image: { uri: string; type: string; name: string }) {
+async function uploadImage(syncUuid: string, image: { uri: string; type: string; name: string }, purpose: 'review' | 'research') {
   const body = new FormData();
   body.append('image', { uri: image.uri, name: image.name, type: image.type } as unknown as Blob);
-  body.append('purpose', 'review');
+  body.append('purpose', purpose);
   await api(`/sync/${syncUuid}/image`, { method: 'POST', body, timeoutMs: 60_000 });
 }
 

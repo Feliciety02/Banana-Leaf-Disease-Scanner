@@ -2,7 +2,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { ClassKey } from './types';
-import { getTreatmentGuide } from './treatment-data';
+import { getTreatmentGuide, PRODUCT_SAFETY_NOTICE, PRODUCT_SECTION_TITLE } from './treatment-data';
 
 const colors = { card: '#fff', green: '#174d3a', ink: '#17231f', muted: '#5e6d67', border: '#dce5df', success: '#1f6a4d', successSoft: '#e6f4ed' };
 
@@ -13,7 +13,6 @@ export function TreatmentGuide({ classKey }: { classKey: ClassKey }) {
     <View style={styles.section}>
       <View style={styles.hero}>
         <View style={styles.heroCopy}>
-          <Text style={styles.eyebrow}>WHAT TO DO</Text>
           <Text style={styles.heading}>{guide.heading}</Text>
         </View>
         {guide.leafImage ? <Image source={guide.leafImage} style={styles.leafImage} resizeMode="cover" accessibilityLabel={`Example of ${classKey}`} /> : null}
@@ -31,7 +30,11 @@ export function TreatmentGuide({ classKey }: { classKey: ClassKey }) {
 
       {guide.products.length > 0 && (
         <View style={styles.products}>
-          <Text style={styles.subLabel}>Recommended medication</Text>
+          <Text style={styles.subHeading}>{PRODUCT_SECTION_TITLE}</Text>
+          <View style={styles.notice}>
+            <Ionicons name="warning-outline" size={17} color="#76591e" />
+            <Text style={styles.noticeText}>{PRODUCT_SAFETY_NOTICE}</Text>
+          </View>
           {guide.products.map((product, index) => (
             <View key={product.name} style={styles.productRow}>
               <View style={styles.stepBadge}>
@@ -50,7 +53,7 @@ export function TreatmentGuide({ classKey }: { classKey: ClassKey }) {
 
       {guide.tips.length > 0 && (
         <View style={styles.tips}>
-          <Text style={styles.subLabel}>Care tips</Text>
+          <Text style={styles.subHeading}>Care tips</Text>
           {guide.tips.map((tip) => (
             <View key={tip} style={styles.tipRow}>
               <Ionicons name="checkmark-circle" size={16} color={colors.green} />
@@ -67,7 +70,6 @@ const styles = StyleSheet.create({
   section: { gap: 11, padding: 16, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   hero: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   heroCopy: { flex: 1, gap: 3 },
-  eyebrow: { color: colors.green, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 },
   heading: { color: colors.ink, fontSize: 20, lineHeight: 26, fontWeight: '900' },
   leafImage: { width: 72, height: 72, borderRadius: 12, backgroundColor: '#0b3328' },
   healthyCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 13, backgroundColor: colors.successSoft, borderWidth: 1, borderColor: '#bddfce', padding: 13 },
@@ -75,7 +77,9 @@ const styles = StyleSheet.create({
   healthyTitle: { color: colors.success, fontSize: 15, fontWeight: '800' },
   healthyText: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   products: { gap: 9 },
-  subLabel: { color: colors.muted, fontSize: 12, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+  subHeading: { color: colors.ink, fontSize: 16, fontWeight: '800' },
+  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, backgroundColor: '#fff6e5', borderWidth: 1, borderColor: '#e6d09e', padding: 11 },
+  noticeText: { flex: 1, color: '#76591e', fontSize: 12, lineHeight: 18 },
   productRow: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 11, borderRadius: 13, backgroundColor: '#f7f9f8', borderWidth: 1, borderColor: colors.border },
   stepBadge: { width: 24, height: 24, borderRadius: 999, backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center' },
   stepText: { color: '#fff', fontSize: 13, fontWeight: '900' },

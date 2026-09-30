@@ -1,19 +1,20 @@
 import { checkLeafPhoto } from '../../../modules/dahonmd-tflite';
 
 /**
- * Minimum gate score for an image to count as a real banana leaf photo.
- * 0.7 is the strictest cut-off that kept validation acceptance of real banana
- * leaves at its maximum; see ai/gate/README.md for the measured test rates.
+ * Minimum gate score for an image to count as a real plant photo. At 0.5 the
+ * v3 gate accepted 98.7% of banana field photos from a source it never saw
+ * while blocking most paintings, drawings and objects; see ai/gate/README.md.
  */
-export const LEAF_GATE_THRESHOLD = 0.7;
+export const LEAF_GATE_THRESHOLD = 0.5;
 
 /**
  * When false the gate runs in shadow mode: it still scores every photo (the
- * score is logged) but never blocks a scan. The first gate model rejected
- * real field photos of banana leaves, so blocking stays off until a retrained
- * model is validated on more varied banana photos.
+ * score is logged) but never blocks a scan. The gate answers "is this a real
+ * photo of a plant?" - it blocks paintings, drawings, cartoons and non-plant
+ * objects, not other plants (banana-only gates rejected real banana photos
+ * from unseen sources; see ai/gate/README.md).
  */
-export const LEAF_GATE_BLOCKING = false;
+export const LEAF_GATE_BLOCKING = true;
 
 export type LeafGateDecision = { accepted: boolean; score: number; latencyMs: number; wouldReject: boolean };
 

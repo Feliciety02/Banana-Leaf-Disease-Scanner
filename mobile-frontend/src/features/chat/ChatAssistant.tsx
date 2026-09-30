@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -31,8 +32,9 @@ const STARTERS = [
   'When should I get help?',
 ];
 
-export function ChatAssistant({ user, onSignIn }: { user: SessionUser | null | undefined; onSignIn: () => void }) {
+export function ChatAssistant({ user, onSignIn, resumeKey = 0 }: { resumeKey?: number; user: SessionUser | null | undefined; onSignIn: () => void }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => { if (resumeKey) setOpen(true); }, [resumeKey]);
   const [messages, setMessages] = useState<DisplayMessage[]>([INTRO]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -96,7 +98,7 @@ export function ChatAssistant({ user, onSignIn }: { user: SessionUser | null | u
         <View style={[styles.sheet, user ? styles.chatSheet : styles.compactSheet]}>
           <View style={styles.handle} />
           <View style={styles.header}>
-            <View style={styles.avatar}><Ionicons name="leaf" size={20} color={palette.green} /></View>
+            <View style={styles.avatar}><Image source={require('../../../assets/dahonmd-logo-green.png')} style={styles.avatarLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /></View>
             <Text style={styles.title}>Ask Dahon</Text>
             {user && messages.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear conversation" disabled={busy} onPress={clear} style={styles.headerButton}><Ionicons name="refresh" size={19} color={palette.green} /></Pressable> : null}
             <Pressable accessibilityRole="button" accessibilityLabel="Close assistant" onPress={() => setOpen(false)} style={styles.headerButton}><Ionicons name="close" size={22} color={palette.ink} /></Pressable>
@@ -148,15 +150,16 @@ const styles = StyleSheet.create({
   launcher: { position: 'absolute', right: 18, bottom: 80, zIndex: 40, width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.green, borderWidth: 1, borderColor: '#2f725b', shadowColor: '#08271c', shadowOpacity: 0.2, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
   launcherPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(7, 25, 19, 0.32)' },
-  sheet: { backgroundColor: '#f8faf9', borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden', shadowColor: '#071d15', shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: -5 }, elevation: 16 },
-  chatSheet: { height: '78%' },
-  compactSheet: { minHeight: 300 },
-  handle: { alignSelf: 'center', width: 36, height: 4, marginTop: 8, marginBottom: 3, borderRadius: 2, backgroundColor: '#c6d0ca' },
-  header: { minHeight: 60, paddingHorizontal: 14, paddingBottom: 9, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: palette.border, backgroundColor: '#fff' },
-  avatar: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.lime },
-  title: { flex: 1, color: palette.ink, fontSize: 17, fontWeight: '800' },
-  headerButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(8, 29, 20, 0.58)' },
+  sheet: { backgroundColor: '#f8faf8', borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', shadowColor: '#071d15', shadowOpacity: 0.22, shadowRadius: 26, shadowOffset: { width: 0, height: -8 }, elevation: 16 },
+  chatSheet: { height: '84%' },
+  compactSheet: { minHeight: 340 },
+  handle: { alignSelf: 'center', width: 42, height: 5, marginTop: 10, marginBottom: 5, borderRadius: 3, backgroundColor: '#a6baa9' },
+  header: { minHeight: 68, paddingHorizontal: 18, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: 1, borderBottomColor: '#e4ece5', backgroundColor: '#fff' },
+  avatar: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e9f4ec' },
+  avatarLogo: { width: 27, height: 27 },
+  title: { flex: 1, color: palette.ink, fontSize: 19, fontWeight: '800', letterSpacing: -0.3 },
+  headerButton: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f1' },
   stateBody: { flex: 1, justifyContent: 'center', padding: 28, gap: 12 },
   stateTitle: { color: palette.ink, fontSize: 21, fontWeight: '800', textAlign: 'center' },
   stateText: { color: palette.muted, fontSize: 14, lineHeight: 21, textAlign: 'center' },

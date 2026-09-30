@@ -25,6 +25,15 @@ const bordeauxMix = require('../../../assets/figure19_extracted_images/bordeaux_
 const kupper500 = require('../../../assets/figure19_extracted_images/kupper_500.jpg');
 const topCop = require('../../../assets/figure19_extracted_images/topcop.jpg');
 
+/**
+ * The listed products come from the source study (Ecuador) and have no
+ * recorded Philippine FPA registration check in DahonMD, so they are shown as
+ * examples to verify, not as prescriptions.
+ */
+export const PRODUCT_SECTION_TITLE = 'Products used in research';
+export const PRODUCT_SAFETY_NOTICE =
+  'These are examples from research, not verified for use in the Philippines. Before buying or spraying, check that the product is registered with the Fertilizer and Pesticide Authority (FPA) for bananas, follow its label, and ask your agriculturist.';
+
 export const treatmentGuides: Record<ClassKey, TreatmentGuideContent> = {
   sigatoka: {
     heading: 'Treatment for Black Sigatoka',
@@ -69,8 +78,9 @@ export const treatmentGuides: Record<ClassKey, TreatmentGuideContent> = {
     leafImage: null,
     products: [],
     tips: [
-      'Leaf patterns resembling Panama Disease require laboratory confirmation before any treatment decision.',
-      'Panama Disease is a soil-borne fungal wilt; do not reuse affected soil or plant material.',
+      'There is no cure or effective spray for Panama Disease; report a suspected case to your agriculturist so it can be confirmed.',
+      'Do not move soil, water, suckers or plant parts from the affected plant, and clean soil off tools, boots and equipment.',
+      'Plant only disease-free planting material, and ask about resistant varieties before replanting on affected ground.',
     ],
   },
 };

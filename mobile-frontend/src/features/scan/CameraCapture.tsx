@@ -33,6 +33,7 @@ export function CameraCapture({ visible, onClose, onCapture }: { visible: boolea
               <Pressable accessibilityRole="button" accessibilityLabel="Close camera" onPress={onClose} style={styles.topButton}>
                 <Ionicons name="close" size={24} color="#fff" />
               </Pressable>
+              <Text style={styles.topTitle}>Capture a leaf</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={flashOn ? 'Turn flash off' : 'Turn flash on'} onPress={() => setFlashOn((value) => !value)} style={styles.topButton}>
                 <Ionicons name={flashOn ? 'flash' : 'flash-off'} size={22} color="#fff" />
               </Pressable>
@@ -74,8 +75,9 @@ export function CameraCapture({ visible, onClose, onCapture }: { visible: boolea
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#0b1812' },
   camera: { flex: 1 },
-  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 44, paddingBottom: 12 },
-  topButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(22,35,31,0.55)', alignItems: 'center', justifyContent: 'center' },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 44, paddingBottom: 12 },
+  topTitle: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
+  topButton: { width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(22,35,31,0.64)', alignItems: 'center', justifyContent: 'center' },
   guide: { position: 'absolute', top: 0, left: 24, right: 24, bottom: 96, justifyContent: 'center', alignItems: 'center' },
   corner: { position: 'absolute', width: 64, height: 64, borderColor: '#fff' },
   cornerTL: { top: 72, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 24 },

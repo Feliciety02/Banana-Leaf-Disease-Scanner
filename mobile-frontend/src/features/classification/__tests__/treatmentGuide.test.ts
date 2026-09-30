@@ -1,5 +1,5 @@
 import { CLASS_KEYS } from '../disease-data';
-import { getTreatmentGuide, treatmentGuides } from '../treatment-data';
+import { getTreatmentGuide, PRODUCT_SAFETY_NOTICE, PRODUCT_SECTION_TITLE, treatmentGuides } from '../treatment-data';
 
 describe('treatment guide data contract', () => {
   it('provides a treatment guide for every fixed model class', () => {
@@ -25,6 +25,12 @@ describe('treatment guide data contract', () => {
       expect(product.price).toMatch(/^₱[\d,]+$/);
       expect(product.description).toBeTruthy();
     }
+  });
+
+  it('labels products as unverified research examples that need an FPA check', () => {
+    expect(PRODUCT_SECTION_TITLE).not.toMatch(/recommended/i);
+    expect(PRODUCT_SAFETY_NOTICE).toMatch(/Fertilizer and Pesticide Authority/);
+    expect(PRODUCT_SAFETY_NOTICE).toMatch(/not verified/);
   });
 
   it('does not advertise products for healthy or panama-disease', () => {
