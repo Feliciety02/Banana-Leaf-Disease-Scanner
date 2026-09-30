@@ -11,8 +11,10 @@ outside the training root pending expert review. The Panama training folder has
 scientific content verification remain outstanding. Existing artifacts stay
 blocked until both models are retrained under the new contract.
 
-Place the retrained artifact's exact four-entry JSON label map at the configured
-`AI_LABEL_MAP_PATH`. The API accepts only keys `0` through `3` in the canonical
+The deployed model's four-entry JSON label map is tracked at
+`backend/resources/models/label_map.json` and used by default; set
+`AI_LABEL_MAP_PATH` only to point at a different retrained artifact's map. The
+API accepts only keys `0` through `3` in the canonical
 order above, four non-empty unique labels, and no extra classes. A stale map
 containing `black-sigatoka` or `yellow-sigatoka` is rejected. Disease drafts
 must use one of the canonical values as `model_class_key`.
