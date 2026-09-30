@@ -222,160 +222,25 @@ Outputs:
 > The first build also needs the Android SDK (set `ANDROID_HOME`, normally
 > `%LOCALAPPDATA%\Android\Sdk`).
 
-#### Mobile API URL for the connected features
+#### Free temporary website and phone test
 
-The sync/review features in the app need a public address so testers' phones can
-talk to the backend on your computer. We use a **free Cloudflare tunnel** for
-this. Each time the tunnel restarts, it gets a brand-new random address, which is
-why the app must be rebuilt afterwards.
-
-**Good news — there is a script that does everything for you.**
-
-##### Just run this one command
-
-Open PowerShell in the project folder, then run:
+Run this from the project folder in PowerShell:
 
 ```powershell
-.\refresh-tunnel.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1
 ```
 
-That's all. The script does the whole job automatically:
+The script creates one free HTTPS link for both the website and the phone app. It builds the website, starts a separate test database, opens a Cloudflare Quick Tunnel, and checks the public `/api/health` endpoint. With a phone connected by USB debugging, it builds and installs the APK when mobile code changes, then opens the app with the new server address. On later runs, a new tunnel address is sent to the phone without rebuilding the APK. The app validates the address and saves it securely; changing servers signs out the old session.
 
-1. Starts the backend (if it isn't already running).
-2. Starts the web demo on http://127.0.0.1:4173 (if it isn't already running; use
-   `-NoWeb` to skip it).
-3. Checks if the current tunnel address still works.
-   - **Works fine?** It keeps the same tunnel and moves on.
-   - **Broke / after a restart / after the computer rebooted?** It starts a fresh
-     tunnel and copies the new address into the app's settings.
-4. Checks whether the mobile app actually changed since the last successful build
-   (it fingerprints `src/`, `assets/`, the native module source, `app.json`, the
-   package files and `.env`):
-   - **Nothing changed?** It reuses the existing APK — no rebuild, finished in
-     seconds.
-   - **Mobile code/config changed?** It rebuilds the app (the APK), which takes a
-     few minutes. Changes to the web frontend, the backend, or this script alone
-     do **not** trigger a rebuild.
-5. If a phone is connected by USB (and the app was rebuilt), it installs the
-   freshly built app onto the phone automatically.
-6. At the end it prints a summary with the web URL, the mobile URL
-   (`https://something.trycloudflare.com/api`) and the APK path.
+The script prints the current website address. Open that address in a browser and use the same account in the phone app. Test accounts remain in `.dahonmd/free-test/backend/database/database.sqlite` between runs. The tunnel and database are for testing; email is logged locally and verification/reset messages are not delivered. Keep the computer on while using the link. A new address is generated each run.
 
-The build fingerprint lives in `.dahonmd\mobile-build-state.json` (git-ignored).
-It is only updated after a successful rebuild, so if a build ever fails the
-previous APK and fingerprint are left untouched.
-
-###### Rebuilding the APK after code changes
-
-After editing any mobile code (`mobile-frontend\src`, `assets\`, a native
-module, `app.json`, `package.json`, or `.env`), re-run the same command from the
-project folder — it detects the change and rebuilds automatically:
+If no USB debugging phone is connected, the script still starts the website and prints the address. Connect the phone and rerun it to update the app automatically. To run without touching the phone, add `-SkipPhone`; to force an APK rebuild, add `-ForceApkBuild`. To stop the test services, run:
 
 ```powershell
-.\refresh-tunnel.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1 -Stop
 ```
-
-This is **not** a file-watching command. It checks once, at the moment you run
-it: it compares a fingerprint of your mobile files against the last successful
-build, rebuilds the release APK whenever something changed, and installs it on a
-connected phone. Run it again any time you finish editing and you're done — the
-backend, web demo, and tunnel stay up in the background between runs.
-
-##### Automatic rebuild on save (watch mode)
-
-If you'd rather not re-run the command yourself, leave this watch loop open in a
-terminal. It watches the files that determine the APK contents (`.env`,
-`app.json`, `index.ts`, `package.json`, `package-lock.json`, `src\`, `assets\`,
-`modules\`) and invokes `.\refresh-tunnel.ps1` automatically after each batch of
-edits — which still only rebuilds when something really changed:
-
-```powershell
-.\watch-mobile.ps1
-```
-
-Options: `-DebounceMs 2000` waits longer between edits before rebuilding
-(default 1500), and `-DryRun` only announces that a rebuild would run (useful
-for testing). Press Ctrl+C to stop.
-
-Backend and web-frontend changes are deliberately **not** watched: the APK never
-contains that code — the app reaches the backend through the tunnel URL at
-runtime, so backend edits take effect on the next backend reload without any
-APK rebuild.
-
-When you need the address again later, just open this same file
-`mobile-frontend\.env` — it always holds the current address.
-
-##### Other handy options
-
-- Force a brand-new address even though the current one still works:
-  ```powershell
-  .\refresh-tunnel.ps1 -Restart
-  ```
-- Install the current app onto a connected phone right away, even if nothing was
-  rebuilt:
-  ```powershell
-  .\refresh-tunnel.ps1 -Install
-  ```
-- Don't touch the phone (useful when no tester is connected):
-  ```powershell
-  .\refresh-tunnel.ps1 -SkipInstall
-  ```
-- Skip the web demo this time (backend/tunnel only):
-  ```powershell
-  .\refresh-tunnel.ps1 -NoWeb
-  ```
-- Force an APK rebuild even though no change was detected:
-  ```powershell
-  .\refresh-tunnel.ps1 -ForceRebuild
-  ```
-- Only refresh the address without rebuilding the app (saves a few minutes if you
-  just want to test from your computer):
-  ```powershell
-  .\refresh-tunnel.ps1 -SkipBuild
-  ```
-- If you'd rather see the tunnel's own window with live logs, run the simple
-  launcher instead:
-  ```powershell
-  .\start-tunnel.bat
-  ```
-
-  It opens the backend and the tunnel, and prints the new address. Copy that
-  address, once you do, paste it into `mobile-frontend\.env` and rebuild the APK.
-
-##### For the curious (what the script is doing manually)
-
-You normally never need this — it's the same steps the script performs.
-
-```powershell
-# 1) Terminal 1: start the backend
-cd backend
-php artisan serve --host 127.0.0.1 --port 8001
-
-# 2) Terminal 2: create a fresh public tunnel (HTTP/2 avoids a known
-#    connection timeout some networks cause)
-cloudflared tunnel --url http://127.0.0.1:8001 --protocol http2 --no-autoupdate
-```
-
-3) Copy the printed `https://<random>.trycloudflare.com` address, add `/api` to
-   the end, and put it in `mobile-frontend\.env`:
-   ```dotenv
-   EXPO_PUBLIC_API_URL=https://<random>.trycloudflare.com/api
-   ```
-4) Rebuild the app:
-   ```powershell
-   cd mobile-frontend\android
-   .\gradlew.bat :app:createBundleReleaseJsAndAssets --rerun-tasks
-   .\gradlew.bat assembleRelease
-   ```
-
-   (The `--rerun-tasks` step matters: without it the new address may not make it
-   into the app.)
-
-**Keep the tunnel running** while testers use the online features. The offline
-classification and history always work — they don't need the tunnel.
 
 ---
-
 ## 💻 First-Time Setup
 
 ### Option A — Main thesis Android app
@@ -620,7 +485,7 @@ These accounts are never seeded when `APP_ENV=production`.
 | Laravel (tokens)            | `SANCTUM_TOKEN_REMEMBER_DAYS` | `30` (remember-me sessions)                                                 |
 | Web                         | `VITE_WEB_API_URL`            | `/api` (Vite/Nginx proxies it to Laravel)                                   |
 | Thesis mobile               | None                            | Bundled model and local native runtime only                                   |
-| Thesis mobile optional sync | `EXPO_PUBLIC_API_URL`         | Temporary`<tunnel>.trycloudflare.com/api`; baked into the APK at build time |
+| Thesis mobile optional sync | `EXPO_PUBLIC_API_URL`         | Optional fixed API fallback; the free test link is saved on the phone at runtime by `start-free-test.ps1` |
 | Research comparison         | `AI_COMPARISON_URL`           | `http://127.0.0.1:8100/compare`                                             |
 | Research image consent      | `RESEARCH_CONSENT_VERSION`    | `research-image-consent-v1`                                                 |
 
@@ -700,7 +565,7 @@ npm run release:status
 | Docker and native servers are both running                     | Press`Ctrl+C` in the native server terminal or run `docker compose down`, then keep only one workflow active.                                                                         |
 | The web client cannot load data                                | Confirm both the Laravel and Vite terminals are running.                                                                                                                                  |
 | Mobile release status reports a missing model                  | Produce and audit the final four-class artifact, then copy it to`mobile-frontend/assets/models/ca_mobilenetv3_small_fp32.tflite`. Do not substitute a simulated model.                  |
-| New APK cannot reach sync or review                            | The baked-in`EXPO_PUBLIC_API_URL` tunnel no longer resolves. Run `.\refresh-tunnel.ps1` — it starts a fresh tunnel, updates the address, and rebuilds the APK automatically.         |
+| New APK cannot reach sync or review                            | Run `start-free-test.ps1` to create a new link and send it to a connected phone without rebuilding for the URL change.         |
 | Expo Go opens but classification is unavailable                | This is expected because Expo Go does not contain`DahonMDTFLite`. Start an emulator or connect a USB-debugging device, then run `cd mobile-frontend` followed by `npm run android`. |
 | Android reports that no device or emulator is available        | Start an emulator from Android Studio's Device Manager or connect an Android phone with USB debugging enabled, then rerun`npm run android`.                                             |
 | Android fails after an Expo SDK or native configuration update | From`mobile-frontend`, run `npm install`, `npx expo prebuild --clean --platform android`, and then `npm run android`.                                                             |
