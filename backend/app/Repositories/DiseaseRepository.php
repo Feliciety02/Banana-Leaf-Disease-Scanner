@@ -21,13 +21,24 @@ class DiseaseRepository implements DiseaseRepositoryInterface
             ->where('verification_status', 'verified')
             ->where('is_verified', true)
             ->with(self::SCIENTIFIC_CONTENT)
+            ->orderByRaw(self::classOrderSql())
             ->orderBy('id')
             ->get();
     }
 
-    public function findBySlug(string $slug): ?Disease
+    /** Orders records by the model's class order (healthy, sigatoka, …), then the rest. */
+    private static function classOrderSql(): string
     {
-        return Disease::query()->where('slug', $slug)->first();
+        $cases = collect(config('banana.class_labels', []))
+            ->map(fn (string $label, int $index) => 'WHEN '.DB::getPdo()->quote($label).' THEN '.$index)
+            ->implode(' ');
+
+        return $cases === '' ? 'id' : "CASE model_class_key {$cases} ELSE 999 END";
+    }
+
+    public function findByModelClassKey(string $classKey): ?Disease
+    {
+        return Disease::query()->where('model_class_key', $classKey)->first();
     }
 
     public function withScientificContent(Disease $disease): Disease

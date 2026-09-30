@@ -6,11 +6,15 @@ use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AccountService
 {
-    public function __construct(private readonly UserRepositoryInterface $users) {}
+    public function __construct(
+        private readonly UserRepositoryInterface $users,
+        private readonly PrivateDiagnosisImageStorage $images,
+    ) {}
 
     public function updateProfile(User $user, array $attributes): User
     {
@@ -25,31 +29,47 @@ class AccountService
         return $user->fresh();
     }
 
-    public function updatePassword(User $user, string $password): void
+    public function updatePassword(User $user, string $password, ?string $currentSessionId = null): void
     {
-        $user->update(['password' => Hash::make($password)]);
-        $user->tokens()->whereKeyNot($user->currentAccessToken()?->getKey())->delete();
+        $user->forceFill([
+            'password' => Hash::make($password),
+            'remember_token' => Str::random(60),
+        ])->save();
+
+        $currentToken = $user->currentAccessToken();
+        if ($currentToken instanceof PersonalAccessToken) {
+            $user->tokens()->whereKeyNot($currentToken->getKey())->delete();
+        } else {
+            $user->tokens()->delete();
+        }
+
+        $sessions = DB::table('sessions')->where('user_id', $user->getKey());
+        if ($currentSessionId !== null) {
+            $sessions->where('id', '!=', $currentSessionId);
+        }
+        $sessions->delete();
     }
 
+    /**
+     * Deletes the account with its server data. Diagnosis rows, reviews and
+     * dataset candidates are removed by the database cascade; stored images
+     * are removed here because the cascade cannot reach the file system.
+     */
     public function delete(User $user): void
     {
         $storedPaths = $user->diagnoses()
             ->withTrashed()
             ->get(['image_path', 'gradcam_path'])
             ->flatMap(fn ($diagnosis) => [$diagnosis->image_path, $diagnosis->gradcam_path])
-            ->filter()
-            ->unique()
-            ->values()
             ->all();
 
         DB::transaction(function () use ($user): void {
             $user->tokens()->delete();
+            DB::table('sessions')->where('user_id', $user->getKey())->delete();
             $this->users->delete($user);
         });
 
-        if ($storedPaths) {
-            Storage::disk('public')->delete($storedPaths);
-        }
+        $this->images->delete(...$storedPaths);
     }
 
     public function credentialsMatch(string $email, string $password): ?User

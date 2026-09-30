@@ -42,14 +42,14 @@ return [
     | Expiration Minutes
     |--------------------------------------------------------------------------
     |
-    | This value controls the number of minutes until an issued access token
-    | will be considered expired. This is the "default" lifetime used for
-    | normal (non "remember me") sessions. Remember-me sessions may be
-    | configured with a longer lifetime via SANCTUM_TOKEN_REMEMBER_DAYS.
+    | Tokens in this app receive an explicit expires_at when issued. A global
+    | expiration would also cap remembered tokens at the normal lifetime.
     |
     */
 
-    'expiration' => (int) env('SANCTUM_TOKEN_TTL_MINUTES', 1440),
+    'expiration' => null,
+
+    'token_ttl_minutes' => (int) env('SANCTUM_TOKEN_TTL_MINUTES', 1440),
 
     /*
     |--------------------------------------------------------------------------

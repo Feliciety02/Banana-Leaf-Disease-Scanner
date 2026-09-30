@@ -19,7 +19,9 @@ class DatasetCandidateRepository implements DatasetCandidateRepositoryInterface
 
     public function all(?string $status = null): Collection
     {
+        // Candidates whose diagnosis was deleted have no image to review.
         return DatasetCandidate::query()
+            ->whereHas('diagnosis')
             ->with(self::DETAILS)
             ->latest()
             ->when($status, fn ($query) => $query->where('status', $status))
@@ -48,6 +50,6 @@ class DatasetCandidateRepository implements DatasetCandidateRepositoryInterface
 
     public function countByStatus(string $status): int
     {
-        return DatasetCandidate::query()->where('status', $status)->count();
+        return DatasetCandidate::query()->whereHas('diagnosis')->where('status', $status)->count();
     }
 }

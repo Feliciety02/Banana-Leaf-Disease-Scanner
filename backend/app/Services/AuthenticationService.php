@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -45,6 +46,7 @@ class AuthenticationService
                 'remember_token' => Str::random(60),
             ])->save();
             $user->tokens()->delete();
+            DB::table('sessions')->where('user_id', $user->getKey())->delete();
         });
     }
 
@@ -71,7 +73,7 @@ class AuthenticationService
     {
         $expiresAt = $remember
             ? now()->addDays((int) config('sanctum.remember_days', 30))
-            : now()->addMinutes((int) config('sanctum.expiration', 1440));
+            : now()->addMinutes((int) config('sanctum.token_ttl_minutes', 1440));
 
         return $user->createToken($deviceName, ['*'], $expiresAt)->plainTextToken;
     }

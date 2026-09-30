@@ -32,6 +32,7 @@ class MobileSyncService
                 'inference_time_ms' => ['nullable', 'integer', 'min:0'], 'farmer_notes' => ['nullable', 'string', 'max:1000'], 'diagnosed_at' => ['required', 'date'],
                 'research_consent' => ['sometimes', 'boolean'],
                 'source' => ['sometimes', Rule::in(['mobile', 'web'])],
+                ...self::predictionDetailRules(),
             ]);
             if ($validator->fails()) {
                 $results[] = ['sync_uuid' => $item['sync_uuid'] ?? null, 'status' => 'rejected', 'errors' => $validator->errors()];
@@ -60,7 +61,7 @@ class MobileSyncService
                 continue;
             }
 
-            $disease = $this->diseases->findBySlug($data['predicted_class']);
+            $disease = $this->diseases->findByModelClassKey($data['predicted_class']);
             $source = $data['source'] ?? 'mobile';
             unset($data['source']);
             $diagnosis = $this->diagnoses->create([
@@ -68,7 +69,7 @@ class MobileSyncService
                 'user_id' => $user->id,
                 'disease_id' => $disease?->id,
                 'source' => $source,
-                'is_simulated' => config('banana.ai_mode') !== 'PRODUCTION',
+                'is_simulated' => Diagnosis::isSimulatedFor($source),
                 'sync_status' => 'synced',
                 'research_consented_at' => $researchConsent ? now() : null,
                 'research_consent_version' => $researchConsent ? config('banana.research_consent_version') : null,
@@ -125,7 +126,18 @@ class MobileSyncService
                 continue;
             }
 
-            $this->diagnosisRecords->delete($diagnosis);
+            try {
+                $this->diagnosisRecords->delete($diagnosis);
+            } catch (ValidationException $exception) {
+                $results[] = [
+                    'server_id' => $diagnosis->id,
+                    'sync_uuid' => $diagnosis->sync_uuid,
+                    'status' => 'rejected',
+                    'errors' => ['server_id' => collect($exception->errors())->flatten()->all()],
+                ];
+
+                continue;
+            }
             $results[] = ['server_id' => $diagnosis->id, 'sync_uuid' => $diagnosis->sync_uuid, 'status' => 'deleted'];
         }
 
@@ -144,6 +156,33 @@ class MobileSyncService
             'records' => $page,
             'next_cursor' => $last ? $this->encodeCursor($last) : $cursor,
             'has_more' => $hasMore,
+        ];
+    }
+
+    /**
+     * Optional per-class probabilities (0..1, keyed by class label) and the
+     * on-device baseline/enhanced comparison recorded with a mobile scan.
+     */
+    public static function predictionDetailRules(): array
+    {
+        $labels = config('banana.class_labels', []);
+        $probabilityMap = static function (string $attribute, mixed $value, \Closure $fail) use ($labels): void {
+            if (! is_array($value) || array_diff(array_keys($value), $labels) !== []) {
+                $fail("The {$attribute} keys must be supported class labels.");
+            }
+        };
+
+        return [
+            'class_probabilities' => ['nullable', 'array', $probabilityMap],
+            'class_probabilities.*' => ['numeric', 'between:0,1'],
+            'model_comparison' => ['nullable', 'array:baseline,enhanced'],
+            'model_comparison.*' => ['array:predicted_class,confidence,inference_time_ms,model,probabilities'],
+            'model_comparison.*.predicted_class' => ['required', Rule::in($labels)],
+            'model_comparison.*.confidence' => ['required', 'numeric', 'between:0,1'],
+            'model_comparison.*.inference_time_ms' => ['nullable', 'numeric', 'min:0'],
+            'model_comparison.*.model' => ['nullable', 'string', 'max:100'],
+            'model_comparison.*.probabilities' => ['nullable', 'array', $probabilityMap],
+            'model_comparison.*.probabilities.*' => ['numeric', 'between:0,1'],
         ];
     }
 

@@ -23,7 +23,7 @@ class ApiTest extends TestCase
 
         $this->getJson('/api/diseases')
             ->assertOk()
-            ->assertJsonCount(3, 'data')
+            ->assertJsonCount(4, 'data')
             ->assertJsonPath('data.0.slug', 'healthy')
             ->assertJsonPath('data.1.slug', 'sigatoka')
             ->assertJsonPath('data.1.name', 'Sigatoka Leaf Spot')
@@ -31,17 +31,17 @@ class ApiTest extends TestCase
             ->assertJsonStructure(['data' => [['sources' => [['title', 'authors', 'reference_url']]]]]);
 
         $this->assertDatabaseCount('diseases', 4);
-        $this->assertDatabaseCount('disease_symptoms', 8);
-        $this->assertDatabaseCount('disease_management', 8);
-        $this->assertDatabaseCount('research_sources', 8);
-        $this->assertDatabaseCount('disease_evidence', 19);
+        $this->assertDatabaseCount('disease_symptoms', 12);
+        $this->assertDatabaseCount('disease_management', 12);
+        $this->assertDatabaseCount('research_sources', 10);
+        $this->assertDatabaseCount('disease_evidence', 26);
         $this->assertDatabaseCount('pesticide_regulatory_checks', 0);
-        $this->assertDatabaseCount('disease_verifications', 3);
+        $this->assertDatabaseCount('disease_verifications', 4);
         $this->assertDatabaseHas('diseases', [
             'slug' => 'sigatoka', 'model_class_key' => 'sigatoka', 'is_verified' => true,
         ]);
         $this->assertDatabaseHas('diseases', [
-            'slug' => 'panama-disease', 'model_class_key' => 'panama-disease', 'verification_status' => 'draft', 'is_verified' => false,
+            'slug' => 'panama-disease', 'model_class_key' => 'panama-disease', 'scientific_name' => 'Fusarium oxysporum f. sp. cubense', 'is_verified' => true,
         ]);
 
         $verification = app(DiseaseVerificationService::class);

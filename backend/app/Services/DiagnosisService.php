@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Contracts\Repositories\DiagnosisRepositoryInterface;
+use App\Contracts\Repositories\DiseaseRepositoryInterface;
 use App\Models\Diagnosis;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class DiagnosisService
 {
@@ -19,6 +21,7 @@ class DiagnosisService
 
     public function __construct(
         private readonly DiagnosisRepositoryInterface $diagnoses,
+        private readonly DiseaseRepositoryInterface $diseases,
         private readonly PrivateDiagnosisImageStorage $images,
     ) {}
 
@@ -35,7 +38,10 @@ class DiagnosisService
     public function create(User $user, array $attributes, ?UploadedFile $image, bool $researchConsent): Diagnosis
     {
         $attributes['user_id'] = $user->id;
-        $attributes['is_simulated'] = config('banana.ai_mode') !== 'PRODUCTION';
+        // The disease link always follows the model's class key so that web,
+        // mobile and API records resolve to the same knowledge record.
+        $attributes['disease_id'] = $this->diseases->findByModelClassKey($attributes['predicted_class'])?->id;
+        $attributes['is_simulated'] = Diagnosis::isSimulatedFor($attributes['source'] ?? 'web');
         $attributes['image_path'] = $image ? $this->images->store($image) : null;
         $attributes['sync_status'] = $attributes['source'] === 'mobile' ? 'synced' : null;
 
@@ -69,16 +75,39 @@ class DiagnosisService
         return true;
     }
 
+    /**
+     * Soft-deletes the diagnosis and removes its stored media. An image that
+     * was approved into a research dataset cannot be deleted here, matching
+     * the consent-withdrawal rule; an unapproved nomination is discarded.
+     */
     public function delete(Diagnosis $diagnosis): void
     {
-        foreach ([$diagnosis->image_path, $diagnosis->gradcam_path] as $path) {
-            if ($path) {
-                Storage::disk('local')->delete($path);
-                Storage::disk('public')->delete($path);
-            }
+        $diagnosis->loadMissing('datasetCandidate');
+        if ($diagnosis->datasetCandidate?->status === 'approved') {
+            throw ValidationException::withMessages([
+                'diagnosis' => 'This image is already part of an approved research dataset. Contact the research team to request removal.',
+            ]);
         }
 
-        $this->diagnoses->delete($diagnosis);
+        DB::transaction(function () use ($diagnosis): void {
+            $diagnosis->datasetCandidate?->delete();
+            $this->diagnoses->delete($diagnosis);
+        });
+
+        $this->images->delete($diagnosis->image_path, $diagnosis->gradcam_path);
+    }
+
+    public function grantResearchConsent(Diagnosis $diagnosis): Diagnosis
+    {
+        if (! $diagnosis->hasActiveResearchConsent()) {
+            $this->diagnoses->update($diagnosis, [
+                'research_consented_at' => now(),
+                'research_consent_version' => config('banana.research_consent_version'),
+                'research_consent_withdrawn_at' => null,
+            ]);
+        }
+
+        return $diagnosis->fresh();
     }
 
     public function withdrawResearchConsent(Diagnosis $diagnosis): string

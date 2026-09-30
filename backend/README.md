@@ -115,7 +115,7 @@ Set `DEV_ADMIN_EMAIL`, `DEV_ADMIN_PASSWORD`, and optionally `DEV_ADMIN_NAME` to 
 | `RESEARCH_CONSENT_VERSION` | Version recorded when a farmer opts to contribute an image for future research |
 | `DEV_USER_PASSWORD` | Local seeded-account password |
 | `AI_MODE` | Visible inference mode, currently simulated/development |
-| `AI_LABEL_MAP_PATH` | Path to the deployed model's matching label map |
+| `AI_LABEL_MAP_PATH` | Optional override for the deployed model's label map; defaults to the tracked `resources/models/label_map.json` |
 | `AI_COMPARISON_URL` | Optional baseline-versus-enhanced research service |
 | `AI_COMPARISON_TIMEOUT_SECONDS` | Timeout for research comparison calls |
 | `REGULATORY_REVIEW_MONTHS` | Freshness window for time-sensitive product checks |
