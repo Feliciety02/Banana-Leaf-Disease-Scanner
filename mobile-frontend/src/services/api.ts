@@ -5,6 +5,7 @@ export type SessionUser = {
   name: string;
   email: string;
   role: 'admin' | 'farmer' | 'agricultural_expert' | string;
+  email_verified_at?: string | null;
 };
 
 type ApiEnvelope<T> = {
@@ -18,16 +19,49 @@ type ApiOptions = Omit<RequestInit, 'headers'> & { headers?: Record<string, stri
 
 const TOKEN_KEY = 'dahonmd-mobile-token';
 const USER_KEY = 'dahonmd-mobile-user';
+const SESSION_SERVER_KEY = 'dahonmd-mobile-session-server';
 const SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
   keychainService: 'com.dahonmd.field.session',
 };
 const API_TIMEOUT_MS = 15_000;
-const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/$/, '');
+const SERVER_URL_KEY = 'dahonmd-server-url';
+const buildUrl = normalizeServerUrl(process.env.EXPO_PUBLIC_API_URL);
 const configuredPrivacyUrl = publicWebUrl(process.env.EXPO_PUBLIC_PRIVACY_URL);
 const configuredAccountDeletionUrl = publicWebUrl(process.env.EXPO_PUBLIC_ACCOUNT_DELETION_URL);
 
+// The API address baked into the build is the default; a server address saved
+// on the device (Account → Server address) wins.
+// Temporary HTTPS tunnels change address when restarted, so this avoids
+// rebuilding the app just to reconnect.
+let configuredUrl: string | null = buildUrl;
+let serverUrlLoaded: Promise<void> | null = null;
+
 let sessionToken: string | null = null;
+
+let connectionUnavailable = false;
+const connectionListeners = new Set<(unavailable: boolean) => void>();
+function reportConnection(unavailable: boolean) {
+  connectionUnavailable = unavailable;
+  connectionListeners.forEach((listener) => listener(unavailable));
+}
+export function subscribeConnection(listener: (unavailable: boolean) => void) {
+  connectionListeners.add(listener); listener(connectionUnavailable);
+  return () => { connectionListeners.delete(listener); };
+}
+export async function checkConnection() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(apiUrl('/health'), { signal: controller.signal, headers: { Accept: 'application/json' } });
+    const data = await response.json();
+    if (!response.ok || data?.service !== 'dahonmd-api') throw new Error('Server unavailable');
+    reportConnection(false);
+  } catch {
+    reportConnection(true);
+    throw new ApiError('Server unavailable. Retry or update the connection. Offline scanning still works.');
+  } finally { clearTimeout(timer); }
+}
 
 let onSessionExpired: (() => void) | null = null;
 
@@ -63,6 +97,97 @@ function isDevelopmentBuild() {
   return typeof __DEV__ !== 'undefined' && __DEV__;
 }
 
+/**
+ * Accepts "https://host", "https://host/" or "https://host/api" and returns the
+ * API base ("https://host/api"). Only HTTPS is allowed outside development.
+ */
+export function normalizeServerUrl(value?: string | null): string | null {
+  // Pattern-based so it does not depend on React Native's partial URL support.
+  const match = value?.trim().match(/^(https?):\/\/([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?)(\/[^?#\s]*)?$/i);
+  if (!match) return null;
+  const [, scheme, host, rawPath = ''] = match;
+  if (scheme.toLowerCase() !== 'https' && !(isDevelopmentBuild() && scheme.toLowerCase() === 'http')) return null;
+  const path = rawPath.replace(/\/+$/, '');
+  return `${scheme.toLowerCase()}://${host.toLowerCase()}${path.endsWith('/api') ? path : `${path}/api`}`;
+}
+
+function originOf(apiBase: string) {
+  return apiBase.replace(/^(https?:\/\/[^/]+).*$/i, '$1');
+}
+
+/** Loads a server address saved on this device (once). */
+export function loadServerUrl(): Promise<void> {
+  serverUrlLoaded ??= readSecureItem(SERVER_URL_KEY)
+    .then((saved) => {
+      const url = normalizeServerUrl(saved);
+      if (url) configuredUrl = url;
+    })
+    .catch(() => undefined);
+  return serverUrlLoaded;
+}
+
+export function currentServerUrl() {
+  return configuredUrl;
+}
+
+export function defaultServerUrl() {
+  return buildUrl;
+}
+
+/**
+ * Checks that an address is a reachable DahonMD server, then saves it. Signing
+ * in to a different server clears the current session, because its login token
+ * belongs to the old server.
+ */
+export async function setServerUrl(value: string): Promise<string> {
+  const url = normalizeServerUrl(value);
+  if (!url) throw new ApiError('Enter a full HTTPS address, for example https://example.com');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${url}/health`, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    const payload = await response.json().catch(() => null) as { service?: string; status?: string } | null;
+    if (!response.ok || payload?.service !== 'dahonmd-api') throw new ApiError('That address is not a DahonMD server.');
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError('Could not reach that server. Check the address and your connection.');
+  } finally {
+    clearTimeout(timer);
+  }
+  const changedServer = configuredUrl !== url;
+  if (changedServer) await clearSession();
+  await writeSecureItem(SERVER_URL_KEY, url);
+  configuredUrl = url;
+  reportConnection(false);
+  return url;
+}
+
+/** Forgets the saved address and returns to the one built into the app. */
+export async function resetServerUrl() {
+  const changedServer = configuredUrl !== buildUrl;
+  if (changedServer) await clearSession();
+  await deleteSecureItem(SERVER_URL_KEY);
+  configuredUrl = buildUrl;
+}
+
+/** Reads the address from a dahonmd://server?url=https://… link, if valid. */
+export function serverUrlFromLink(link: string | null): string | null {
+  // Parsed by hand: React Native's URL implementation lacks searchParams.
+  const match = link?.match(/^dahonmd:\/\/\/?server\/?\?(.*)$/i);
+  if (!match) return null;
+  for (const pair of match[1].split('&')) {
+    const [key, value = ''] = pair.split('=');
+    if (key === 'url') {
+      try {
+        return normalizeServerUrl(decodeURIComponent(value));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 function publicWebUrl(value?: string) {
   if (!value) return null;
   try {
@@ -86,6 +211,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<Ap
   try {
     response = await fetch(apiUrl(path), { ...options, headers, signal: options.signal ?? controller.signal });
   } catch (error) {
+    reportConnection(true);
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && error.name === 'AbortError') {
       throw new ApiError('The server took too long to respond. Offline diagnosis is still available.');
@@ -99,6 +225,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<Ap
     ? ({ success: true, message: '', data: undefined } as ApiEnvelope<T>)
     : await response.json().catch(() => null) as ApiEnvelope<T> | null;
 
+  reportConnection(response.status >= 500 || !payload);
   if (!response.ok) {
     const error = new ApiError(
       Object.values(payload?.errors || {}).flat()[0] || payload?.message || 'The request could not be completed.',
@@ -116,12 +243,18 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<Ap
 }
 
 export async function restoreSession(): Promise<SessionUser | null> {
-  const [token, rawUser] = await Promise.all([
+  await loadServerUrl();
+  const [token, rawUser, sessionServer] = await Promise.all([
     readSecureItem(TOKEN_KEY),
     readSecureItem(USER_KEY),
+    readSecureItem(SESSION_SERVER_KEY),
   ]);
+  if (!token) return null;
+  if (!rawUser || !configuredUrl || sessionServer !== configuredUrl) {
+    await clearSession();
+    return null;
+  }
   sessionToken = token;
-  if (!token || !rawUser) return null;
   try {
     const user = JSON.parse(rawUser) as unknown;
     if (!isSessionUser(user)) throw new Error('Invalid saved identity.');
@@ -143,10 +276,19 @@ async function authenticate(mode: 'login' | 'register', fields: Record<string, s
     method: 'POST',
     body: JSON.stringify({ ...fields, email: fields.email.trim().toLowerCase(), device_name: 'mobile', remember: true }),
   });
-  await Promise.all([
-    writeSecureItem(TOKEN_KEY, payload.data.token),
-    writeSecureItem(USER_KEY, JSON.stringify(payload.data.user)),
-  ]);
+  if (!configuredUrl || !payload.data.token || !isSessionUser(payload.data.user)) {
+    throw new ApiError('The server returned an incomplete login response.');
+  }
+  try {
+    await Promise.all([
+      writeSecureItem(TOKEN_KEY, payload.data.token),
+      writeSecureItem(USER_KEY, JSON.stringify(payload.data.user)),
+      writeSecureItem(SESSION_SERVER_KEY, configuredUrl),
+    ]);
+  } catch (error) {
+    await clearSession();
+    throw error;
+  }
   sessionToken = payload.data.token;
   return payload.data.user;
 }
@@ -163,6 +305,11 @@ export async function requestPasswordReset(email: string) {
   const payload = await api<Record<string, never>>('/auth/forgot-password', {
     method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase() }),
   });
+  return payload.message;
+}
+
+export async function resendVerificationEmail() {
+  const payload = await api<Record<string, never>>('/auth/verification-notification', { method: 'POST' });
   return payload.message;
 }
 
@@ -184,6 +331,7 @@ export async function clearSession() {
   await Promise.all([
     deleteSecureItem(TOKEN_KEY),
     deleteSecureItem(USER_KEY),
+    deleteSecureItem(SESSION_SERVER_KEY),
   ]);
 }
 
@@ -222,12 +370,16 @@ export function hasConnectedConfiguration() {
   return Boolean(configuredUrl && (configuredUrl.startsWith('https://') || isDevelopmentBuild()));
 }
 
+function serverPageUrl(path: string) {
+  return configuredUrl ? `${originOf(configuredUrl)}${path}` : null;
+}
+
 export function privacyPolicyUrl() {
-  return configuredPrivacyUrl;
+  return configuredPrivacyUrl ?? serverPageUrl('/privacy');
 }
 
 export function accountDeletionUrl() {
-  return configuredAccountDeletionUrl;
+  return configuredAccountDeletionUrl ?? serverPageUrl('/account-deletion');
 }
 
 export function resolveServerUrl(value?: string | null) {

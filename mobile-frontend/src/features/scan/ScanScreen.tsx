@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 
-import { palette } from '../connected/ui';
+import { ActionButton, palette } from '../connected/ui';
 import { analyzeLeaf, analyzeBaselineLeaf, type InferenceResult } from '../classification/inference';
 import { prepareImageForInference } from '../classification/preprocessing';
 import { checkBananaLeafPhoto, LEAF_GATE_BLOCKING } from '../classification/leafGate';
@@ -41,7 +41,7 @@ function toComparisonEntry(result: InferenceResult): ModelComparisonEntry {
   };
 }
 
-export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser | null; onStored: () => void; modelStatus: ModelStatusState }) {
+export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirtyChange }: { onDirtyChange: (dirty: boolean) => void; onOpenHistory: (id?: string) => void; user: SessionUser | null; onStored: () => void; modelStatus: ModelStatusState }) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [photoIssues, setPhotoIssues] = useState<ImageQualityIssue[] | null>(null);
   const [result, setResult] = useState<InferenceResult | null>(null);
@@ -50,8 +50,23 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
   const [modelError, setModelError] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
+  const [showCare, setShowCare] = useState(false);
   const savedIdRef = useRef<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const saveInput = useRef<Parameters<typeof saveLocalDiagnosis>[0] | null>(null);
+  const retrySave = async () => {
+    if (!saveInput.current || saving || savedIdRef.current) return;
+    setSaving(true); setSaveError('');
+    try {
+      const saved = await saveLocalDiagnosis(saveInput.current);
+      if (!saved) throw new Error('Saved scan could not be read.');
+      savedIdRef.current = saved.local_id; setSavedId(saved.local_id); onStored();
+    } catch { setSaveError('Could not save the scan. Try again before leaving this screen.'); }
+    finally { setSaving(false); }
+  };
   const scanIdRef = useRef(0);
+  useEffect(() => { onDirtyChange(Boolean(imageUri && !savedId)); return () => onDirtyChange(false); }, [imageUri, savedId, onDirtyChange]);
 
   // 'prototype' only means no server is configured; the on-device model still runs.
   const modelReady = modelStatus.status === 'real' || modelStatus.status === 'prototype';
@@ -65,7 +80,8 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
     setPhase('scan');
     setSaveError('');
     setModelError('');
-    savedIdRef.current = null;
+    setShowCare(false);
+    savedIdRef.current = null; setSavedId(null); setSaving(false); saveInput.current = null;
   };
 
   const chooseImage = async () => {
@@ -116,7 +132,7 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
       if (!isCurrent()) return;
       setPhotoIssues(quality.issues);
       setResult(next);
-      setPhase('result');
+      setPhase('result'); setSaving(true);
       console.info(`[scan-timing] prepare+quality=${preparedAt - started}ms enhanced=${Date.now() - preparedAt}ms (model ${next.latencyMs.toFixed(1)}ms) result-shown=${Date.now() - started}ms`);
     } catch (error) {
       if (!isCurrent()) return;
@@ -139,7 +155,7 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
     }
     const savedStarted = Date.now();
     try {
-      const saved = await saveLocalDiagnosis({
+      const input: Parameters<typeof saveLocalDiagnosis>[0] = {
         predictedClass: next.classKey,
         confidence: next.confidence * 100,
         modelVersion: next.modelVersion,
@@ -149,12 +165,15 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
         probabilities: next.probabilities,
         baseline: baselineResult ? toComparisonEntry(baselineResult) : null,
         enhanced: toComparisonEntry(next),
-      });
-      if (isCurrent()) savedIdRef.current = saved?.local_id ?? null;
+      };
+      if (isCurrent()) saveInput.current = input;
+      const saved = await saveLocalDiagnosis(input);
+      if (isCurrent()) { savedIdRef.current = saved?.local_id ?? null; setSavedId(saved?.local_id ?? null); }
       onStored();
     } catch (storageError) {
       if (isCurrent()) setSaveError(storageError instanceof Error ? storageError.message : 'The local database could not save this result.');
     }
+    if (isCurrent()) setSaving(false);
     console.info(`[scan-timing] baseline=${savedStarted - baselineStarted}ms save=${Date.now() - savedStarted}ms total=${Date.now() - started}ms`);
   };
 
@@ -166,17 +185,38 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
       <View style={styles.screen}>
         <Text style={styles.heading}>Result</Text>
 
+        <ScanResult result={enhanced} />
+        <Text style={styles.nextText}>{saving ? 'Saving scan on this phone...' : savedId ? 'Saved on this phone. Open the scan to follow its sync and review progress.' : 'This result has not been saved yet.'}</Text>
+        {savedId && <ActionButton icon="time-outline" onPress={() => onOpenHistory(savedId)}>View saved scan / appeal result</ActionButton>}
+        {saveError && <ActionButton disabled={saving} onPress={retrySave}>Retry saving scan</ActionButton>}
+
+        <View style={styles.nextCard}>
+          <Ionicons name={result.confidence < 0.7 || (photoIssues?.length ?? 0) > 0 ? 'camera-outline' : 'leaf-outline'} size={22} color={palette.green} />
+          <View style={styles.nextCopy}>
+            <Text style={styles.nextTitle}>What to do next</Text>
+            <Text style={styles.nextText}>{result.confidence < 0.7 || (photoIssues?.length ?? 0) > 0 ? 'Take another clear photo in even light. Keep the whole leaf and affected area in focus.' : result.classKey === 'healthy' ? 'Keep monitoring this plant. Scan again if the leaf changes.' : 'Compare the visible signs and read the care guidance below. Ask a local expert if symptoms spread.'}</Text>
+          </View>
+        </View>
+
+        <Pressable accessibilityRole="button" disabled={saving || Boolean(saveError)} onPress={() => { reset(); setCameraOpen(true); }} style={styles.againButton}>
+          <Ionicons name="camera-outline" size={18} color={palette.green} />
+          <Text style={styles.againText}>{result.confidence < 0.7 || (photoIssues?.length ?? 0) > 0 ? 'Retake photo' : 'Scan another leaf'}</Text>
+        </Pressable>
+
+        {photoIssues?.length ? <ImageQualityNotice issues={photoIssues} /> : null}
+
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: showCare }} onPress={() => setShowCare((value) => !value)} style={styles.careToggle}>
+          <Ionicons name="book-outline" size={19} color={palette.green} />
+          <Text style={styles.careToggleText}>{showCare ? 'Hide care guidance' : 'Read care guidance'}</Text>
+          <Ionicons name={showCare ? 'chevron-up' : 'chevron-down'} size={19} color={palette.green} />
+        </Pressable>
+        {showCare && <TreatmentGuide classKey={result.classKey} />}
+
         {imageUri && (
           <Pressable accessibilityRole="button" accessibilityLabel="View full size image" onPress={() => setViewerVisible(true)}>
             <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" />
           </Pressable>
         )}
-
-        {photoIssues && <ImageQualityNotice issues={photoIssues} />}
-
-        <ScanResult result={enhanced} />
-
-        <TreatmentGuide classKey={result.classKey} />
 
         {saveError && (
           <View style={styles.errorCard}>
@@ -184,11 +224,6 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
             <Text style={styles.errorText}>{saveError}</Text>
           </View>
         )}
-
-        <Pressable accessibilityRole="button" onPress={reset} style={styles.againButton}>
-          <Ionicons name="camera-outline" size={18} color={palette.green} />
-          <Text style={styles.againText}>Scan another leaf</Text>
-        </Pressable>
 
         <Text style={styles.footer}>For research use only</Text>
 
@@ -200,13 +235,13 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
   if (phase === 'rejected' && imageUri) {
     return (
       <View style={styles.screen}>
-        <Text style={styles.heading}>Not a banana leaf</Text>
+        <Text style={styles.heading}>Not a real leaf photo</Text>
         <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" accessibilityLabel="Photo that was not accepted" />
         <View style={styles.rejectCard}>
           <Ionicons name="close-circle" size={22} color="#8e3028" />
           <View style={styles.rejectCopy}>
-            <Text style={styles.rejectTitle}>This doesn't look like a real banana leaf photo</Text>
-            <Text style={styles.rejectText}>DahonMD only checks real photos of banana leaves. Paintings, drawings, screenshots, other plants and other objects can't be diagnosed.</Text>
+            <Text style={styles.rejectTitle}>This doesn't look like a real photo of a leaf</Text>
+            <Text style={styles.rejectText}>DahonMD only checks real photos of banana leaves. Paintings, drawings, cartoons and photos of other objects can't be diagnosed.</Text>
           </View>
         </View>
         <Text style={styles.tipText}>Take a clear photo of one banana leaf in good light, with the leaf filling most of the picture.</Text>
@@ -235,6 +270,17 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
         </>
       ) : (
         <>
+          <View style={styles.previewActions}>
+            <Pressable accessibilityRole="button" onPress={reset} disabled={phase === 'checking'} style={styles.retakeButton}>
+              <Ionicons name="camera-outline" size={18} color={palette.green} />
+              <Text style={styles.retakeText}>Retake</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={chooseImage} disabled={phase === 'checking'} style={styles.retakeButton}>
+              <Ionicons name="images-outline" size={18} color={palette.green} />
+              <Text style={styles.retakeText}>Choose another</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.previewHint}>Check that the leaf fills the photo and the affected area is sharp.</Text>
           {modelUnavailable ? (
             <View style={styles.errorCard}>
               <Ionicons name="alert-circle" size={18} color="#8e3028" />
@@ -245,7 +291,7 @@ export function ScanScreen({ user, onStored, modelStatus }: { user: SessionUser 
           ) : (
             <Pressable accessibilityRole="button" accessibilityLabel="Check leaf" disabled={phase === 'checking'} onPress={checkLeaf} style={[styles.checkButton, phase === 'checking' && styles.dim]}>
               <Ionicons name="scan-outline" size={20} color="#fff" />
-              <Text style={styles.checkText}>{phase === 'checking' ? 'Checking…' : 'Check leaf'}</Text>
+              <Text style={styles.checkText}>{phase === 'checking' ? 'Checking…' : 'Use photo and check leaf'}</Text>
             </Pressable>
           )}
           {phase === 'checking' && (
@@ -289,6 +335,16 @@ const styles = StyleSheet.create({
   rejectText: { color: '#80534f', fontSize: 13, lineHeight: 19 },
   errorText: { flex: 1, color: '#8e3028', fontSize: 13, lineHeight: 18 },
   photo: { width: '100%', height: 240, borderRadius: 16, backgroundColor: '#edf1ee' },
+  nextCard: { flexDirection: 'row', gap: 12, padding: 16, borderRadius: 16, backgroundColor: '#eaf4e9' },
+  nextCopy: { flex: 1, gap: 5 },
+  nextTitle: { color: palette.ink, fontSize: 17, fontWeight: '800' },
+  nextText: { color: '#405e4a', fontSize: 14, lineHeight: 21 },
+  careToggle: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff' },
+  careToggleText: { flex: 1, color: palette.green, fontSize: 15, fontWeight: '800' },
+  previewActions: { flexDirection: 'row', gap: 9 },
+  retakeButton: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: '#b9cbc1', backgroundColor: '#fff' },
+  retakeText: { color: palette.green, fontSize: 14, fontWeight: '800' },
+  previewHint: { color: palette.muted, fontSize: 14, lineHeight: 20 },
   againButton: { minHeight: 50, borderRadius: 11, borderWidth: 1, borderColor: '#aac1b4', backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   againText: { color: '#245f43', fontSize: 15, fontWeight: '700' },
   footer: { color: '#89918c', fontSize: 11, textAlign: 'center', fontWeight: '600', marginTop: 4 },

@@ -24,7 +24,6 @@ export function ScanResult({ result }: { result: PredictionResult }) {
     <View style={styles.container}>
       <View style={styles.result}>
         <View style={styles.resultCopy}>
-          <Text style={styles.label}>Result</Text>
           <Text style={styles.prediction}>{CLASS_DISPLAY_NAMES[result.predictedClass]}</Text>
           <Text style={[styles.confidenceWord, uncertain && styles.uncertain]}>{confidenceWord(result.confidence)}</Text>
         </View>

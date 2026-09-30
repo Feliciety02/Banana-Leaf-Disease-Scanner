@@ -293,6 +293,18 @@ export async function getPendingDeletions(ownerUserId: number, limit = 100) {
   );
 }
 
+/** Totals for the Account tab: the account's scans on this device and how many have an agricultural review. */
+export async function countAccountDiagnoses(ownerUserId: number) {
+  const db = await database();
+  const row = await db.getFirstAsync<{ total: number; reviewed: number }>(
+    `SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN review_json IS NOT NULL THEN 1 ELSE 0 END), 0) AS reviewed
+     FROM local_diagnoses
+     WHERE owner_user_id = ? AND sync_status NOT IN ('pending_delete', 'delete_failed')`,
+    ownerUserId,
+  );
+  return { total: row?.total ?? 0, reviewed: row?.reviewed ?? 0 };
+}
+
 export async function countPendingDiagnoses(ownerUserId: number) {
   const db = await database();
   const row = await db.getFirstAsync<{ total: number }>(
@@ -448,10 +460,11 @@ export async function setSyncCursor(ownerUserId: number, cursor: string) {
   );
 }
 
-export async function claimLocalOnlyDiagnoses(ownerUserId: number) {
+export async function claimLocalOnlyDiagnoses(ownerUserId: number, localId?: string) {
   const db = await database();
   const records = await db.getAllAsync<Pick<LocalDiagnosis, 'local_id'>>(
-    `SELECT local_id FROM local_diagnoses WHERE owner_user_id IS NULL AND sync_status = 'local_only'`,
+    `SELECT local_id FROM local_diagnoses WHERE owner_user_id IS NULL AND sync_status = 'local_only' AND (? IS NULL OR local_id = ?)`,
+    localId ?? null, localId ?? null,
   );
   if (!records.length) return 0;
 
@@ -531,6 +544,16 @@ export async function getLocalDiagnosis(localId: string) {
   return db.getFirstAsync<LocalDiagnosis>('SELECT * FROM local_diagnoses WHERE local_id = ?', localId);
 }
 
+export async function saveLocalResearchConsent(localId: string, granted: boolean) {
+  const db = await database();
+  await db.runAsync(
+    'UPDATE local_diagnoses SET research_consent = ?, updated_at = ? WHERE local_id = ?',
+    granted ? 1 : 0,
+    new Date().toISOString(),
+    localId,
+  );
+}
+
 export async function saveDiagnosisReview(localId: string, review: DiagnosticReview) {
   const db = await database();
   await db.runAsync(
@@ -569,4 +592,15 @@ function removeStoredImage(uri: string | null) {
   } catch {
     // The database deletion remains valid even if the OS already removed the cached file.
   }
+}
+
+/** Stores a per-server/account choice without adding a schema migration. */
+export async function guestScanChoice(key: string, value?: string) {
+  const db = await database();
+  const stateKey = `guest-scan-choice:${key}`;
+  if (value !== undefined) {
+    await db.runAsync('INSERT INTO sync_state (state_key, state_value, updated_at) VALUES (?, ?, ?) ON CONFLICT(state_key) DO UPDATE SET state_value = excluded.state_value, updated_at = excluded.updated_at', stateKey, value, new Date().toISOString());
+    return value;
+  }
+  return (await db.getFirstAsync<{ state_value: string }>('SELECT state_value FROM sync_state WHERE state_key = ?', stateKey))?.state_value ?? null;
 }
