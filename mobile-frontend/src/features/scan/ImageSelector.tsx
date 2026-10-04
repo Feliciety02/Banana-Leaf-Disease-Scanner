@@ -2,17 +2,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { palette } from '../connected/ui';
+import { useT } from '../../i18n';
 
 export function ImageSelector({ onSelectCamera, onSelectGallery, disabled }: { onSelectCamera: () => void; onSelectGallery: () => void; disabled?: boolean }) {
+  const { t } = useT();
   return (
     <View style={styles.row}>
       <Pressable accessibilityRole="button" accessibilityLabel="Open camera" disabled={disabled} onPress={onSelectCamera} style={({ pressed }) => [styles.button, styles.cameraButton, (pressed || disabled) && styles.dim]}>
         <Ionicons name="camera" size={22} color="#fff" />
-        <Text style={styles.cameraText}>Camera</Text>
+        <Text style={styles.cameraText}>{t('scan.camera')}</Text>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Choose from gallery" disabled={disabled} onPress={onSelectGallery} style={({ pressed }) => [styles.button, styles.galleryButton, (pressed || disabled) && styles.dim]}>
         <Ionicons name="images-outline" size={22} color={palette.green} />
-        <Text style={styles.galleryText}>Gallery</Text>
+        <Text style={styles.galleryText}>{t('scan.gallery')}</Text>
       </Pressable>
     </View>
   );

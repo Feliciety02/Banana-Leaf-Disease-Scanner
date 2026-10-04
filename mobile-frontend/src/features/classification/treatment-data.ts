@@ -14,9 +14,12 @@ export type TreatmentGuideContent = {
   tips: string[];
 };
 
-const blackSigatokaLeaf = require('../../../assets/figure19_extracted_images/black_sigatoka_example.jpg');
-const cordanaLeaf = require('../../../assets/figure19_extracted_images/cordana_example.jpg');
-const healthyLeaf = require('../../../assets/figure19_extracted_images/healthy_leaf_example.jpg');
+// Higher-resolution educational leaf examples shared with the web disease guide.
+// Attribution: web-frontend/public/assets/disease-guide/README.md.
+const blackSigatokaLeaf = require('../../../assets/figure19_extracted_images/sigatoka_reference.jpg');
+const cordanaLeaf = require('../../../assets/figure19_extracted_images/cordana_reference.jpg');
+const healthyLeaf = require('../../../assets/figure19_extracted_images/healthy_reference.jpg');
+const panamaLeaf = require('../../../assets/figure19_extracted_images/panama_leaf_example.jpg');
 
 const timorexGold = require('../../../assets/figure19_extracted_images/timorex_gold.jpg');
 const blindax = require('../../../assets/figure19_extracted_images/blindax.jpg');
@@ -68,19 +71,19 @@ export const treatmentGuides: Record<ClassKey, TreatmentGuideContent> = {
     leafImage: healthyLeaf,
     products: [],
     tips: [
-      'Continue with good care and regular monitoring. Ensure good air circulation between plants.',
-      'Provide proper drainage and drip irrigation.',
-      'Fertilize the plant with balanced nutrients for healthy growth.',
+      'Keep up good care: Monitor regularly and ensure good air circulation between plants.',
+      'Good drainage: Make sure water drains well and use drip irrigation.',
+      'Balanced fertilization: Give the plant balanced nutrients for healthy growth.',
     ],
   },
   'panama-disease': {
     heading: 'Panama Disease',
-    leafImage: null,
+    leafImage: panamaLeaf,
     products: [],
     tips: [
-      'There is no cure or effective spray for Panama Disease; report a suspected case to your agriculturist so it can be confirmed.',
-      'Do not move soil, water, suckers or plant parts from the affected plant, and clean soil off tools, boots and equipment.',
-      'Plant only disease-free planting material, and ask about resistant varieties before replanting on affected ground.',
+      'No cure: There is no cure or effective spray for Panama Disease; report a suspected case to your agriculturist so it can be confirmed.',
+      'Do not move soil or plants: Keep soil, water, suckers and plant parts from the affected plant in place, and clean soil off tools, boots and equipment.',
+      'Clean planting material: Plant only disease-free suckers, and ask about resistant varieties before replanting on affected ground.',
     ],
   },
 };

@@ -7,12 +7,17 @@ import { countLocalOnlyDiagnoses } from '../../storage/localDiagnoses';
 import { AuthMode } from './AuthModal';
 import { FarmerWorkspace } from './FarmerWorkspace';
 import { ServerAddress } from './ServerAddress';
-import { Benefit, EmailVerificationNotice, ListGroup, ListRow, ProfileHeader } from './AccountUI';
+import { Benefit, EmailVerificationNotice, LanguagePicker, ListGroup, ListRow, ProfileHeader } from './AccountUI';
+import { ProfileEditor } from './ProfileEditor';
+import { ProfilePhotoModal } from './ProfilePhotoModal';
+import { useT } from '../../i18n';
 import { ActionButton, Notice, palette, titleCase, uiStyles } from './ui';
 
 export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onDataChanged, onInfo, onOpenHistory }: { user: SessionUser | null; restoring: boolean; onOpenHistory: () => void; onUser: (user: SessionUser | null) => void; onOpenAuth: (mode: AuthMode) => void; onDataChanged: () => void; onInfo: (title: string, message: string) => void }) {
   const [error, setError] = useState('');
   const [deviceScans, setDeviceScans] = useState<number | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const { t } = useT();
   useEffect(() => {
     let active = true;
     countLocalOnlyDiagnoses().then((count) => { if (active) setDeviceScans(count); }).catch(() => undefined);
@@ -41,18 +46,20 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
   };
 
   if (restoring) return <View style={styles.center}><ActivityIndicator color={palette.green} /><Text style={styles.muted}>Restoring secure session…</Text></View>;
-  if (user?.role === 'farmer') return <FarmerWorkspace onOpenHistory={onOpenHistory} user={user} onSignOut={signOut} onAccountDeleted={(message) => { onUser(null); onInfo('Account deleted', message); }} onChanged={onDataChanged} />;
+  if (user?.role === 'farmer') return <FarmerWorkspace onOpenHistory={onOpenHistory} user={user} onUser={onUser} onSignOut={signOut} onAccountDeleted={(message) => { onUser(null); onInfo('Account deleted', message); }} onChanged={onDataChanged} />;
   if (user) return <View style={uiStyles.stack}>
-    <ProfileHeader name={user.name} email={user.email} role={user.role} />
+    <ProfileHeader name={user.name} email={user.email} role={user.role} avatarUrl={user.avatar_url} onPressAvatar={() => setPhotoOpen(true)} />
     <EmailVerificationNotice user={user} />
     {error && <Notice tone="warning">{error}</Notice>}
     <ListGroup title="Your workspace">
-      <ListRow first icon={user.role === 'admin' ? 'grid-outline' : 'shield-checkmark-outline'} title={user.role === 'admin' ? 'Manage DahonMD' : 'Agricultural reviews'} subtitle={user.role === 'admin' ? 'Use the tabs below to manage users, inspect scans and maintain disease knowledge.' : 'Open Requests to assess farmer appeals, or Reviewed to revisit completed assessments.'} />
-      <ListRow icon="globe-outline" title="Open website" external onPress={() => openPage(currentServerUrl()?.replace(/\/api$/, '') ?? null, 'The website')} />
+      <ListRow first icon="globe-outline" title="Open website" external onPress={() => openPage(currentServerUrl()?.replace(/\/api$/, '') ?? null, 'The website')} />
     </ListGroup>
+    <ProfileEditor user={user} onUser={onUser} />
+    <ProfilePhotoModal visible={photoOpen} user={user} onUser={onUser} onClose={() => setPhotoOpen(false)} />
     <ServerAddress onChanged={() => { setServerVersion((value) => value + 1); void refreshSession().then(onUser).catch(() => onUser(null)); }} />
+    <LanguagePicker />
     <ListGroup title="Account">
-      <ListRow first icon="document-text-outline" title="Privacy policy" external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
+      <ListRow first icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
       <ListRow icon="log-out-outline" title="Sign out" onPress={signOut} />
     </ListGroup>
   </View>;
@@ -61,29 +68,30 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
   return <View style={uiStyles.stack}>
     <View style={styles.welcome}>
       <Image source={require('../../../assets/dahonmd-logo-green.png')} style={styles.logo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
-      <Text style={styles.welcomeTitle}>Your scans.
-Together in one place.</Text>
-      <Text style={styles.intro}>Save your leaf checks to an account and keep up with expert reviews.</Text>
-      {connected ? <View style={styles.welcomeActions}>
-        <ActionButton icon="log-in-outline" onPress={() => onOpenAuth('login')}>Log in</ActionButton>
-        <ActionButton variant="secondary" onPress={() => onOpenAuth('register')}>Create account</ActionButton>
-      </View> : <Notice tone="warning">Connect to the DahonMD server below to log in or create an account.</Notice>}
-      <Text style={styles.footnote}>No account needed to scan a leaf.</Text>
+      <Text style={styles.welcomeTitle}>{t('guest.title')}</Text>
+      <Text style={styles.intro}>{t('guest.intro')}</Text>
+      <View style={styles.welcomeActions}>
+        <ActionButton icon="log-in-outline" onPress={() => onOpenAuth('login')}>{t('auth.login')}</ActionButton>
+        <ActionButton variant="secondary" onPress={() => onOpenAuth('register')}>{t('auth.create')}</ActionButton>
+      </View>
+      {!connected && <Notice tone="warning">{t('guest.notConnected')}</Notice>}
+      <Text style={styles.footnote}>{t('guest.noAccountNeeded')}</Text>
     </View>
     {error && <Notice>{error}</Notice>}
-    <ListGroup title="Already on your phone">
-      <ListRow first icon="phone-portrait-outline" title={deviceScans === null ? 'Your scan history' : `${deviceScans} saved scan${deviceScans === 1 ? '' : 's'}`} subtitle="Device-only scans stay here. You choose whether to add them to an account after signing in." onPress={onOpenHistory} />
+    <ListGroup title={t('guest.onPhone')}>
+      <ListRow first icon="phone-portrait-outline" title={deviceScans === null ? t('account.scanHistory') : t('guest.savedCount', { count: deviceScans })} subtitle={t('guest.onPhoneText')} onPress={onOpenHistory} />
     </ListGroup>
     <View style={styles.benefits}>
-      <Text style={styles.sectionTitle}>More with an account</Text>
-      <Benefit icon="cloud-upload-outline" title="Take your history with you" text="Sync scan results and view them on the website." />
-      <Benefit icon="shield-checkmark-outline" title="Get a second opinion" text="Request an agricultural review from a saved scan and follow the result in your history." />
+      <Text style={styles.sectionTitle}>{t('guest.more')}</Text>
+      <Benefit icon="cloud-upload-outline" title={t('guest.historyTitle')} text={t('guest.historyText')} />
+      <Benefit icon="shield-checkmark-outline" title={t('guest.secondTitle')} text={t('guest.secondText')} />
     </View>
-    <View style={styles.boundary}><Ionicons name="cloud-offline-outline" size={22} color={palette.green} /><Text style={styles.boundaryText}>Scanning works offline. Sign-in, syncing and review requests need an internet connection.</Text></View>
+    <View style={styles.boundary}><Ionicons name="cloud-offline-outline" size={22} color={palette.green} /><Text style={styles.boundaryText}>{t('guest.offline')}</Text></View>
     <ServerAddress onChanged={() => setServerVersion((value) => value + 1)} />
-    <ListGroup title="Privacy">
-      <ListRow first icon="document-text-outline" title="Privacy policy" external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
-      <ListRow icon="globe-outline" title="Delete an account" subtitle="Remove an account from the website" external onPress={() => openPage(accountDeletionUrl(), 'The account deletion page')} />
+    <LanguagePicker />
+    <ListGroup title={t('account.privacy')}>
+      <ListRow first icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
+      <ListRow icon="globe-outline" title={t('guest.deleteAccount')} subtitle={t('guest.deleteAccountText')} external onPress={() => openPage(accountDeletionUrl(), 'The account deletion page')} />
     </ListGroup>
   </View>;
 }

@@ -3,16 +3,13 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { resendVerificationEmail, type SessionUser } from '../../services/api';
+import { setLanguage, useT, type Language, type StringKey } from '../../i18n';
+import { UserAvatar } from '../../components/UserAvatar';
 import { ActionButton, Notice, palette, titleCase } from './ui';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-const ROLE_LABELS: Record<string, string> = { farmer: 'Farmer', agricultural_expert: 'Agricultural reviewer', admin: 'Administrator' };
 
-function initialsOf(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || '?';
-}
 
 /**
  * Sharing features (review requests, photo sharing, reviewer and admin tools)
@@ -21,6 +18,7 @@ function initialsOf(name: string) {
 export function EmailVerificationNotice({ user }: { user: SessionUser }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const { t } = useT();
   if (user.email_verified_at !== null) return null;
   const resend = async () => {
     setBusy(true);
@@ -29,22 +27,29 @@ export function EmailVerificationNotice({ user }: { user: SessionUser }) {
     finally { setBusy(false); }
   };
   return <View style={styles.verification}>
-    <Notice tone="warning">{`Verify your email address to request reviews, share photos and use reviewer or administrator tools. Open the link sent to ${user.email}.`}</Notice>
+    <Notice tone="warning">{user.role === 'farmer' ? t('verify.farmer', { email: user.email }) : t('verify.staff', { email: user.email })}</Notice>
     {result && <Notice tone={result.tone}>{result.text}</Notice>}
-    <ActionButton variant="secondary" icon="mail-outline" disabled={busy} onPress={resend}>{busy ? 'Sending…' : 'Resend verification email'}</ActionButton>
+    <ActionButton variant="secondary" icon="mail-outline" disabled={busy} onPress={resend}>{busy ? t('common.sending') : t('verify.resend')}</ActionButton>
   </View>;
 }
 
-/** Avatar, name, email and role at the top of the Account tab. */
-export function ProfileHeader({ name, email, role, status }: { name: string; email: string; role: string; status?: { icon: IconName; label: string; tone: 'ok' | 'waiting' } }) {
+/** Avatar, name, email and role at the top of the Account tab. Tapping the photo opens the photo editor. */
+export function ProfileHeader({ name, email, role, avatarUrl, status, onPressAvatar }: { name: string; email: string; role: string; avatarUrl?: string | null; status?: { icon: IconName; label: string; tone: 'ok' | 'waiting' }; onPressAvatar?: () => void }) {
+  const { t } = useT();
+  const avatar = <UserAvatar name={name} uri={avatarUrl} size={60} inverted />;
   return (
     <View style={styles.profile}>
-      <View style={styles.avatar}><Text style={styles.avatarText}>{initialsOf(name)}</Text></View>
+      {onPressAvatar ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="View or change profile photo" hitSlop={6} onPress={onPressAvatar} style={({ pressed }) => pressed && styles.rowDim}>
+          {avatar}
+          <View style={styles.avatarBadge}><Ionicons name="camera" size={13} color="#fff" /></View>
+        </Pressable>
+      ) : avatar}
       <View style={styles.profileCopy}>
         <Text style={styles.profileName} >{name}</Text>
         <Text style={styles.profileEmail} >{email}</Text>
         <View style={styles.badges}>
-          <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{ROLE_LABELS[role] ?? titleCase(role)}</Text></View>
+          <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{['farmer', 'agricultural_expert', 'admin'].includes(role) ? t(`role.${role}` as StringKey) : titleCase(role)}</Text></View>
           {status && (
             <View style={[styles.statusBadge, status.tone === 'waiting' && styles.statusBadgeWaiting]}>
               <Ionicons name={status.icon} size={13} color={status.tone === 'waiting' ? palette.warning : palette.success} />
@@ -72,11 +77,20 @@ export function StatRow({ items }: { items: { value: number | string; label: str
   );
 }
 
+/** English / Filipino choice; applies straight away and is remembered on this phone. */
+export function LanguagePicker() {
+  const { t, language } = useT();
+  const options: { value: Language; label: string }[] = [{ value: 'en', label: t('language.english') }, { value: 'fil', label: t('language.filipino') }];
+  return <ListGroup title={`${t('language.title')} / ${language === 'fil' ? 'Language' : 'Wika'}`}>
+    {options.map((option, index) => <ListRow key={option.value} first={index === 0} icon={language === option.value ? 'radio-button-on' : 'radio-button-off'} title={option.label} onPress={() => { void setLanguage(option.value); }} />)}
+  </ListGroup>;
+}
+
 /** Titled group of settings-style rows. */
 export function ListGroup({ title, children }: PropsWithChildren<{ title: string }>) {
   return (
     <View style={styles.group}>
-      <Text style={styles.groupTitle}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.groupTitle}>{title}</Text>
       <View style={styles.groupCard}>{children}</View>
     </View>
   );
@@ -118,8 +132,7 @@ export function Benefit({ icon, title, text }: { icon: IconName; title: string; 
 const styles = StyleSheet.create({
   verification: { gap: 10 },
   profile: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 24, borderRadius: 28, backgroundColor: '#edf5ef', flexWrap: 'wrap' },
-  avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontSize: 21, fontWeight: '800' },
+  avatarBadge: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#edf5ef', backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
   profileCopy: { flex: 1, minWidth: 150, gap: 2 },
   profileName: { color: palette.ink, fontSize: 25, fontWeight: '800' },
   profileEmail: { color: palette.muted, fontSize: 13 },
@@ -134,8 +147,8 @@ const styles = StyleSheet.create({
   stat: { flex: 1, minHeight: 100, gap: 6, padding: 10 },
   statValue: { color: palette.ink, fontSize: 24, fontWeight: '800', marginTop: 2 },
   statLabel: { color: palette.muted, fontSize: 12, lineHeight: 16 },
-  group: { gap: 12 },
-  groupTitle: { color: palette.ink, fontSize: 20, fontWeight: '800', paddingHorizontal: 4 },
+  group: { gap: 8 },
+  groupTitle: { color: palette.muted, fontSize: 13, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 6 },
   groupCard: { borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff', overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 76, paddingHorizontal: 16, paddingVertical: 16 },
   rowDivider: { borderTopWidth: 1, borderTopColor: palette.border },

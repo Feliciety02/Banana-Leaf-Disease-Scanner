@@ -75,7 +75,7 @@ Quick commands for the automated checks are at the bottom in [Run All Automated 
 
 ### Mobile sync & data integrity
 - [ ] `POST /mobile/sync` is idempotent by `sync_uuid` (second submit = `already_synchronized`, no duplicate row).
-- [ ] `POST /mobile/sync/{uuid}/image` stores the image only when research consent is active; consent version recorded.
+- [ ] `POST /mobile/sync/{uuid}/image` stores the photo of the owner's synced scan (no consent needed); research dataset nomination still requires active consent, with the consent version recorded.
 - [ ] Diagnosis data + `sync_uuid` visible in web history and admin analytics (cross-platform identity).
 
 ### Static checks

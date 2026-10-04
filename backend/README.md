@@ -134,7 +134,7 @@ Production also requires real mail transport, sender details, HTTPS, protected s
 | `POST /api/inference` | Submit an image for the normal screening flow | Farmer |
 | `POST /api/sync` | Synchronize queued mobile or web records (UUID-idempotent) | Farmer |
 | `GET /api/sync` | Pull incremental upserts and deletion tombstones using an opaque cursor | Farmer |
-| `POST /api/sync/{syncUuid}/image` | Upload an explicitly consented queued image | Record owner |
+| `POST /api/sync/{syncUuid}/image` | Upload the photo of a synchronized scan | Record owner |
 | `GET, POST /api/mobile/sync` | Backward-compatible mobile sync aliases | Farmer |
 | `GET, POST /api/v1/sync` | Versioned sync aliases for future client migration | Farmer |
 | `POST /api/diagnoses/{diagnosis}/review-request` | Request agricultural review | Record owner |

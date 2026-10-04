@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Collection;
 
 class DiagnosisRepository implements DiagnosisRepositoryInterface
 {
-    private const DETAILS = ['disease', 'review.expert'];
+    private const DETAILS = ['disease', 'review.expert', 'reviewClaim'];
 
     public function paginateForUser(User $user, array $filters, int $perPage): LengthAwarePaginator
     {
@@ -89,7 +89,7 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
     public function syncChanges(User $user, int $lastChangeId, int $limit): Collection
     {
         return DiagnosisSyncChange::query()
-            ->with(['diagnosis.disease', 'diagnosis.review.expert'])
+            ->with(['diagnosis.disease', 'diagnosis.review.expert', 'diagnosis.reviewClaim'])
             ->where('user_id', $user->id)
             ->where('id', '>', $lastChangeId)
             ->orderBy('id')
@@ -100,7 +100,7 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
     public function withDetails(Diagnosis $diagnosis, bool $includeUser = false): Diagnosis
     {
         // Staff views also carry the review's revision history.
-        return $diagnosis->load($includeUser ? ['user', ...self::DETAILS, 'review.revisions.expert:id,name'] : self::DETAILS);
+        return $diagnosis->load($includeUser ? ['user', ...self::DETAILS, 'review.revisions.expert:id,name', 'reviewClaim.user:id,name'] : self::DETAILS);
     }
 
     public function update(Diagnosis $diagnosis, array $attributes): Diagnosis
@@ -117,7 +117,7 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
 
     public function reviewCases(string $scope, float $threshold, int $limit = 100): Collection
     {
-        $query = Diagnosis::query()->with(['user', ...self::DETAILS, 'review.revisions.expert:id,name'])->latest('diagnosed_at');
+        $query = Diagnosis::query()->with(['user', ...self::DETAILS, 'review.revisions.expert:id,name', 'reviewClaim.user:id,name'])->latest('diagnosed_at');
 
         if ($scope === 'reviewed') {
             $query->whereHas('review', fn ($review) => $review->where('review_status', '!=', 'pending'));
@@ -140,7 +140,7 @@ class DiagnosisRepository implements DiagnosisRepositoryInterface
                 ->whereDoesntHave('review', fn ($review) => $review->where('review_status', '!=', 'pending'))
                 ->count(),
             'needs_review' => (clone $query)->count(),
-            'cases' => $query->with(['user', ...self::DETAILS])->latest('diagnosed_at')->limit($limit)->get(),
+            'cases' => $query->with(['user', ...self::DETAILS, 'reviewClaim.user:id,name'])->latest('diagnosed_at')->limit($limit)->get(),
         ];
     }
 

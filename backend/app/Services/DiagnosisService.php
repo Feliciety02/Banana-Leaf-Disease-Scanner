@@ -41,7 +41,10 @@ class DiagnosisService
         // The disease link always follows the model's class key so that web,
         // mobile and API records resolve to the same knowledge record.
         $attributes['disease_id'] = $this->diseases->findByModelClassKey($attributes['predicted_class'])?->id;
-        $attributes['is_simulated'] = Diagnosis::isSimulatedFor($attributes['source'] ?? 'web');
+        $attributes['is_simulated'] = Diagnosis::isSimulatedFor(
+            $attributes['source'] ?? 'web',
+            isset($attributes['is_simulated']) ? (bool) $attributes['is_simulated'] : null,
+        );
         $attributes['image_path'] = $image ? $this->images->store($image) : null;
         $attributes['sync_status'] = $attributes['source'] === 'mobile' ? 'synced' : null;
 
@@ -56,6 +59,68 @@ class DiagnosisService
     public function details(Diagnosis $diagnosis, bool $includeUser = false): Diagnosis
     {
         return $this->diagnoses->withDetails($diagnosis, $includeUser);
+    }
+
+    /** Attaches or removes the farmer-chosen location of a scan, rounded to about 110 m. */
+    public function setLocation(Diagnosis $diagnosis, ?float $latitude, ?float $longitude): Diagnosis
+    {
+        $this->diagnoses->update($diagnosis, [
+            'latitude' => $latitude === null ? null : round($latitude, 3),
+            'longitude' => $longitude === null ? null : round($longitude, 3),
+        ]);
+
+        return $this->diagnoses->withDetails($diagnosis->fresh());
+    }
+
+    /** Records that the farmer opened a completed review, so it stops showing as new. */
+    public function markReviewSeen(Diagnosis $diagnosis): void
+    {
+        $review = $diagnosis->review;
+        if ($review && $review->review_status !== 'pending' && ! $review->farmer_seen_at) {
+            $review->update(['farmer_seen_at' => now()]);
+        }
+    }
+
+    /**
+     * Reopens a completed review with the farmer's reply and, optionally, a
+     * new photo. The previous assessment is kept as a revision for audit.
+     */
+    public function followUp(Diagnosis $diagnosis, string $reply, ?UploadedFile $photo): Diagnosis
+    {
+        $diagnosis->loadMissing(['review', 'datasetCandidate']);
+        $review = $diagnosis->review;
+        if (! $review || $review->review_status === 'pending') {
+            throw ValidationException::withMessages(['farmer_reply' => 'Only a completed review can be answered.']);
+        }
+        if ($photo && $diagnosis->datasetCandidate) {
+            throw ValidationException::withMessages(['image' => 'This photo is being considered for a research dataset, so it cannot be replaced. Send your reply without a new photo.']);
+        }
+
+        $newPath = $photo ? $this->images->store($photo) : null;
+        $oldPath = $diagnosis->image_path;
+        try {
+            DB::transaction(function () use ($diagnosis, $review, $reply, $newPath) {
+            $review->revisions()->create([
+                ...$review->only(['expert_id', 'review_status', 'verified_label', 'image_quality', 'next_steps', 'notes', 'farmer_message', 'farmer_reply', 'requires_field_inspection', 'reviewed_at']),
+            ]);
+            $review->update([
+                'review_status' => 'pending', 'expert_id' => null, 'verified_label' => null, 'image_quality' => null,
+                'next_steps' => null, 'notes' => null, 'farmer_message' => null, 'farmer_reply' => $reply,
+                'requires_field_inspection' => false, 'requested_at' => now(), 'reviewed_at' => null, 'farmer_seen_at' => null,
+            ]);
+            if ($newPath) {
+                $this->diagnoses->update($diagnosis, ['image_path' => $newPath]);
+            }
+            });
+        } catch (\Throwable $exception) {
+            $this->images->delete($newPath);
+            throw $exception;
+        }
+        if ($newPath) {
+            $this->images->delete($oldPath);
+        }
+
+        return $this->diagnoses->withDetails($diagnosis->fresh());
     }
 
     public function requestReview(Diagnosis $diagnosis, ?string $farmerNotes, bool $notesProvided): bool

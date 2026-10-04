@@ -26,6 +26,20 @@ class Disease extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Scans saved before their class had a knowledge record (for example,
+        // before the knowledge base was seeded) link to it once it exists.
+        static::saved(function (Disease $disease) {
+            if ($disease->model_class_key) {
+                Diagnosis::withTrashed()
+                    ->where('predicted_class', $disease->model_class_key)
+                    ->whereNull('disease_id')
+                    ->update(['disease_id' => $disease->id]);
+            }
+        });
+    }
+
     public function diagnoses(): HasMany
     {
         return $this->hasMany(Diagnosis::class);

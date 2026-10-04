@@ -16,6 +16,8 @@ class DiagnosisResource extends JsonResource
             'image_url' => $this->mediaUrl('image', $this->image_path),
             'gradcam_url' => $this->mediaUrl('gradcam', $this->gradcam_path),
             'farmer_notes' => $this->farmer_notes,
+            // Only present when the farmer chose to attach a location to this scan.
+            'location' => $this->latitude !== null && $this->longitude !== null ? ['latitude' => $this->latitude, 'longitude' => $this->longitude] : null,
             'research_consent' => $this->hasActiveResearchConsent(),
             'research_consented_at' => $this->research_consented_at,
             'research_consent_version' => $this->research_consent_version,
@@ -25,6 +27,14 @@ class DiagnosisResource extends JsonResource
             'class_probabilities' => $this->class_probabilities, 'model_comparison' => $this->model_comparison,
             'diagnosed_at' => $this->diagnosed_at, 'created_at' => $this->created_at,
             'review' => new DiagnosisReviewResource($this->whenLoaded('review')),
+            // Which reviewer holds the case is for staff; farmers only learn that someone is on it.
+            'review_claim' => $this->when(
+                $this->relationLoaded('reviewClaim') && $this->reviewClaim?->isActive()
+                    && ($request->user()?->isAdmin() || $request->user()?->isAgriculturalExpert()),
+                fn () => ['user' => $this->reviewClaim->user?->only(['id', 'name']), 'expires_at' => $this->reviewClaim->expires_at->toIso8601String()],
+            ),
+            'review_in_progress_until' => $this->relationLoaded('reviewClaim') && $this->reviewClaim?->isActive()
+                ? $this->reviewClaim->expires_at->toIso8601String() : null,
             'review_priority' => $this->when($this->review_priority !== null, $this->review_priority),
             'review_reasons' => $this->when($this->review_reasons !== null, $this->review_reasons),
         ];

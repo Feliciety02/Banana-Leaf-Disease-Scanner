@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Linking, View } from 'react-native';
 
 import { deleteAccount, privacyPolicyUrl, type SessionUser } from '../../services/api';
-import { synchronizeDiagnoses, type SyncSummary } from '../../services/diagnosisSync';
-import { claimLocalOnlyDiagnoses, countAccountDiagnoses, countLocalOnlyDiagnoses, countPendingDiagnoses, deleteLocalAccountData } from '../../storage/localDiagnoses';
-import { EmailVerificationNotice, ListGroup, ListRow, ProfileHeader, StatRow } from './AccountUI';
-import { ActionButton, ConfirmSheet, Field, ModalSheet, Notice, palette, uiStyles } from './ui';
+import { synchronizeDiagnoses, uploadUnsentPhotos } from '../../services/diagnosisSync';
+import { claimLocalOnlyDiagnoses, countAccountDiagnoses, countLocalOnlyDiagnoses, countPendingDiagnoses, deleteLocalAccountData, subscribeToLocalDiagnosisChanges } from '../../storage/localDiagnoses';
+import { EmailVerificationNotice, LanguagePicker, ListGroup, ListRow, ProfileHeader } from './AccountUI';
+import { ProfileEditor } from './ProfileEditor';
+import { ProfilePhotoModal } from './ProfilePhotoModal';
+import { useT } from '../../i18n';
+import { ActionButton, ConfirmSheet, Field, ModalSheet, Notice, uiStyles } from './ui';
 
-export function FarmerWorkspace({ user, onSignOut, onAccountDeleted, onChanged, onOpenHistory }: { user: SessionUser; onOpenHistory: () => void; onSignOut: () => Promise<void>; onAccountDeleted: (message: string) => void; onChanged: () => void }) {
+export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onChanged, onOpenHistory }: { user: SessionUser; onUser: (user: SessionUser) => void; onOpenHistory: () => void; onSignOut: () => Promise<void>; onAccountDeleted: (message: string) => void; onChanged: () => void }) {
   const [countsReady, setCountsReady] = useState(false);
   const [pending, setPending] = useState(0);
   const [localOnly, setLocalOnly] = useState(0);
@@ -20,6 +22,8 @@ export function FarmerWorkspace({ user, onSignOut, onAccountDeleted, onChanged, 
   const [claimOpen, setClaimOpen] = useState(false);
   const [signOutPending, setSignOutPending] = useState<number | null>(null);
   const [totals, setTotals] = useState({ total: 0, reviewed: 0 });
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const { t } = useT();
 
   const refreshCount = useCallback(async () => {
     const [pendingCount, localOnlyCount, accountTotals] = await Promise.all([
@@ -32,25 +36,18 @@ export function FarmerWorkspace({ user, onSignOut, onAccountDeleted, onChanged, 
     setTotals(accountTotals);
     setCountsReady(true);
   }, [user.id]);
-  useEffect(() => { setCountsReady(false); refreshCount().catch(() => setError('Scan totals could not be loaded. Try syncing again.')); }, [refreshCount]);
-
-  const sync = async () => {
-    setSyncing(true);
-    setError('');
-    setMessage('');
-    try {
-      const result: SyncSummary = await synchronizeDiagnoses(user.id);
-      setMessage(result.pushed || result.pulled || result.deleted
-        ? `Sync complete. ${result.pushed} scan${result.pushed === 1 ? '' : 's'} uploaded.`
-        : 'Everything is already up to date.');
-      onChanged();
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Sync could not finish. Your local records are safe and will be retried.');
-    } finally {
-      await refreshCount().catch(() => undefined);
-      setSyncing(false);
-    }
-  };
+  useEffect(() => { setCountsReady(false); refreshCount().catch(() => setError('Scan totals could not be loaded. Reopen this tab to try again.')); }, [refreshCount]);
+  // Automatic synchronization changes the local records; keep the totals current.
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let subscription: { remove: () => void } | null = null;
+    subscribeToLocalDiagnosisChanges(() => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { if (active) refreshCount().catch(() => undefined); }, 200);
+    }).then((value) => { if (active) subscription = value; else value.remove(); }).catch(() => undefined);
+    return () => { active = false; if (timer) clearTimeout(timer); subscription?.remove(); };
+  }, [refreshCount]);
 
   const claimLocalScans = () => setClaimOpen(true);
   const confirmClaimLocalScans = async () => {
@@ -128,9 +125,11 @@ export function FarmerWorkspace({ user, onSignOut, onAccountDeleted, onChanged, 
     let remaining = pending;
     try {
       await synchronizeDiagnoses(user.id);
-      remaining = await countPendingDiagnoses(user.id);
+      // Signing out deletes this account's photos from the phone, so any photo
+      // the server does not have yet must be sent first or counted as unsaved.
+      remaining = await countPendingDiagnoses(user.id) + await uploadUnsentPhotos(user.id);
     } catch {
-      remaining = await countPendingDiagnoses(user.id).catch(() => pending);
+      remaining = await countPendingDiagnoses(user.id).catch(() => pending) || 1;
     } finally {
       setSyncing(false);
     }
@@ -143,62 +142,45 @@ export function FarmerWorkspace({ user, onSignOut, onAccountDeleted, onChanged, 
     setSignOutPending(remaining);
   };
 
+  const syncStatus = countsReady
+    ? pending
+      ? { icon: 'cloud-upload-outline' as const, label: `${pending} waiting to sync`, tone: 'waiting' as const }
+      : { icon: 'cloud-done-outline' as const, label: 'Synced', tone: 'ok' as const }
+    : undefined;
+
   return <View style={uiStyles.stack}>
     <ProfileHeader
       name={user.name}
       email={user.email}
       role={user.role}
-
+      avatarUrl={user.avatar_url}
+      status={syncStatus}
+      onPressAvatar={() => setPhotoOpen(true)}
     />
     <EmailVerificationNotice user={user} />
     {message && <Notice tone="success">{message}</Notice>}
     {error && <Notice>{error}</Notice>}
-    <View style={styles.syncCard}>
-      <View style={styles.statusRow}>
-        <View style={styles.icon}><Ionicons name="sync-outline" size={25} color={palette.green} /></View>
-        <View style={uiStyles.flex}><Text style={uiStyles.cardTitle}>Your scan collection</Text><Text style={uiStyles.cardMeta}>Results and reviews saved on this phone.</Text></View>
-      </View>
-      <StatRow items={[
-        { icon: 'leaf-outline', value: countsReady ? totals.total : '\u2014', label: 'Saved scans' },
-        { icon: 'cloud-upload-outline', value: countsReady ? pending : '\u2014', label: 'Pending changes' },
-        { icon: 'shield-checkmark-outline', value: countsReady ? totals.reviewed : '\u2014', label: 'Reviews' },
-      ]} />
-      <ActionButton variant="secondary" icon="time-outline" onPress={onOpenHistory}>View scan history</ActionButton>
-      <View style={styles.syncDivider} />
-      <Text style={styles.syncTitle}>{!countsReady ? 'Checking saved scans...' : pending ? `${pending} change${pending === 1 ? '' : 's'} waiting to sync` : 'No changes waiting to upload'}</Text>
-      <Text style={uiStyles.cardMeta}>Sync to upload pending changes and download the latest results and reviews.</Text>
-      <ActionButton icon="sync" disabled={syncing} onPress={sync}>{syncing ? 'Synchronizing...' : 'Sync now'}</ActionButton>
-    </View>
-    {localOnly > 0 && <View style={uiStyles.card}>
-      <View style={styles.statusRow}>
-        <View style={styles.icon}><Ionicons name="phone-portrait-outline" size={24} color={palette.green} /></View>
-        <View style={uiStyles.flex}><Text style={uiStyles.cardTitle}>{localOnly} device-only scan{localOnly === 1 ? '' : 's'}</Text><Text style={uiStyles.cardMeta}>Made while signed out. They stay private unless you add them to this account.</Text></View>
-      </View>
-      <ActionButton variant="secondary" icon="person-add-outline" disabled={syncing} onPress={claimLocalScans}>Add to my account</ActionButton>
-    </View>}
-    <ListGroup title="Data & privacy">
-      <ListRow first icon="image-outline" title="You control photo sharing" subtitle="Photos may be uploaded when you request a review or consent to research. Signing in does not share every photo." />
-      <ListRow icon="document-text-outline" title="Privacy policy" external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
+    <ListGroup title={t('account.yourScans')}>
+      <ListRow first icon="time-outline" title={t('account.scanHistory')} subtitle={countsReady ? t('account.scanCounts', { total: totals.total, reviewed: totals.reviewed }) : t('account.checking')} onPress={onOpenHistory} />
+      {localOnly > 0 && <ListRow icon="person-add-outline" title={t('account.addDeviceScans', { count: localOnly })} subtitle={t('account.addDeviceScansText')} disabled={syncing} onPress={claimLocalScans} />}
     </ListGroup>
-    <ListGroup title="Session">
-      <ListRow first icon="log-out-outline" title="Sign out" subtitle="Uploads waiting scans first" disabled={syncing} onPress={secureSignOut} />
+    <ProfileEditor user={user} onUser={onUser} />
+    <ProfilePhotoModal visible={photoOpen} user={user} onUser={onUser} onClose={() => setPhotoOpen(false)} />
+    <LanguagePicker />
+    <ListGroup title={t('account.privacy')}>
+      <ListRow first icon="image-outline" title={t('account.scanPhotos')} subtitle={t('account.scanPhotosText')} />
+      <ListRow icon="location-outline" title={t('account.scanLocation')} subtitle={t('account.scanLocationText')} />
+      <ListRow icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
     </ListGroup>
-    <ListGroup title="Delete account">
-      <ListRow first icon="trash-outline" title="Delete my account" subtitle="Permanently removes your account and synced data" danger disabled={syncing} onPress={() => setDeleteOpen(true)} />
+    <ListGroup title={t('account.account')}>
+      <ListRow first icon="log-out-outline" title={t('account.signOut')} subtitle={t('account.signOutText')} disabled={syncing} onPress={secureSignOut} />
+      <ListRow icon="trash-outline" title={t('account.delete')} subtitle={t('account.deleteText')} danger disabled={syncing} onPress={() => setDeleteOpen(true)} />
     </ListGroup>
-    <ModalSheet visible={deleteOpen} title="Permanently delete account?" description="Confirm your current password. This removes the account, synchronized classifications, and account-linked image copies on this device." onClose={() => { if (!syncing) { setDeleteOpen(false); setDeletePassword(''); } }}>
-      <Field label="Current password" secureTextEntry autoComplete="current-password" value={deletePassword} onChangeText={setDeletePassword} />
-      <View style={uiStyles.actions}><ActionButton variant="secondary" disabled={syncing} onPress={() => { setDeleteOpen(false); setDeletePassword(''); }}>Cancel</ActionButton><ActionButton variant="danger" disabled={syncing || !deletePassword} onPress={confirmAccountDeletion}>{syncing ? 'Deleting…' : 'Delete account'}</ActionButton></View>
+    <ModalSheet visible={deleteOpen} title={t('account.deleteTitle')} description={t('account.deleteDescription')} onClose={() => { if (!syncing) { setDeleteOpen(false); setDeletePassword(''); } }}>
+      <Field label={t('account.currentPassword')} secureTextEntry autoComplete="current-password" value={deletePassword} onChangeText={setDeletePassword} />
+      <View style={uiStyles.actions}><ActionButton variant="secondary" disabled={syncing} onPress={() => { setDeleteOpen(false); setDeletePassword(''); }}>{t('common.cancel')}</ActionButton><ActionButton variant="danger" disabled={syncing || !deletePassword} onPress={confirmAccountDeletion}>{syncing ? t('account.deleting') : t('account.deleteButton')}</ActionButton></View>
     </ModalSheet>
-    <ConfirmSheet visible={claimOpen} title="Add device-only scans?" text={`${localOnly} scan${localOnly === 1 ? '' : 's'} created while signed out will be linked to ${user.name} and queued for synchronization.`} confirmLabel="Add to account" danger={false} busy={syncing} onCancel={() => setClaimOpen(false)} onConfirm={confirmClaimLocalScans} />
-    <ConfirmSheet visible={signOutPending !== null} title="Discard unsynchronized changes?" text={`${signOutPending ?? 0} unsynchronized change${signOutPending === 1 ? '' : 's'} will be permanently removed from this device when you sign out.`} confirmLabel="Discard and sign out" busy={syncing} onCancel={() => setSignOutPending(null)} onConfirm={finishSignOut} />
+    <ConfirmSheet visible={claimOpen} title={t('account.addTitle')} text={t('account.addText', { count: localOnly, name: user.name })} confirmLabel={t('account.addConfirm')} danger={false} busy={syncing} onCancel={() => setClaimOpen(false)} onConfirm={confirmClaimLocalScans} />
+    <ConfirmSheet visible={signOutPending !== null} title={t('account.discardTitle')} text={t('account.discardText', { count: signOutPending ?? 0 })} confirmLabel={t('account.discardConfirm')} busy={syncing} onCancel={() => setSignOutPending(null)} onConfirm={finishSignOut} />
   </View>;
 }
-
-const styles = StyleSheet.create({
-  syncCard: { gap: 14, padding: 18, borderRadius: 24, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff' },
-  syncTitle: { color: palette.ink, fontSize: 16, fontWeight: '700' },
-  syncDivider: { height: 1, backgroundColor: palette.border, marginVertical: 2 },
-  statusRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  icon: { width: 46, height: 46, borderRadius: 12, backgroundColor: palette.greenSoft, alignItems: 'center', justifyContent: 'center' },
-});

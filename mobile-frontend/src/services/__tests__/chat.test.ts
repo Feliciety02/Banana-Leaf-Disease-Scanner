@@ -27,4 +27,15 @@ describe('chat service', () => {
       body: JSON.stringify({ messages: messages.slice(-8).map(({ role, content }) => ({ role, content: content.trim() })) }),
     });
   });
+
+  it('sends only the scan id when asking about a scan, so the server adds its result and review', async () => {
+    mockedApi.mockResolvedValue({ success: true, message: 'ok', data: { reply: 'Explained', notice: 'AI notice' } });
+
+    await askAssistant([{ role: 'user', content: 'What does this result mean?' }], 31);
+
+    expect(mockedApi).toHaveBeenCalledWith('/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'What does this result mean?' }], diagnosis_id: 31 }),
+    });
+  });
 });

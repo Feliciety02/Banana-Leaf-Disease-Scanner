@@ -38,17 +38,29 @@ describe('treatment guide data contract', () => {
     expect(treatmentGuides['panama-disease'].products).toEqual([]);
   });
 
-  it('bundles a leaf example image for the three visible conditions', () => {
+  it('bundles a leaf example image for every supported class', () => {
     expect(treatmentGuides.sigatoka.leafImage).toBeTruthy();
     expect(treatmentGuides['cordana-leaf-spot'].leafImage).toBeTruthy();
     expect(treatmentGuides.healthy.leafImage).toBeTruthy();
-    expect(treatmentGuides['panama-disease'].leafImage).toBeNull();
+    expect(treatmentGuides['panama-disease'].leafImage).toBeTruthy();
   });
 
   it('bundles a product image for every listed product', () => {
     for (const classKey of ['sigatoka' as const, 'cordana-leaf-spot' as const]) {
       for (const product of treatmentGuides[classKey].products) {
         expect(product.image).toBeTruthy();
+      }
+    }
+  });
+
+  it('gives every step a short title for the result screen, in both languages', () => {
+    const { localizedTreatment, shortSteps } = require('../../../i18n/content') as typeof import('../../../i18n/content');
+    for (const classKey of CLASS_KEYS) {
+      for (const language of ['en', 'fil'] as const) {
+        const tips = localizedTreatment(classKey, language).tips;
+        expect(tips).toHaveLength(treatmentGuides[classKey].tips.length);
+        for (const tip of tips) expect(tip).toMatch(/^[^:]{3,60}: /);
+        expect(shortSteps(classKey, language).every((step) => step.length <= 60)).toBe(true);
       }
     }
   });

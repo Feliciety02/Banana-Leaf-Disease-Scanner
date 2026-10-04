@@ -60,6 +60,48 @@ class DiagnosisController extends Controller
         return response()->json(['success' => true, 'message' => 'Review requested. An agricultural reviewer can now assess this saved image.', 'data' => new DiagnosisResource($this->diagnoses->details($diagnosis))]);
     }
 
+    public function followUp(Request $request, Diagnosis $diagnosis): JsonResponse
+    {
+        abort_unless($diagnosis->user_id === $request->user()->id, 403);
+        $data = $request->validate([
+            'farmer_reply' => ['required', 'string', 'max:1000'],
+            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240', 'dimensions:max_width=5000,max_height=5000'],
+        ]);
+        $diagnosis = $this->diagnoses->followUp($diagnosis, trim($data['farmer_reply']), $request->file('image'));
+
+        return response()->json(['success' => true, 'message' => 'Reply sent. The case is back with an agricultural reviewer.', 'data' => new DiagnosisResource($diagnosis)]);
+    }
+
+    public function setLocation(Request $request, Diagnosis $diagnosis): JsonResponse
+    {
+        abort_unless($diagnosis->user_id === $request->user()->id, 403);
+        $data = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-90,90'],
+            'longitude' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Location added to this scan.', 'data' => new DiagnosisResource(
+            $this->diagnoses->setLocation($diagnosis, (float) $data['latitude'], (float) $data['longitude'])
+        )]);
+    }
+
+    public function removeLocation(Request $request, Diagnosis $diagnosis): JsonResponse
+    {
+        abort_unless($diagnosis->user_id === $request->user()->id, 403);
+
+        return response()->json(['success' => true, 'message' => 'Location removed from this scan.', 'data' => new DiagnosisResource(
+            $this->diagnoses->setLocation($diagnosis, null, null)
+        )]);
+    }
+
+    public function markReviewSeen(Request $request, Diagnosis $diagnosis): JsonResponse
+    {
+        abort_unless($diagnosis->user_id === $request->user()->id, 403);
+        $this->diagnoses->markReviewSeen($diagnosis);
+
+        return response()->json(['success' => true, 'message' => 'Review marked as seen.', 'data' => new DiagnosisResource($this->diagnoses->details($diagnosis->fresh()))]);
+    }
+
     public function destroy(Request $request, Diagnosis $diagnosis): JsonResponse
     {
         $this->authorize('delete', $diagnosis);

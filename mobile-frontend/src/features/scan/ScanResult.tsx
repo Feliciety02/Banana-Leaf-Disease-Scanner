@@ -1,41 +1,47 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { palette } from '../connected/ui';
-import { CLASS_DISPLAY_NAMES, CLASS_KEYS } from '../classification/disease-data';
+import { CLASS_KEYS } from '../classification/disease-data';
 import type { PredictionResult } from '../../types/prediction';
+import { className } from '../../i18n/content';
+import { useT, type StringKey } from '../../i18n';
 import { ProbabilityRow } from './ProbabilityRow';
 
 const LOW_CONFIDENCE = 0.7;
+const HIGH_CONFIDENCE = 0.85;
 
-// Calibrated confidences never reach 100%, so cap the display below it.
-const percent = (value: number) => `${Math.min(99.9, Math.max(0, value * 100)).toFixed(1)}%`;
-
-function confidenceWord(value: number) {
-  if (value < LOW_CONFIDENCE) return 'Uncertain result';
-  return value >= 0.85 ? 'High confidence' : 'Moderate confidence';
+/** How sure the result is, in words a farmer can act on; the exact numbers stay under "More info". */
+export function certaintyLevel(confidence: number): { key: StringKey; tone: 'sure' | 'likely' | 'unsure'; bars: number } {
+  if (confidence >= HIGH_CONFIDENCE) return { key: 'result.sure', tone: 'sure', bars: 3 };
+  if (confidence >= LOW_CONFIDENCE) return { key: 'result.likely', tone: 'likely', bars: 2 };
+  return { key: 'result.unsure', tone: 'unsure', bars: 1 };
 }
 
 export function ScanResult({ result }: { result: PredictionResult }) {
   const [showDetails, setShowDetails] = useState(false);
-  const uncertain = result.confidence < LOW_CONFIDENCE;
+  const { t, language } = useT();
+  const level = certaintyLevel(result.confidence);
+  const unsure = level.tone === 'unsure';
+  const color = unsure ? '#8a5a00' : '#1e6b47';
 
   return (
     <View style={styles.container}>
       <View style={styles.result}>
-        <View style={styles.resultCopy}>
-          <Text style={styles.prediction}>{CLASS_DISPLAY_NAMES[result.predictedClass]}</Text>
-          <Text style={[styles.confidenceWord, uncertain && styles.uncertain]}>{confidenceWord(result.confidence)}</Text>
-        </View>
-        <View style={styles.confidence}>
-          <Text style={[styles.confidenceValue, uncertain && styles.uncertain]}>{percent(result.confidence)}</Text>
-          <Text style={styles.confidenceLabel}>confidence</Text>
+        <Text style={styles.prediction}>{className(result.predictedClass, language)}</Text>
+        <View style={styles.certainty} accessibilityLabel={t(level.key)}>
+          <View style={styles.bars}>
+            {[1, 2, 3].map((bar) => <View key={bar} style={[styles.bar, { height: 6 + bar * 5 }, bar <= level.bars && { backgroundColor: color }]} />)}
+          </View>
+          <Text style={[styles.certaintyText, { color }]}>{t(level.key)}</Text>
         </View>
       </View>
 
-      {uncertain && (
+      {unsure && (
         <View style={styles.uncertainNotice}>
-          <Text style={styles.uncertainText}>DahonMD is not sure. Retake the photo in good light with the whole leaf in view.</Text>
+          <Ionicons name="camera-outline" size={18} color="#76591e" />
+          <Text style={styles.uncertainText}>{t('result.unsureNotice')}</Text>
         </View>
       )}
 
@@ -45,8 +51,8 @@ export function ScanResult({ result }: { result: PredictionResult }) {
         onPress={() => setShowDetails((current) => !current)}
         style={({ pressed }) => [styles.detailsButton, pressed && styles.pressed]}
       >
-        <Text style={styles.detailsButtonText}>{showDetails ? 'Hide info' : 'More info'}</Text>
-        <Text style={styles.toggle}>{showDetails ? '−' : '+'}</Text>
+        <Text style={styles.detailsButtonText}>{showDetails ? t('result.hideInfo') : t('result.moreInfo')}</Text>
+        <Ionicons name={showDetails ? 'chevron-up' : 'chevron-down'} size={18} color="#325e47" />
       </Pressable>
 
       {showDetails && (
@@ -54,12 +60,12 @@ export function ScanResult({ result }: { result: PredictionResult }) {
           {CLASS_KEYS.map((classKey) => (
             <ProbabilityRow
               key={classKey}
-              label={CLASS_DISPLAY_NAMES[classKey]}
+              label={className(classKey, language)}
               probability={result.probabilities.find((item) => item.classKey === classKey)?.probability ?? 0}
               selected={classKey === result.predictedClass}
             />
           ))}
-          <Text style={styles.note}>Confidence is calibrated, so a scan is never shown as 100% certain.</Text>
+          <Text style={styles.note}>{t('result.calibrated')}</Text>
         </View>
       )}
     </View>
@@ -67,42 +73,18 @@ export function ScanResult({ result }: { result: PredictionResult }) {
 }
 
 const styles = StyleSheet.create({
-  container: { gap: 12 },
-  result: {
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderColor: palette.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingVertical: 20,
-  },
-  resultCopy: { flex: 1, gap: 4 },
-  label: { color: '#6c7870', fontSize: 12, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
-  prediction: { color: '#1d3327', fontSize: 20, fontWeight: '800' },
-  confidenceWord: { color: palette.muted, fontSize: 13, fontWeight: '600' },
-  confidence: { alignItems: 'flex-end', gap: 1 },
-  confidenceValue: { color: '#1e6b47', fontSize: 34, fontWeight: '800', letterSpacing: -0.8 },
-  confidenceLabel: { color: '#78837c', fontSize: 11, fontWeight: '600' },
-  uncertain: { color: '#8a5a00' },
-  uncertainNotice: { backgroundColor: '#fff6e5', borderColor: '#e6d09e', borderRadius: 10, borderWidth: 1, padding: 12 },
-  uncertainText: { color: '#76591e', fontSize: 13, lineHeight: 19 },
-  detailsButton: {
-    alignItems: 'center',
-    borderColor: '#d5ddd8',
-    borderRadius: 10,
-    borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 50,
-    paddingHorizontal: 16,
-  },
+  container: { gap: 10 },
+  result: { gap: 10, backgroundColor: '#fff', borderColor: palette.border, borderRadius: 14, borderWidth: 1, paddingHorizontal: 18, paddingVertical: 18 },
+  prediction: { color: '#1d3327', fontSize: 26, fontWeight: '800', letterSpacing: -0.4 },
+  certainty: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
+  bar: { width: 7, borderRadius: 2, backgroundColor: '#dde5e0' },
+  certaintyText: { fontSize: 17, fontWeight: '800' },
+  uncertainNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#fff6e5', borderColor: '#e6d09e', borderRadius: 10, borderWidth: 1, padding: 12 },
+  uncertainText: { flex: 1, color: '#76591e', fontSize: 14, lineHeight: 20 },
+  detailsButton: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 46, paddingHorizontal: 4 },
   detailsButtonText: { color: '#325e47', fontSize: 15, fontWeight: '700' },
-  toggle: { color: '#325e47', fontSize: 20 },
-  pressed: { backgroundColor: '#f1f5f2' },
+  pressed: { opacity: 0.6 },
   detailsPanel: { backgroundColor: '#f6f8f7', borderRadius: 10, gap: 12, padding: 14 },
   note: { color: '#6a746e', fontSize: 11, lineHeight: 16 },
 });

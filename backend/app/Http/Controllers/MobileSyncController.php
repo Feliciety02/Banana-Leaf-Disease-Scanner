@@ -83,14 +83,10 @@ class MobileSyncController extends Controller
     {
         $request->validate([
             'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240', 'dimensions:max_width=5000,max_height=5000'],
-            'purpose' => ['sometimes', Rule::in(['research', 'review'])],
+            // Accepted from older clients; every purpose stores the photo the same way.
+            'purpose' => ['sometimes', Rule::in(['research', 'review', 'sync'])],
         ]);
-        $stored = $this->mobileSync->storeConsentedImage(
-            $request->user(),
-            $syncUuid,
-            $request->file('image'),
-            $request->string('purpose')->value() ?: 'research',
-        );
+        $stored = $this->mobileSync->storeImage($request->user(), $syncUuid, $request->file('image'));
         if (! $stored) {
             return response()->json(['success' => true, 'message' => 'Queued image already synchronized.', 'data' => ['sync_uuid' => $syncUuid]]);
         }

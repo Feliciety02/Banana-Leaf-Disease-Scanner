@@ -3,6 +3,8 @@
 return [
     'class_labels' => ['healthy', 'sigatoka', 'panama-disease', 'cordana-leaf-spot'],
     'confidence_threshold' => (float) env('AI_CONFIDENCE_THRESHOLD', 70),
+    // Farmer review requests waiting longer than this are flagged on the admin dashboard.
+    'review_overdue_days' => (int) env('REVIEW_OVERDUE_DAYS', 3),
     'model_version' => env('AI_MODEL_VERSION'),
     'input_size' => env('AI_INPUT_SIZE'),
     'ai_mode' => env('AI_MODE', 'SIMULATED / DEVELOPMENT'),

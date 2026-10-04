@@ -31,11 +31,24 @@ const STARTERS = [
   'How do I take a clear photo?',
   'When should I get help?',
 ];
+const TOPIC_STARTERS = ['What does this result mean?', 'What should I do next with this plant?'];
 
-export function ChatAssistant({ user, onSignIn, resumeKey = 0 }: { resumeKey?: number; user: SessionUser | null | undefined; onSignIn: () => void }) {
+export type ScanTopic = { key: number; diagnosisId: number; label: string };
+
+export function ChatAssistant({ user, onSignIn, resumeKey = 0, scanTopic = null }: { resumeKey?: number; user: SessionUser | null | undefined; onSignIn: () => void; scanTopic?: ScanTopic | null }) {
   const [open, setOpen] = useState(false);
   useEffect(() => { if (resumeKey) setOpen(true); }, [resumeKey]);
   const [messages, setMessages] = useState<DisplayMessage[]>([INTRO]);
+  // The scan the farmer opened the assistant from; its result and review are added on the server.
+  const [topic, setTopic] = useState<ScanTopic | null>(null);
+  // A conversation belongs to one account; start fresh whenever someone else signs in.
+  useEffect(() => { setMessages([INTRO]); setTopic(null); setDraft(''); setError(''); }, [user?.id]);
+  useEffect(() => {
+    if (!scanTopic) return;
+    setTopic(scanTopic);
+    setMessages([INTRO]);
+    setOpen(true);
+  }, [scanTopic?.key]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -51,6 +64,7 @@ export function ChatAssistant({ user, onSignIn, resumeKey = 0 }: { resumeKey?: n
   const clear = () => {
     if (busy) return;
     setMessages([INTRO]);
+    setTopic(null);
     setDraft('');
     setError('');
   };
@@ -69,7 +83,7 @@ export function ChatAssistant({ user, onSignIn, resumeKey = 0 }: { resumeKey?: n
     setBusy(true);
 
     try {
-      const response = await askAssistant(transcript);
+      const response = await askAssistant(transcript, topic?.diagnosisId);
       setMessages((current) => [...current, {
         id: `message-${nextId.current++}`,
         role: 'assistant',
@@ -111,13 +125,18 @@ export function ChatAssistant({ user, onSignIn, resumeKey = 0 }: { resumeKey?: n
             <ActionButton icon="log-in-outline" onPress={() => { setOpen(false); onSignIn(); }}>Sign in</ActionButton>
           </View> : <>
             <ScrollView ref={conversation} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.messages}>
+              {topic ? <View style={styles.topic}>
+                <Ionicons name="leaf-outline" size={16} color={palette.green} />
+                <Text style={styles.topicText}>About your scan: {topic.label}. Dahon sees its result and any expert review, not your photo or location.</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Stop asking about this scan" onPress={() => setTopic(null)} hitSlop={8}><Ionicons name="close" size={16} color={palette.muted} /></Pressable>
+              </View> : null}
               {messages.map((message) => <View key={message.id} style={[styles.bubbleRow, message.role === 'user' && styles.userRow]}>
                 <View style={[styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
                   <Text style={[styles.messageText, message.role === 'user' && styles.userText]}>{message.content}</Text>
                 </View>
               </View>)}
               {busy && <View style={styles.bubbleRow}><View style={[styles.bubble, styles.assistantBubble, styles.thinking]}><ActivityIndicator size="small" color={palette.green} /><Text style={styles.thinkingText}>One moment...</Text></View></View>}
-              {messages.length === 1 && <View style={styles.starters}>{STARTERS.map((starter) => <Pressable key={starter} accessibilityRole="button" onPress={() => send(starter)} style={styles.starter}><Text style={styles.starterText}>{starter}</Text><Ionicons name="arrow-forward" size={14} color={palette.green} /></Pressable>)}</View>}
+              {messages.length === 1 && <View style={styles.starters}>{(topic ? TOPIC_STARTERS : STARTERS).map((starter) => <Pressable key={starter} accessibilityRole="button" onPress={() => send(starter)} style={styles.starter}><Text style={styles.starterText}>{starter}</Text><Ionicons name="arrow-forward" size={14} color={palette.green} /></Pressable>)}</View>}
               {error && <Notice>{error}</Notice>}
             </ScrollView>
 
@@ -147,6 +166,8 @@ export function ChatAssistant({ user, onSignIn, resumeKey = 0 }: { resumeKey?: n
 }
 
 const styles = StyleSheet.create({
+  topic: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 12, backgroundColor: palette.greenSoft },
+  topicText: { flex: 1, color: palette.ink, fontSize: 13, lineHeight: 18 },
   launcher: { position: 'absolute', right: 18, bottom: 80, zIndex: 40, width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.green, borderWidth: 1, borderColor: '#2f725b', shadowColor: '#08271c', shadowOpacity: 0.2, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 8 },
   launcherPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },

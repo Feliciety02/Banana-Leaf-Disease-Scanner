@@ -4,10 +4,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { CLASS_DISPLAY_NAMES } from '../classification/disease-data';
 import { formatDate, palette } from '../connected/ui';
-import { synchronizeDiagnoses } from '../../services/diagnosisSync';
-import { authenticatedImageSource, type SessionUser } from '../../services/api';
+import { type SessionUser } from '../../services/api';
+import { ViewableScanImage } from '../../components/ViewableImage';
+import { smoothLayout } from '../../components/motion';
+import { useT } from '../../i18n';
 import {
+  isNewReview,
   listLocalDiagnoses,
+  parseDiagnosisReview,
   subscribeToLocalDiagnosisChanges,
   type LocalDiagnosis,
   type LocalSyncStatus,
@@ -34,23 +38,22 @@ function recentTitle(item: LocalDiagnosis) {
   return CLASS_DISPLAY_NAMES[item.predicted_class];
 }
 
-export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNavigate, onSynced }: {
+export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNavigate }: {
   user: SessionUser | null;
   ownerUserId: number | null;
   online: boolean;
   refreshKey?: number;
   onNavigate: (tab: 'home' | 'scan' | 'history' | 'guide') => void;
-  onSynced?: () => void;
 }) {
   const [items, setItems] = useState<LocalDiagnosis[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
 
+  // Only the first load shows placeholders; refreshes update the numbers in place.
   const load = useCallback(async () => {
-    setLoading(true);
     try {
-      setItems(await listLocalDiagnoses(ownerUserId));
+      const records = await listLocalDiagnoses(ownerUserId);
+      smoothLayout();
+      setItems(records);
     } finally {
       setLoading(false);
     }
@@ -80,55 +83,42 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
 
   const pending = items.filter((item) => item.sync_status !== 'synced' && item.sync_status !== 'local_only').length;
   const uncertain = items.filter((item) => item.confidence < LOW_CONFIDENCE).length;
+  const newReviews = items.filter((item) => isNewReview(parseDiagnosisReview(item.review_json))).length;
   const firstName = user?.name?.trim().split(/\s+/)[0];
   const signedInFarmer = user?.role === 'farmer';
-
-  const syncNow = async () => {
-    if (!signedInFarmer || syncing) return;
-    setSyncing(true);
-    setSyncMessage('');
-    try {
-      const summary = await synchronizeDiagnoses(user.id);
-      setSyncMessage(summary.rejected > 0 ? `${summary.rejected} scan${summary.rejected === 1 ? '' : 's'} need a retry. Open History to see them.` : 'Scans are up to date.');
-      onSynced?.();
-    } catch {
-      setSyncMessage('Sync could not finish. Check your connection and try again.');
-    } finally {
-      setSyncing(false);
-    }
-  };
+  const { t } = useT();
 
   return (
     <View style={styles.screen}>
       <View style={styles.intro}>
-        <Text style={styles.hello}>{firstName ? `Good to see you, ${firstName}.` : 'Welcome to DahonMD.'}</Text>
-        <Text style={styles.subtitle}>A clearer picture of your banana leaves starts here.</Text>
+        <Text style={styles.hello}>{firstName ? t('home.greeting', { name: firstName }) : t('home.welcome')}</Text>
+        <Text style={styles.subtitle}>{t('home.subtitle')}</Text>
       </View>
 
       <View style={styles.scanCard}>
         <View style={styles.heroDecoration} />
         <Image source={require('../../../assets/dahonmd-logo-white.png')} style={styles.heroLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
-        <Text style={styles.scanTitle}>Scan a banana leaf</Text>
-        <Text style={styles.scanText}>Take a photo to see a screening result and practical next steps.</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Start a scan" onPress={() => onNavigate('scan')} style={({ pressed }) => [styles.scanButton, pressed && styles.scanButtonPressed]}>
+        <Text style={styles.scanTitle}>{t('home.scanTitle')}</Text>
+        <Text style={styles.scanText}>{t('home.scanText')}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('home.startScan')} onPress={() => onNavigate('scan')} style={({ pressed }) => [styles.scanButton, pressed && styles.scanButtonPressed]}>
           <Ionicons name="camera-outline" size={20} color="#173c2a" />
-          <Text style={styles.scanButtonText}>Start a scan</Text>
+          <Text style={styles.scanButtonText}>{t('home.startScan')}</Text>
           <Ionicons name="arrow-forward" size={18} color="#173c2a" />
         </Pressable>
       </View>
 
       <View style={styles.statsRow}>
-        <View style={styles.statCard}><Ionicons name="albums-outline" size={19} color={palette.green} /><Text style={styles.statValue}>{loading ? '–' : items.length}</Text><Text style={styles.statLabel}>Saved scans</Text></View>
-        <View style={styles.statCard}><Ionicons name="alert-circle-outline" size={19} color="#ab7427" /><Text style={styles.statValue}>{loading ? '–' : uncertain}</Text><Text style={styles.statLabel}>Uncertain</Text></View>
-        <View style={styles.statCard}><Ionicons name="cloud-upload-outline" size={19} color={palette.green} /><Text style={styles.statValue}>{loading ? '–' : pending}</Text><Text style={styles.statLabel}>To sync</Text></View>
+        <View style={styles.statCard}><Ionicons name="albums-outline" size={19} color={palette.green} /><Text style={styles.statValue}>{loading ? '–' : items.length}</Text><Text style={styles.statLabel}>{t('home.statSaved')}</Text></View>
+        <View style={styles.statCard}><Ionicons name="alert-circle-outline" size={19} color="#ab7427" /><Text style={styles.statValue}>{loading ? '–' : uncertain}</Text><Text style={styles.statLabel}>{t('home.statUncertain')}</Text></View>
+        <View style={styles.statCard}><Ionicons name="cloud-upload-outline" size={19} color={palette.green} /><Text style={styles.statValue}>{loading ? '–' : pending}</Text><Text style={styles.statLabel}>{t('home.statToSync')}</Text></View>
       </View>
 
       <View style={styles.nextCard}>
-        <View style={styles.nextIcon}><Ionicons name={uncertain > 0 ? 'alert-circle-outline' : pending > 0 ? 'cloud-upload-outline' : 'bulb-outline'} size={21} color={palette.green} /></View>
+        <View style={styles.nextIcon}><Ionicons name={newReviews > 0 ? 'notifications-outline' : uncertain > 0 ? 'alert-circle-outline' : pending > 0 ? 'cloud-upload-outline' : 'bulb-outline'} size={21} color={palette.green} /></View>
         <View style={styles.nextCopy}>
-          <Text style={styles.nextTitle}>{uncertain > 0 ? 'Review an uncertain result' : pending > 0 ? 'Keep your scans in sync' : items.length > 0 ? 'Keep an eye on your leaves' : 'Start with your first leaf'}</Text>
-          <Text style={styles.nextText}>{uncertain > 0 ? `${uncertain} saved result${uncertain === 1 ? '' : 's'} had low confidence. Compare visible signs in the guide or ask an expert.` : pending > 0 ? `${pending} change${pending === 1 ? '' : 's'} waiting. Sync when you have a connection.` : items.length > 0 ? 'Check your saved results or scan a new leaf if its appearance changes.' : 'Scan one clear leaf photo to create your first saved result.'}</Text>
-          <Pressable accessibilityRole="button" onPress={() => onNavigate(uncertain > 0 || pending > 0 || items.length > 0 ? 'history' : 'scan')} style={styles.nextAction}><Text style={styles.nextActionText}>{uncertain > 0 || pending > 0 || items.length > 0 ? 'Open history' : 'Start scanning'}</Text><Ionicons name="arrow-forward" size={15} color={palette.green} /></Pressable>
+          <Text style={styles.nextTitle}>{newReviews > 0 ? t('home.newReviews', { count: newReviews }) : uncertain > 0 ? t('home.reviewUncertain') : pending > 0 ? t('home.keepSync') : items.length > 0 ? t('home.keepEye') : t('home.first')}</Text>
+          <Text style={styles.nextText}>{newReviews > 0 ? t('home.newReviewsText') : uncertain > 0 ? t('home.reviewUncertainText', { count: uncertain }) : pending > 0 ? t('home.keepSyncText', { count: pending }) : items.length > 0 ? t('home.keepEyeText') : t('home.firstText')}</Text>
+          <Pressable accessibilityRole="button" onPress={() => onNavigate(newReviews > 0 || uncertain > 0 || pending > 0 || items.length > 0 ? 'history' : 'scan')} style={styles.nextAction}><Text style={styles.nextActionText}>{newReviews > 0 ? t('home.readReview') : uncertain > 0 || pending > 0 || items.length > 0 ? t('home.openHistory') : t('home.startScanning')}</Text><Ionicons name="arrow-forward" size={15} color={palette.green} /></Pressable>
         </View>
       </View>
 
@@ -136,8 +126,8 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
         <View style={[styles.banner, styles.bannerOffline]}>
           <Ionicons name="cloud-offline-outline" size={21} color={palette.warning} />
           <View style={styles.bannerCopy}>
-            <Text style={[styles.bannerTitle, { color: '#76541e' }]}>You're offline</Text>
-            <Text style={styles.bannerText}>Saved results stay on this device and upload automatically when the connection returns.</Text>
+            <Text style={[styles.bannerTitle, { color: '#76541e' }]}>{t('home.offlineTitle')}</Text>
+            <Text style={styles.bannerText}>{t('home.offlineText')}</Text>
           </View>
         </View>
       )}
@@ -146,38 +136,33 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
         <View style={[styles.banner, styles.bannerOnline]}>
           <Ionicons name={pending > 0 ? 'cloud-upload-outline' : 'cloud-done-outline'} size={21} color={palette.green} />
           <View style={styles.bannerCopy}>
-            <Text style={[styles.bannerTitle, { color: '#315c4e' }]}>{pending > 0 ? `${pending} scan${pending === 1 ? '' : 's'} waiting to upload` : 'Your scans are connected'}</Text>
-            <Text style={styles.bannerText}>Saved scans stay on this device. Use Sync now to check for updates from your account.</Text>
+            <Text style={[styles.bannerTitle, { color: '#315c4e' }]}>{pending > 0 ? t('home.waitingUpload', { count: pending }) : t('home.connected')}</Text>
+            <Text style={styles.bannerText}>{t('home.connectedText')}</Text>
           </View>
-          <Pressable accessibilityRole="button" disabled={syncing} onPress={syncNow} style={({ pressed }) => [styles.syncButton, (syncing || pressed) && styles.dim]}>
-            <Ionicons name={syncing ? 'sync' : 'refresh'} size={15} color={palette.green} />
-            <Text style={styles.syncButtonText}>{syncing ? 'Syncing…' : 'Sync now'}</Text>
-          </Pressable>
         </View>
       )}
-      {syncMessage ? <Text accessibilityRole="alert" style={styles.syncMessage}>{syncMessage}</Text> : null}
 
       <View style={styles.photoCard}>
-        <View style={styles.photoHeading}><Ionicons name="sunny-outline" size={20} color={palette.green} /><Text style={styles.photoTitle}>Before you scan</Text></View>
-        <Text style={styles.photoText}>A clear photo gives the scanner more to work with.</Text>
-        {['Use bright, even light', 'Center one leaf in the frame', 'Keep visible symptoms in focus'].map((tip) => <View key={tip} style={styles.photoRow}><Ionicons name="checkmark-circle" size={17} color={palette.green} /><Text style={styles.photoTip}>{tip}</Text></View>)}
+        <View style={styles.photoHeading}><Ionicons name="sunny-outline" size={20} color={palette.green} /><Text style={styles.photoTitle}>{t('home.beforeScan')}</Text></View>
+        <Text style={styles.photoText}>{t('home.beforeScanText')}</Text>
+        {[t('home.tipLight'), t('home.tipCenter'), t('home.tipFocus')].map((tip) => <View key={tip} style={styles.photoRow}><Ionicons name="checkmark-circle" size={17} color={palette.green} /><Text style={styles.photoTip}>{tip}</Text></View>)}
       </View>
 
       <View style={styles.panel}>
-        <Text style={styles.panelTitle}>Useful links</Text>
+        <Text style={styles.panelTitle}>{t('home.links')}</Text>
         <Pressable accessibilityRole="button" onPress={() => onNavigate('guide')} style={styles.linkRow}>
           <View style={styles.linkIcon}><Ionicons name="book-outline" size={19} color={palette.green} /></View>
           <View style={styles.linkCopy}>
-            <Text style={styles.linkTitle}>Disease guide</Text>
-            <Text style={styles.linkText}>Compare visible signs and read verified guidance.</Text>
+            <Text style={styles.linkTitle}>{t('home.linkGuide')}</Text>
+            <Text style={styles.linkText}>{t('home.linkGuideText')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={palette.muted} />
         </Pressable>
         <Pressable accessibilityRole="button" onPress={() => onNavigate('history')} style={styles.linkRow}>
           <View style={styles.linkIcon}><Ionicons name="time-outline" size={19} color={palette.green} /></View>
           <View style={styles.linkCopy}>
-            <Text style={styles.linkTitle}>Scan history</Text>
-            <Text style={styles.linkText}>Return to your saved results.</Text>
+            <Text style={styles.linkTitle}>{t('home.linkHistory')}</Text>
+            <Text style={styles.linkText}>{t('home.linkHistoryText')}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={palette.muted} />
         </Pressable>
@@ -186,9 +171,9 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
       {!loading && items.length > 0 && (
         <View style={styles.panel}>
           <View style={styles.panelHeading}>
-            <Text style={styles.sectionTitle}>Recent scans</Text>
+            <Text style={styles.sectionTitle}>{t('home.recent')}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="View all scans" onPress={() => onNavigate('history')} style={styles.viewAll}>
-              <Text style={styles.viewAllText}>View all</Text>
+              <Text style={styles.viewAllText}>{t('home.viewAll')}</Text>
               <Ionicons name="chevron-forward" size={16} color={palette.green} />
             </Pressable>
           </View>
@@ -196,7 +181,7 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
             const meta = syncMeta[item.sync_status];
             return (
               <Pressable key={item.local_id} accessibilityRole="button" accessibilityLabel="Open scan history" onPress={() => onNavigate('history')} style={styles.recentRow}>
-                {item.image_uri ? <Image source={authenticatedImageSource(item.image_uri)} style={styles.thumb} accessibilityLabel="Saved banana leaf" /> : <View style={styles.thumbPlaceholder}><Ionicons name="leaf-outline" size={22} color={palette.green} /></View>}
+                <ViewableScanImage uri={item.image_uri} title={recentTitle(item)} style={styles.thumb} compact />
                 <View style={styles.recentCopy}>
                   <Text style={styles.recentTitle} numberOfLines={1}>{recentTitle(item)}</Text>
                   <Text style={styles.recentMeta}>{confidenceText(item.confidence)} · {clampPercent(item.confidence)}</Text>

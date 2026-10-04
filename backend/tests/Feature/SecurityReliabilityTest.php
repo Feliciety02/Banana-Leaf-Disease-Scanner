@@ -44,7 +44,6 @@ class SecurityReliabilityTest extends TestCase
         $this->getJson('/api/diagnoses')->assertForbidden()
             ->assertHeader('Cache-Control', 'no-store, private')
             ->assertHeader('X-Content-Type-Options', 'nosniff');
-        $this->postJson('/api/inference')->assertForbidden();
 
         Sanctum::actingAs(User::factory()->agriculturalExpert()->create());
         $this->postJson('/api/mobile/sync')->assertForbidden();

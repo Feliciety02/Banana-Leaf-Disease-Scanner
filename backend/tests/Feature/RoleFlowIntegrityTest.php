@@ -52,6 +52,25 @@ class RoleFlowIntegrityTest extends TestCase
         ]);
     }
 
+    public function test_shared_scan_photo_is_viewable_by_owner_reviewer_and_admin_only(): void
+    {
+        Storage::fake('local');
+        $farmer = User::factory()->farmer()->create();
+        $otherFarmer = User::factory()->farmer()->create();
+        $reviewer = User::factory()->agriculturalExpert()->create();
+        $admin = User::factory()->admin()->create();
+        $diagnosis = $this->diagnosis($farmer, ['image_path' => $this->storedImage('diagnoses/role-photo.jpg')]);
+        $url = "/api/diagnosis-media/{$diagnosis->id}/image";
+
+        $this->getJson($url)->assertUnauthorized();
+        foreach ([$farmer, $reviewer, $admin] as $user) {
+            Sanctum::actingAs($user);
+            $this->get($url)->assertOk();
+        }
+        Sanctum::actingAs($otherFarmer);
+        $this->get($url)->assertForbidden();
+    }
+
     public function test_self_service_account_deletion_removes_private_scan_images(): void
     {
         Storage::fake('local');
@@ -165,12 +184,11 @@ class RoleFlowIntegrityTest extends TestCase
         ]]])->assertOk()->assertJsonPath('data.results.0.status', 'created');
         $diagnosis = Diagnosis::query()->where('sync_uuid', $syncUuid)->firstOrFail();
 
-        $this->post("/api/sync/{$syncUuid}/image", ['image' => UploadedFile::fake()->image('leaf.jpg'), 'purpose' => 'research'], ['Accept' => 'application/json'])
-            ->assertUnprocessable();
-        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', true);
-        $this->post("/api/sync/{$syncUuid}/image", ['image' => UploadedFile::fake()->image('leaf.jpg'), 'purpose' => 'research'], ['Accept' => 'application/json'])
+        $this->post("/api/sync/{$syncUuid}/image", ['image' => UploadedFile::fake()->image('leaf.jpg')], ['Accept' => 'application/json'])
             ->assertOk();
         $this->assertNotNull($diagnosis->fresh()->image_path);
+        $this->assertFalse($diagnosis->fresh()->hasActiveResearchConsent());
+        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', true);
 
         $this->deleteJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', false);
         $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', true);
@@ -180,7 +198,7 @@ class RoleFlowIntegrityTest extends TestCase
         $this->deleteJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
     }
 
-    public function test_sharing_actions_require_a_verified_email_but_offline_sync_does_not(): void
+    public function test_unverified_farmers_can_ask_an_expert_but_research_and_staff_tools_need_verification(): void
     {
         $farmer = User::factory()->farmer()->unverified()->create();
         Sanctum::actingAs($farmer);
@@ -191,16 +209,30 @@ class RoleFlowIntegrityTest extends TestCase
         ]]])->assertOk()->assertJsonPath('data.results.0.status', 'created');
         $diagnosis = Diagnosis::query()->where('sync_uuid', $syncUuid)->firstOrFail();
 
-        $this->postJson("/api/diagnoses/{$diagnosis->id}/review-request")->assertForbidden();
-        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
-        $this->post("/api/sync/{$syncUuid}/image", ['image' => UploadedFile::fake()->image('leaf.jpg')], ['Accept' => 'application/json'])->assertForbidden();
-
-        config(['banana.require_verified_email' => false]);
+        // Asking an expert does not depend on having email access.
         $this->postJson("/api/diagnoses/{$diagnosis->id}/review-request")->assertOk();
+        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
+        // Keeping the scan photo is part of offline sync, not a sharing action.
+        Storage::fake('local');
+        $this->post("/api/sync/{$syncUuid}/image", ['image' => UploadedFile::fake()->image('leaf.jpg')], ['Accept' => 'application/json'])->assertOk();
 
-        config(['banana.require_verified_email' => true]);
         Sanctum::actingAs(User::factory()->admin()->unverified()->create());
         $this->getJson('/api/admin/dashboard')->assertForbidden();
+        Sanctum::actingAs(User::factory()->agriculturalExpert()->unverified()->create());
+        $this->getJson('/api/expert/dashboard')->assertForbidden();
+    }
+
+    public function test_review_requests_are_limited_per_farmer_to_stop_flooding(): void
+    {
+        $farmer = User::factory()->farmer()->unverified()->create();
+        Sanctum::actingAs($farmer);
+        for ($attempt = 1; $attempt <= 10; $attempt++) {
+            $diagnosis = Diagnosis::query()->create([
+                'user_id' => $farmer->id, 'predicted_class' => 'sigatoka', 'confidence' => 60, 'source' => 'mobile', 'diagnosed_at' => now(),
+            ]);
+            $this->postJson("/api/diagnoses/{$diagnosis->id}/review-request")->assertOk();
+        }
+        $this->postJson("/api/diagnoses/{$diagnosis->id}/review-request")->assertStatus(429);
     }
 
     public function test_diagnoses_always_link_to_the_knowledge_record_of_their_class(): void
@@ -228,6 +260,19 @@ class RoleFlowIntegrityTest extends TestCase
             'slug' => 'panama-renamed', 'model_class_key' => 'panama-disease', 'name' => 'Panama Disease',
             'curative_status' => 'no_known_cure', 'evidence_level' => 'limited',
         ])->assertUnprocessable()->assertJsonValidationErrors('slug');
+    }
+
+    public function test_scans_saved_before_their_class_record_link_once_it_is_created(): void
+    {
+        $diagnosis = $this->diagnosis(User::factory()->farmer()->create(), ['predicted_class' => 'cordana-leaf-spot']);
+        $this->assertNull($diagnosis->fresh()->disease_id);
+
+        $cordana = Disease::query()->create([
+            'slug' => 'cordana-leaf-spot', 'model_class_key' => 'cordana-leaf-spot', 'name' => 'Cordana Leaf Spot',
+            'description' => 'Test', 'symptoms' => [], 'management' => 'Test',
+        ]);
+
+        $this->assertSame($cordana->id, $diagnosis->fresh()->disease_id);
     }
 
     public function test_reassessment_keeps_revision_history_and_approved_labels_are_locked(): void
@@ -258,6 +303,36 @@ class RoleFlowIntegrityTest extends TestCase
 
         Sanctum::actingAs($farmer);
         $this->getJson("/api/diagnoses/{$diagnosis->id}")->assertOk()->assertJsonMissingPath('data.review.revisions');
+    }
+
+    public function test_guests_can_screen_a_leaf_before_signing_in(): void
+    {
+        $this->postJson('/api/inference', ['image' => UploadedFile::fake()->image('leaf.jpg', 224, 224)])
+            ->assertOk()->assertJsonStructure(['data' => ['diseaseId', 'confidence', 'is_simulated']]);
+        $this->postJson('/api/sync', ['diagnoses' => []])->assertUnauthorized();
+    }
+
+    public function test_web_scans_record_the_simulated_flag_reported_by_inference(): void
+    {
+        config(['banana.ai_mode' => 'SIMULATED / DEVELOPMENT']);
+        Sanctum::actingAs(User::factory()->farmer()->create());
+        $scan = fn (string $uuid, array $extra = []) => [
+            'sync_uuid' => $uuid, 'predicted_class' => 'panama-disease', 'confidence' => 91,
+            'diagnosed_at' => now()->toIso8601String(), 'source' => 'web', ...$extra,
+        ];
+
+        $this->postJson('/api/sync', ['diagnoses' => [
+            $scan('9d1f7a10-6b8e-4c1d-9a55-3e2f1b0c7a01', [
+                'is_simulated' => false,
+                'class_probabilities' => ['healthy' => 0.03, 'sigatoka' => 0.04, 'panama-disease' => 0.91, 'cordana-leaf-spot' => 0.02],
+            ]),
+            $scan('9d1f7a10-6b8e-4c1d-9a55-3e2f1b0c7a02'),
+        ]])->assertOk()->assertJsonPath('data.results.1.status', 'created');
+
+        $real = Diagnosis::query()->where('sync_uuid', '9d1f7a10-6b8e-4c1d-9a55-3e2f1b0c7a01')->sole();
+        $this->assertFalse($real->is_simulated);
+        $this->assertSame(0.91, $real->class_probabilities['panama-disease']);
+        $this->assertTrue(Diagnosis::query()->where('sync_uuid', '9d1f7a10-6b8e-4c1d-9a55-3e2f1b0c7a02')->sole()->is_simulated);
     }
 
     public function test_administrator_decides_on_a_reviewer_nomination(): void

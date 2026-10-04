@@ -6,6 +6,7 @@ use App\Contracts\Repositories\DashboardRepositoryInterface;
 use App\Contracts\Repositories\DatasetCandidateRepositoryInterface;
 use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Models\Diagnosis;
+use App\Models\DiagnosisReview;
 
 class DashboardService
 {
@@ -67,12 +68,41 @@ class DashboardService
                 'agreement_by_confidence' => $agreementByConfidence,
                 'reference_standard_note' => 'These are AI–agricultural reviewer agreement statistics, not diagnostic accuracy, unless the study protocol establishes the reviews as a valid reference standard.',
             ],
+            'review_turnaround' => $this->reviewTurnaround(),
             'dataset_candidates' => [
                 'pending' => $this->candidates->countByStatus('pending'),
                 'approved' => $this->candidates->countByStatus('approved'),
                 'rejected' => $this->candidates->countByStatus('rejected'),
                 'uncertain' => $this->candidates->countByStatus('uncertain'),
             ],
+        ];
+    }
+
+    /**
+     * How quickly farmers get an answer: what is waiting now, and how long
+     * completed reviews took over the last 30 days (request to assessment).
+     */
+    private function reviewTurnaround(): array
+    {
+        $overdueDays = (int) config('banana.review_overdue_days', 3);
+        $waiting = DiagnosisReview::query()->whereHas('diagnosis')->where('review_status', 'pending')->whereNotNull('requested_at');
+        $oldest = (clone $waiting)->min('requested_at');
+        $hours = DiagnosisReview::query()->whereHas('diagnosis')
+            ->where('review_status', '!=', 'pending')
+            ->whereNotNull('requested_at')->whereNotNull('reviewed_at')
+            ->where('reviewed_at', '>=', now()->subDays(30))
+            ->get(['requested_at', 'reviewed_at'])
+            ->map(fn (DiagnosisReview $review) => max(0, $review->requested_at->diffInMinutes($review->reviewed_at)) / 60)
+            ->sort()->values();
+
+        return [
+            'waiting_requests' => (clone $waiting)->count(),
+            'overdue_days' => $overdueDays,
+            'waiting_over_overdue' => (clone $waiting)->where('requested_at', '<', now()->subDays($overdueDays))->count(),
+            'oldest_waiting_hours' => $oldest ? round(now()->diffInMinutes($oldest, true) / 60, 1) : null,
+            'completed_last_30_days' => $hours->count(),
+            'median_hours_last_30_days' => $hours->isEmpty() ? null : round((float) $hours->median(), 1),
+            'average_hours_last_30_days' => $hours->isEmpty() ? null : round((float) $hours->avg(), 1),
         ];
     }
 }

@@ -19,6 +19,7 @@ class StoreDiagnosisRequest extends ApiRequest
             'model_version' => ['nullable', 'string', 'max:100'],
             'inference_time_ms' => ['nullable', 'integer', 'min:0'],
             'source' => ['required', Rule::in(['web', 'mobile'])],
+            'is_simulated' => ['sometimes', 'boolean'],
             'sync_uuid' => ['nullable', 'uuid', 'unique:diagnoses,sync_uuid'],
             'diagnosed_at' => ['required', 'date'],
             ...MobileSyncService::predictionDetailRules(),

@@ -13,7 +13,7 @@ class Diagnosis extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'user_id', 'disease_id', 'predicted_class', 'confidence', 'image_path', 'gradcam_path', 'farmer_notes',
+        'user_id', 'disease_id', 'predicted_class', 'confidence', 'image_path', 'gradcam_path', 'farmer_notes', 'latitude', 'longitude',
         'research_consented_at', 'research_consent_version', 'research_consent_withdrawn_at',
         'model_version', 'inference_time_ms', 'source', 'is_simulated', 'sync_uuid', 'sync_status', 'diagnosed_at',
         'class_probabilities', 'model_comparison',
@@ -21,18 +21,25 @@ class Diagnosis extends Model
 
     /**
      * Mobile records always come from the bundled on-device model, so they are
-     * real predictions regardless of the server's AI mode. Web records depend
-     * on the server inference configuration.
+     * real predictions regardless of the server's AI mode. Web records carry
+     * the flag returned by the inference service that produced them; older
+     * clients that do not report it fall back to the server's AI mode.
      */
-    public static function isSimulatedFor(string $source): bool
+    public static function isSimulatedFor(string $source, ?bool $reported = null): bool
     {
-        return $source !== 'mobile' && config('banana.ai_mode') !== 'PRODUCTION';
+        if ($source === 'mobile') {
+            return false;
+        }
+
+        return $reported ?? config('banana.ai_mode') !== 'PRODUCTION';
     }
 
     protected function casts(): array
     {
         return [
             'confidence' => 'float',
+            'latitude' => 'float',
+            'longitude' => 'float',
             'inference_time_ms' => 'integer',
             'is_simulated' => 'boolean',
             'class_probabilities' => 'array',
@@ -62,6 +69,11 @@ class Diagnosis extends Model
     public function disease(): BelongsTo
     {
         return $this->belongsTo(Disease::class);
+    }
+
+    public function reviewClaim(): HasOne
+    {
+        return $this->hasOne(ReviewClaim::class);
     }
 
     public function user(): BelongsTo

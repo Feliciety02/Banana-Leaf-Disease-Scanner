@@ -52,7 +52,9 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('public-api', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));
         RateLimiter::for('authenticated-api', fn (Request $request) => Limit::perMinute(120)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        RateLimiter::for('inference', fn (Request $request) => Limit::perMinute(10)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
         RateLimiter::for('sync', fn (Request $request) => Limit::perMinute(20)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        RateLimiter::for('review-requests', fn (Request $request) => Limit::perHour(10)->by((string) ($request->user()?->getAuthIdentifier() ?? $request->ip())));
         RateLimiter::for('ai-chat', function (Request $request) {
             $identity = (string) ($request->user()?->getAuthIdentifier() ?? $request->ip());
 

@@ -21,6 +21,8 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+import { useT } from '../../i18n';
+
 export const palette = {
   background: '#ffffff', card: '#ffffff', green: '#236b4b', greenPressed: '#18583b', greenSoft: '#f0f6f2', lime: '#d8ef78',
   ink: '#1d2d24', muted: '#68736d', border: '#dde5e0', danger: '#a12c2c', dangerSoft: '#fff0ee',
@@ -331,7 +333,8 @@ export function ModalCard({ visible, title, description, onClose, children, auth
 }
 
 export function ConfirmSheet({ visible, title, text, confirmLabel, busy, danger = true, onCancel, onConfirm }: { visible: boolean; title: string; text: string; confirmLabel: string; busy?: boolean; danger?: boolean; onCancel: () => void; onConfirm: () => void }) {
-  return <ModalSheet visible={visible} title={title} description={text} onClose={() => { if (!busy) onCancel(); }}><View style={styles.modalActions}><ActionButton variant="secondary" disabled={busy} onPress={onCancel}>Cancel</ActionButton><ActionButton variant={danger ? 'danger' : 'primary'} disabled={busy} onPress={onConfirm}>{busy ? 'Working…' : confirmLabel}</ActionButton></View></ModalSheet>;
+  const { t } = useT();
+  return <ModalSheet visible={visible} title={title} description={text} onClose={() => { if (!busy) onCancel(); }}><View style={styles.modalActions}><ActionButton variant="secondary" disabled={busy} onPress={onCancel}>{t('common.cancel')}</ActionButton><ActionButton variant={danger ? 'danger' : 'primary'} disabled={busy} onPress={onConfirm}>{busy ? t('common.working') : confirmLabel}</ActionButton></View></ModalSheet>;
 }
 
 export const uiStyles = StyleSheet.create({
