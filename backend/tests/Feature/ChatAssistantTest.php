@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Diagnosis;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -78,6 +79,44 @@ class ChatAssistantTest extends TestCase
                 && $payload['max_completion_tokens'] === 280
                 && str_contains($knowledge, 'Sigatoka Leaf Spot')
                 && ! str_contains($knowledge, 'Panama disease support is being added');
+        });
+    }
+
+    public function test_chat_receives_only_the_farmers_own_scan_result_and_review(): void
+    {
+        $farmer = User::factory()->farmer()->create(['name' => 'Private Farmer Name']);
+        $diagnosis = Diagnosis::query()->create([
+            'user_id' => $farmer->id, 'predicted_class' => 'sigatoka', 'confidence' => 72.4, 'source' => 'mobile',
+            'diagnosed_at' => now(), 'farmer_notes' => 'private note', 'latitude' => 7.073, 'longitude' => 125.613,
+        ]);
+        $diagnosis->review()->create([
+            'review_status' => 'alternate_class', 'verified_label' => 'panama-disease', 'next_steps' => ['seek_field_inspection'],
+            'notes' => 'internal reviewer note', 'farmer_message' => 'Check the stem base this week.', 'reviewed_at' => now(),
+        ]);
+        Http::fake(['api.groq.test/*' => Http::response(['choices' => [['message' => ['content' => 'Explained.']]]])]);
+        $question = ['messages' => [['role' => 'user', 'content' => 'What does my result mean?']], 'diagnosis_id' => $diagnosis->id];
+
+        // Another farmer cannot attach this scan.
+        Sanctum::actingAs(User::factory()->farmer()->create());
+        $this->postJson('/api/chat', $question)->assertNotFound();
+        Http::assertNothingSent();
+
+        Sanctum::actingAs($farmer);
+        $this->postJson('/api/chat', $question)->assertOk()->assertJsonPath('data.reply', 'Explained.');
+
+        Http::assertSent(function (Request $request): bool {
+            $context = $request->data()['messages'][1]['content'] ?? '';
+
+            return $request->data()['messages'][1]['role'] === 'system'
+                && str_contains($context, 'SCAN CONTEXT')
+                && str_contains($context, '72% confidence')
+                && str_contains($context, 'alternate class (verified class: panama disease)')
+                && str_contains($context, 'seek field inspection')
+                && str_contains($context, 'Check the stem base this week.')
+                && ! str_contains($context, 'internal reviewer note')
+                && ! str_contains($context, 'private note')
+                && ! str_contains($context, 'Private Farmer Name')
+                && ! str_contains($context, '7.073');
         });
     }
 

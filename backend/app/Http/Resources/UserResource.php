@@ -14,6 +14,10 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role,
+            // The file name changes on every upload, so it doubles as a cache key.
+            'avatar_url' => $this->avatar_path
+                ? route('user-avatars.show', ['user' => $this->id, 'v' => pathinfo($this->avatar_path, PATHINFO_FILENAME)], absolute: false)
+                : null,
             'email_verified_at' => $this->email_verified_at?->toIso8601String(),
             'diagnoses_count' => $this->whenCounted('diagnoses'),
             'last_activity_at' => $this->when(isset($this->diagnoses_max_diagnosed_at), $this->diagnoses_max_diagnosed_at),

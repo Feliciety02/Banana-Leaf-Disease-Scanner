@@ -8,6 +8,7 @@ use App\Models\Diagnosis;
 use App\Models\DiagnosisSyncChange;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -32,6 +33,8 @@ class MobileSyncService
                 'inference_time_ms' => ['nullable', 'integer', 'min:0'], 'farmer_notes' => ['nullable', 'string', 'max:1000'], 'diagnosed_at' => ['required', 'date'],
                 'research_consent' => ['sometimes', 'boolean'],
                 'source' => ['sometimes', Rule::in(['mobile', 'web'])],
+                'is_simulated' => ['sometimes', 'boolean'],
+                ...self::locationRules(),
                 ...self::predictionDetailRules(),
             ]);
             if ($validator->fails()) {
@@ -63,13 +66,19 @@ class MobileSyncService
 
             $disease = $this->diseases->findByModelClassKey($data['predicted_class']);
             $source = $data['source'] ?? 'mobile';
-            unset($data['source']);
+            foreach (['latitude', 'longitude'] as $coordinate) {
+                if (isset($data[$coordinate])) {
+                    $data[$coordinate] = round((float) $data[$coordinate], 3);
+                }
+            }
+            $reportedSimulated = isset($data['is_simulated']) ? (bool) $data['is_simulated'] : null;
+            unset($data['source'], $data['is_simulated']);
             $diagnosis = $this->diagnoses->create([
                 ...$data,
                 'user_id' => $user->id,
                 'disease_id' => $disease?->id,
                 'source' => $source,
-                'is_simulated' => Diagnosis::isSimulatedFor($source),
+                'is_simulated' => Diagnosis::isSimulatedFor($source, $reportedSimulated),
                 'sync_status' => 'synced',
                 'research_consented_at' => $researchConsent ? now() : null,
                 'research_consent_version' => $researchConsent ? config('banana.research_consent_version') : null,
@@ -159,6 +168,15 @@ class MobileSyncService
         ];
     }
 
+    /** An optional scan location; both coordinates are needed together. */
+    public static function locationRules(): array
+    {
+        return [
+            'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
+        ];
+    }
+
     /**
      * Optional per-class probabilities (0..1, keyed by class label) and the
      * on-device baseline/enhanced comparison recorded with a mobile scan.
@@ -193,7 +211,9 @@ class MobileSyncService
             && $diagnosis->model_version === ($data['model_version'] ?? null)
             && $diagnosis->inference_time_ms === ($data['inference_time_ms'] ?? null)
             && $diagnosis->source === ($data['source'] ?? 'mobile')
-            && $diagnosis->diagnosed_at->equalTo($data['diagnosed_at']);
+            // Clients send millisecond timestamps but the column keeps whole seconds,
+            // so a retried upload must be compared at second precision.
+            && $diagnosis->diagnosed_at->copy()->startOfSecond()->equalTo(Carbon::parse($data['diagnosed_at'])->startOfSecond());
     }
 
     private function encodeCursor(DiagnosisSyncChange $change): string
@@ -223,17 +243,13 @@ class MobileSyncService
         }
     }
 
-    public function storeConsentedImage(User $user, string $syncUuid, UploadedFile $image, string $purpose = 'research'): bool
+    /**
+     * Stores the scan photo of a synchronized record, as web scans keep theirs.
+     * Research dataset use is still gated by consent when an image is nominated.
+     */
+    public function storeImage(User $user, string $syncUuid, UploadedFile $image): bool
     {
         $diagnosis = $this->diagnoses->findOwnedBySyncUuid($syncUuid, $user->id);
-        $reviewRequested = $purpose === 'review'
-            && $diagnosis->review()->where('review_status', 'pending')->exists();
-        if (! $reviewRequested && ! $diagnosis->hasActiveResearchConsent()) {
-            $message = $purpose === 'review'
-                ? 'A pending agricultural review request is required for a review image.'
-                : 'Research consent is required before this image can be uploaded.';
-            throw ValidationException::withMessages(['image' => $message]);
-        }
         if ($diagnosis->image_path) {
             return false;
         }

@@ -13,6 +13,8 @@ class ChatRequest extends ApiRequest
             'messages.*' => ['required', 'array:role,content'],
             'messages.*.role' => ['required', Rule::in(['user', 'assistant'])],
             'messages.*.content' => ['required', 'string', 'min:1', 'max:800'],
+            // Optional scan the farmer is asking about; the server looks up its result itself.
+            'diagnosis_id' => ['nullable', 'integer', 'min:1'],
         ];
     }
 

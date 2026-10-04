@@ -10,7 +10,8 @@ export type ChatReply = {
   notice: string;
 };
 
-export async function askAssistant(messages: ChatTurn[]): Promise<ChatReply> {
+/** `diagnosisId` lets the server add that scan's result and review; the app never sends the details itself. */
+export async function askAssistant(messages: ChatTurn[], diagnosisId?: number | null): Promise<ChatReply> {
   const transcript = messages
     .slice(-8)
     .map(({ role, content }) => ({ role, content: content.trim() }))
@@ -18,7 +19,7 @@ export async function askAssistant(messages: ChatTurn[]): Promise<ChatReply> {
 
   const payload = await api<ChatReply>('/chat', {
     method: 'POST',
-    body: JSON.stringify({ messages: transcript }),
+    body: JSON.stringify({ messages: transcript, ...(diagnosisId ? { diagnosis_id: diagnosisId } : {}) }),
   });
 
   return payload.data;

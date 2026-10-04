@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { api, authenticatedImageSource } from '../../services/api';
+import { api } from '../../services/api';
+import { ImageViewer } from '../../components/ImageViewer';
+import { ScanImage } from '../../components/ScanImage';
 import { ActionButton, Field, ModalSheet, Notice, formatDate, palette, titleCase, uiStyles } from './ui';
 
 type DiseaseRecord = { id: number; name: string; model_class_key: string; verification_status: string; evidence_level: string; sources_count?: number; last_reviewed_at?: string | null };
@@ -88,6 +90,7 @@ function DiseaseVerification() {
 
 function DatasetCandidates() {
   const [items, setItems] = useState<Candidate[]>([]);
+  const [viewer, setViewer] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -112,10 +115,10 @@ function DatasetCandidates() {
     <Text style={uiStyles.cardMeta}>Approval marks research eligibility only. You cannot decide on an image you nominated; another reviewer or an administrator does.</Text>
     <ActionButton variant="secondary" icon="refresh" disabled={loading} onPress={load}>{loading ? 'Loading...' : 'Refresh candidates'}</ActionButton>
     {error && <Notice>{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
-    {!loading && !items.length && !error && <Text style={uiStyles.cardMeta}>No research candidates yet. Nominate reviewed, consented images from the website.</Text>}
+    {!loading && !items.length && !error && <Text style={uiStyles.cardMeta}>No research candidates yet. Nominate reviewed, consented images from a completed assessment in Reviewed.</Text>}
     {items.map((item) => <View key={item.id} style={uiStyles.card}>
       <View style={styles.row}>
-        {item.diagnosis?.image_url ? <Image source={authenticatedImageSource(item.diagnosis.image_url)} style={styles.thumb} /> : <View style={styles.thumb}><Ionicons name="leaf-outline" size={26} color={palette.green} /></View>}
+        {item.diagnosis?.image_url ? <Pressable accessibilityRole="button" accessibilityLabel="Open candidate scan photo" onPress={() => setViewer(item.diagnosis?.image_url ?? null)}><ScanImage uri={item.diagnosis.image_url} style={styles.thumb} compact /></Pressable> : <ScanImage uri={null} style={styles.thumb} compact missingText="Photo not uploaded yet" />}
         <View style={uiStyles.flex}>
           <Text style={uiStyles.cardTitle}>{titleCase(item.diagnosis?.predicted_class)} · {Number(item.diagnosis?.confidence ?? 0).toFixed(1)}%</Text>
           <Text style={uiStyles.cardMeta}>Review: {titleCase(item.diagnosis?.review?.review_status ?? 'pending')}{item.diagnosis?.review?.verified_label ? ` · ${titleCase(item.diagnosis.review.verified_label)}` : ''}</Text>
@@ -130,6 +133,7 @@ function DatasetCandidates() {
         <View style={uiStyles.flex}><ActionButton variant="danger" disabled={busyId === item.id} onPress={() => decide(item, 'rejected')}>Reject</ActionButton></View>
       </View>
     </View>)}
+    <ImageViewer uri={viewer} visible={Boolean(viewer)} onClose={() => setViewer(null)} />
   </View>;
 }
 

@@ -64,6 +64,28 @@ class OfflineSynchronizationTest extends TestCase
         $this->assertDatabaseHas('diagnoses', ['id' => $diagnosis->id, 'predicted_class' => 'healthy']);
     }
 
+    public function test_retry_with_millisecond_timestamp_is_already_synchronized(): void
+    {
+        Sanctum::actingAs(User::factory()->farmer()->create());
+        // Mobile and web clients timestamp scans with Date#toISOString(), which includes milliseconds.
+        $item = [
+            'sync_uuid' => '3f6c2a1e-8b4d-4c7a-9e2f-1a5b6c7d8e9f',
+            'predicted_class' => 'sigatoka',
+            'confidence' => 91.5,
+            'source' => 'mobile',
+            'diagnosed_at' => '2026-10-04T06:43:08.123Z',
+        ];
+
+        $id = $this->postJson('/api/sync', ['diagnoses' => [$item]])->assertOk()
+            ->assertJsonPath('data.results.0.status', 'created')
+            ->json('data.results.0.diagnosis_id');
+
+        $this->postJson('/api/sync', ['diagnoses' => [$item]])->assertOk()
+            ->assertJsonPath('data.results.0.status', 'already_synchronized')
+            ->assertJsonPath('data.results.0.diagnosis_id', $id);
+        $this->assertDatabaseCount('diagnoses', 1);
+    }
+
     public function test_partial_batch_failure_does_not_discard_valid_offline_records(): void
     {
         Sanctum::actingAs(User::factory()->farmer()->create());
@@ -118,7 +140,7 @@ class OfflineSynchronizationTest extends TestCase
         $this->assertDatabaseCount('diagnoses', 1);
     }
 
-    public function test_offline_review_image_requires_a_pending_review_request(): void
+    public function test_offline_image_is_stored_without_review_request_or_research_consent(): void
     {
         Storage::fake('local');
         $user = User::factory()->farmer()->create();
@@ -135,20 +157,60 @@ class OfflineSynchronizationTest extends TestCase
         $diagnosisId = $response->json('data.results.0.diagnosis_id');
 
         $this->post("/api/sync/{$uuid}/image", [
-            'purpose' => 'review',
-            'image' => UploadedFile::fake()->image('premature.jpg'),
-        ])->assertUnprocessable();
-
-        $this->postJson("/api/diagnoses/{$diagnosisId}/review-request")->assertOk();
-        $this->post("/api/sync/{$uuid}/image", [
-            'purpose' => 'review',
-            'image' => UploadedFile::fake()->image('review.jpg'),
-        ])->assertOk();
+            'purpose' => 'sync',
+            'image' => UploadedFile::fake()->image('scan.jpg'),
+        ])->assertOk()->assertJsonPath('message', 'Queued image synchronized.');
 
         $diagnosis = Diagnosis::query()->findOrFail($diagnosisId);
         $this->assertNotNull($diagnosis->image_path);
         $this->assertFalse($diagnosis->hasActiveResearchConsent());
         Storage::disk('local')->assertExists($diagnosis->image_path);
+
+        // A retried upload keeps the first stored photo.
+        $this->post("/api/sync/{$uuid}/image", [
+            'image' => UploadedFile::fake()->image('retry.jpg'),
+        ])->assertOk()->assertJsonPath('message', 'Queued image already synchronized.');
+        $this->assertSame($diagnosis->image_path, $diagnosis->fresh()->image_path);
+
+        // Another farmer cannot attach a photo to this scan.
+        Sanctum::actingAs(User::factory()->farmer()->create());
+        $this->post("/api/sync/{$uuid}/image", [
+            'image' => UploadedFile::fake()->image('other.jpg'),
+        ], ['Accept' => 'application/json'])->assertNotFound();
+    }
+
+    public function test_optional_scan_location_is_rounded_owner_controlled_and_visible_to_reviewers(): void
+    {
+        $farmer = User::factory()->farmer()->create();
+        Sanctum::actingAs($farmer);
+        $uuid = '4d1c6f0a-8b2e-4f7a-9c3d-5e6f7a8b9c0d';
+        $diagnosisId = $this->postJson('/api/sync', ['diagnoses' => [[
+            'sync_uuid' => $uuid, 'predicted_class' => 'healthy', 'confidence' => 80,
+            'diagnosed_at' => now()->toIso8601String(), 'latitude' => 7.0731234, 'longitude' => 125.6128765,
+        ]]])->assertOk()->json('data.results.0.diagnosis_id');
+
+        $this->getJson("/api/diagnoses/{$diagnosisId}")->assertOk()
+            ->assertJsonPath('data.location.latitude', 7.073)
+            ->assertJsonPath('data.location.longitude', 125.613);
+
+        // A lone coordinate is rejected.
+        $this->postJson('/api/sync', ['diagnoses' => [[
+            'sync_uuid' => '5e2d7a1b-9c3f-4a8b-8d4e-6f7a8b9c0d1e', 'predicted_class' => 'healthy', 'confidence' => 80,
+            'diagnosed_at' => now()->toIso8601String(), 'latitude' => 7.07,
+        ]]])->assertOk()->assertJsonPath('data.results.0.status', 'rejected');
+
+        $this->deleteJson("/api/diagnoses/{$diagnosisId}/location")->assertOk()->assertJsonPath('data.location', null);
+        $this->putJson("/api/diagnoses/{$diagnosisId}/location", ['latitude' => 7.1, 'longitude' => 200])->assertUnprocessable();
+        $this->putJson("/api/diagnoses/{$diagnosisId}/location", ['latitude' => 7.10049, 'longitude' => 125.60051])->assertOk()
+            ->assertJsonPath('data.location.latitude', 7.1)
+            ->assertJsonPath('data.location.longitude', 125.601);
+
+        Sanctum::actingAs(User::factory()->farmer()->create());
+        $this->putJson("/api/diagnoses/{$diagnosisId}/location", ['latitude' => 1, 'longitude' => 1])->assertForbidden();
+        $this->deleteJson("/api/diagnoses/{$diagnosisId}/location")->assertForbidden();
+
+        Sanctum::actingAs(User::factory()->agriculturalExpert()->create());
+        $this->getJson("/api/expert/diagnosis-reviews/{$diagnosisId}")->assertOk()->assertJsonPath('data.location.latitude', 7.1);
     }
 
     public function test_incremental_pull_returns_review_updates_and_deletion_tombstones(): void

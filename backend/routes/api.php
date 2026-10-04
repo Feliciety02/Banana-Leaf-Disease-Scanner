@@ -21,6 +21,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\InferenceController;
 use App\Http\Controllers\MobileSyncController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserAvatarController;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +33,9 @@ Route::middleware('throttle:auth')->group(function () {
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 });
 Route::apiResource('diseases', DiseaseController::class)->only(['index', 'show'])->middleware('throttle:public-api');
+// Screening is available before sign-in, as it is on the mobile app; saving a
+// result still requires a farmer account.
+Route::post('/inference', InferenceController::class)->middleware('throttle:inference');
 
 Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(function () {
     Route::get('/diagnosis-media/{diagnosis}/{kind}', DiagnosisMediaController::class)
@@ -43,26 +47,33 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::put('/profile', [ProfileController::class, 'update']);
     Route::put('/profile/password', [ProfileController::class, 'password']);
+    Route::post('/profile/avatar', [ProfileController::class, 'avatar'])->middleware('throttle:6,1');
+    Route::delete('/profile/avatar', [ProfileController::class, 'removeAvatar']);
+    Route::get('/user-avatars/{user}', UserAvatarController::class)->name('user-avatars.show');
     Route::delete('/profile', [ProfileController::class, 'destroy']);
     Route::post('/research/model-comparison', ModelComparisonController::class);
     Route::post('/chat', ChatController::class)->middleware('throttle:ai-chat');
 
     Route::middleware('role:'.User::ROLE_FARMER)->group(function () {
         Route::apiResource('diagnoses', DiagnosisController::class)->only(['index', 'store', 'show', 'destroy']);
-        Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview'])->middleware('verified.required');
+        // Asking an expert must not depend on email access; a per-farmer limit stops flooding instead.
+        Route::post('/diagnoses/{diagnosis}/review-request', [DiagnosisController::class, 'requestReview'])->middleware('throttle:review-requests');
+        Route::post('/diagnoses/{diagnosis}/review-seen', [DiagnosisController::class, 'markReviewSeen']);
+        Route::put('/diagnoses/{diagnosis}/location', [DiagnosisController::class, 'setLocation']);
+        Route::delete('/diagnoses/{diagnosis}/location', [DiagnosisController::class, 'removeLocation']);
+        Route::post('/diagnoses/{diagnosis}/follow-up', [DiagnosisController::class, 'followUp'])->middleware('throttle:review-requests');
         Route::post('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'grantResearchConsent'])->middleware('verified.required');
         Route::delete('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'withdrawResearchConsent']);
-        Route::post('/inference', InferenceController::class);
         Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
         Route::get('/mobile/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
-        Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware(['throttle:sync', 'verified.required']);
+        Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
         Route::post('/sync', MobileSyncController::class)->middleware('throttle:sync');
         Route::get('/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
-        Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware(['throttle:sync', 'verified.required']);
+        Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
         Route::prefix('v1')->group(function () {
             Route::post('/sync', MobileSyncController::class)->middleware('throttle:sync');
             Route::get('/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
-            Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware(['throttle:sync', 'verified.required']);
+            Route::post('/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
         });
     });
 
@@ -104,6 +115,8 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
         Route::get('/diagnosis-reviews', [DiagnosisReviewController::class, 'index']);
         Route::get('/diagnosis-reviews/{diagnosis}', [DiagnosisReviewController::class, 'show']);
         Route::put('/diagnosis-reviews/{diagnosis}', [DiagnosisReviewController::class, 'update']);
+        Route::post('/diagnosis-reviews/{diagnosis}/claim', [DiagnosisReviewController::class, 'claim']);
+        Route::delete('/diagnosis-reviews/{diagnosis}/claim', [DiagnosisReviewController::class, 'release']);
         Route::get('/diseases', [DiseaseVerificationController::class, 'index']);
         Route::get('/diseases/{disease}', [DiseaseVerificationController::class, 'show']);
         Route::post('/diseases/{disease}/verification', [DiseaseVerificationController::class, 'store']);

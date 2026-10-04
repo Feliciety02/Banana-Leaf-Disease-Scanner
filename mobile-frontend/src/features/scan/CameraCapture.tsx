@@ -3,12 +3,15 @@ import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'rea
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
+import { useT } from '../../i18n';
+
 export function CameraCapture({ visible, onClose, onCapture }: { visible: boolean; onClose: () => void; onCapture: (uri: string) => void }) {
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [flashOn, setFlashOn] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useT();
 
   const capture = async () => {
     if (!cameraRef.current || capturing) return;
@@ -33,7 +36,7 @@ export function CameraCapture({ visible, onClose, onCapture }: { visible: boolea
               <Pressable accessibilityRole="button" accessibilityLabel="Close camera" onPress={onClose} style={styles.topButton}>
                 <Ionicons name="close" size={24} color="#fff" />
               </Pressable>
-              <Text style={styles.topTitle}>Capture a leaf</Text>
+              <Text style={styles.topTitle}>{t('camera.title')}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={flashOn ? 'Turn flash off' : 'Turn flash on'} onPress={() => setFlashOn((value) => !value)} style={styles.topButton}>
                 <Ionicons name={flashOn ? 'flash' : 'flash-off'} size={22} color="#fff" />
               </Pressable>
@@ -44,7 +47,7 @@ export function CameraCapture({ visible, onClose, onCapture }: { visible: boolea
               <View style={[styles.corner, styles.cornerBL]} />
               <View style={[styles.corner, styles.cornerBR]} />
             </View>
-            <Text style={styles.hint}>Center one leaf</Text>
+            <Text style={styles.hint}>{t('camera.frameHint')}</Text>
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Pressable accessibilityRole="button" accessibilityLabel="Take photo" disabled={capturing} onPress={capture} style={[styles.shutterOuter, capturing && styles.shutterDisabled]}>
               {capturing ? <ActivityIndicator color="#fff" /> : <View style={styles.shutterInner} />}
@@ -55,16 +58,16 @@ export function CameraCapture({ visible, onClose, onCapture }: { visible: boolea
             {permission?.canAskAgain === false ? (
               <>
                 <Ionicons name="camera-outline" size={40} color="#cfe0d8" />
-                <Text style={styles.permissionTitle}>Camera access needed</Text>
-                <Text style={styles.permissionText}>Allow camera access in device settings to photograph a leaf.</Text>
+                <Text style={styles.permissionTitle}>{t('camera.permissionTitle')}</Text>
+                <Text style={styles.permissionText}>{t('camera.permissionText')}</Text>
               </>
             ) : (
               <>
                 <ActivityIndicator color="#d8ef78" />
-                <Text style={styles.permissionTitle}>Requesting camera access</Text>
+                <Text style={styles.permissionTitle}>{t('camera.requesting')}</Text>
               </>
             )}
-            <Pressable accessibilityRole="button" onPress={requestPermission} style={styles.allowButton}><Text style={styles.allowText}>Allow camera access</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={requestPermission} style={styles.allowButton}><Text style={styles.allowText}>{t('camera.allow')}</Text></Pressable>
           </View>
         )}
       </View>
@@ -84,7 +87,7 @@ const styles = StyleSheet.create({
   cornerTR: { top: 72, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 24 },
   cornerBL: { bottom: 72, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 24 },
   cornerBR: { bottom: 72, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 24 },
-  hint: { position: 'absolute', top: 200, left: 0, right: 0, textAlign: 'center', color: '#fff', fontSize: 15, fontWeight: '700', backgroundColor: 'rgba(22,35,31,0.68)', alignSelf: 'center', borderRadius: 30, paddingHorizontal: 18, paddingVertical: 8, overflow: 'hidden' },
+  hint: { position: 'absolute', bottom: 136, left: 0, right: 0, textAlign: 'center', color: '#fff', fontSize: 17, fontWeight: '700', backgroundColor: 'rgba(22,35,31,0.68)', alignSelf: 'center', borderRadius: 30, paddingHorizontal: 18, paddingVertical: 8, overflow: 'hidden' },
   error: { position: 'absolute', bottom: 150, left: 24, right: 24, color: '#ffb4ae', backgroundColor: 'rgba(120,20,16,0.72)', fontSize: 13, textAlign: 'center', borderRadius: 12, padding: 10, overflow: 'hidden' },
   shutterOuter: { position: 'absolute', bottom: 44, alignSelf: 'center', width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: '#fff', backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#d8ef78' },

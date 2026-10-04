@@ -13,7 +13,11 @@ class PrivateDiagnosisImageStorage
 
     private const MAX_INPUT_PIXELS = 13_000_000;
 
-    public function store(UploadedFile $image): string
+    /**
+     * Re-encodes an upload to strip metadata and hidden payloads. Profile
+     * photos reuse this with their own folder and a smaller size limit.
+     */
+    public function store(UploadedFile $image, string $directory = 'diagnoses', int $maxDimension = self::MAX_OUTPUT_DIMENSION): string
     {
         $dimensions = @getimagesize($image->getRealPath());
         if (! $dimensions || ($dimensions[0] * $dimensions[1]) > self::MAX_INPUT_PIXELS) {
@@ -39,7 +43,7 @@ class PrivateDiagnosisImageStorage
 
         $width = imagesx($source);
         $height = imagesy($source);
-        $scale = min(1, self::MAX_OUTPUT_DIMENSION / max($width, $height));
+        $scale = min(1, $maxDimension / max($width, $height));
         $outputWidth = max(1, (int) round($width * $scale));
         $outputHeight = max(1, (int) round($height * $scale));
         $output = imagecreatetruecolor($outputWidth, $outputHeight);
@@ -68,7 +72,7 @@ class PrivateDiagnosisImageStorage
             'image/png' => 'png',
             'image/webp' => 'webp',
         };
-        $path = 'diagnoses/'.Str::uuid().'.'.$extension;
+        $path = $directory.'/'.Str::uuid().'.'.$extension;
         if (! Storage::disk('local')->put($path, $contents)) {
             throw ValidationException::withMessages(['image' => 'The sanitized image could not be stored.']);
         }

@@ -1,21 +1,24 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { palette } from '../connected/ui';
+import { ViewableImage } from '../../components/ViewableImage';
+import { useT } from '../../i18n';
 
 export function SelectedImagePreview({ uri }: { uri: string | null }) {
+  const { t } = useT();
   if (!uri) {
     return (
-      <View accessibilityLabel="No photo selected" style={styles.frame}>
+      <View accessibilityLabel={t('scan.noPhoto')} style={styles.frame}>
         <Ionicons name="image-outline" size={40} color="#a7b4ad" />
-        <Text style={styles.title}>No photo selected</Text>
-        <Text style={styles.subtitle}>Center one leaf in good light.</Text>
+        <Text style={styles.title}>{t('scan.noPhoto')}</Text>
+        <Text style={styles.subtitle}>{t('scan.noPhotoHint')}</Text>
       </View>
     );
   }
   return (
     <View style={styles.frame}>
-      <Image source={{ uri }} style={styles.image} resizeMode="cover" />
+      <ViewableImage source={{ uri }} title="Selected photo" style={styles.image} containerStyle={styles.image} />
     </View>
   );
 }

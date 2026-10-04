@@ -1,8 +1,9 @@
 import { api } from './api';
 
 const DATABASE_NAME = 'dahonmd-web-offline';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const HISTORY_STORE = 'history';
+const PHOTO_STORE = 'history_photos';
 const OUTBOX_STORE = 'diagnosis_outbox';
 const DELETION_STORE = 'diagnosis_deletions';
 const META_STORE = 'sync_metadata';
@@ -17,6 +18,10 @@ function database() {
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains(HISTORY_STORE)) db.createObjectStore(HISTORY_STORE, { keyPath: 'user_id' });
+        if (!db.objectStoreNames.contains(PHOTO_STORE)) {
+          const photos = db.createObjectStore(PHOTO_STORE, { keyPath: 'sync_uuid' });
+          photos.createIndex('user_id', 'user_id');
+        }
         if (!db.objectStoreNames.contains(OUTBOX_STORE)) {
           const store = db.createObjectStore(OUTBOX_STORE, { keyPath: 'sync_uuid' });
           store.createIndex('user_id', 'user_id');
@@ -76,18 +81,21 @@ async function writeCursor(userId, cursor) {
 }
 
 export async function queueWebDiagnosis(userId, record, imageFile, requestReview) {
-  const target = await store('readwrite', OUTBOX_STORE);
+  const db = await database();
+  const transaction = db.transaction([OUTBOX_STORE, PHOTO_STORE], 'readwrite');
   const syncUuid = crypto.randomUUID();
   const item = {
     sync_uuid: syncUuid,
     user_id: userId,
     record,
-    image_file: record.researchConsent || requestReview ? imageFile || null : null,
+    image_file: imageFile || null,
     request_review: requestReview,
     last_error: null,
     created_at: new Date().toISOString(),
   };
-  await requestResult(target.put(item));
+  transaction.objectStore(OUTBOX_STORE).put(item);
+  if (record.image) transaction.objectStore(PHOTO_STORE).put({ sync_uuid: syncUuid, user_id: userId, image: record.image });
+  await transactionDone(transaction);
   return pendingRecord(item);
 }
 
@@ -117,6 +125,9 @@ export async function flushWebDiagnosisOutbox(userId) {
           farmer_notes: item.record.farmerNotes || null,
           research_consent: Boolean(item.record.researchConsent),
           source: 'web',
+          // Older queued records predate these fields; the server falls back to its AI mode.
+          ...(typeof item.record.isSimulated === 'boolean' ? { is_simulated: item.record.isSimulated } : {}),
+          ...(item.record.probabilities?.length ? { class_probabilities: Object.fromEntries(item.record.probabilities.map(({ classKey, probability }) => [classKey, probability])) } : {}),
           diagnosed_at: item.record.date,
         })) }),
       });
@@ -143,10 +154,10 @@ export async function flushWebDiagnosisOutbox(userId) {
             body: JSON.stringify({ farmer_notes: item.record.farmerNotes || null }),
           });
         }
-        if ((item.record.researchConsent || item.request_review) && item.image_file) {
+        if (item.image_file) {
           const body = new FormData();
           body.append('image', item.image_file);
-          body.append('purpose', item.record.researchConsent ? 'research' : 'review');
+          body.append('purpose', 'sync');
           await api(`/sync/${item.sync_uuid}/image`, { method: 'POST', body });
         }
         const writeStore = await store('readwrite', OUTBOX_STORE);
@@ -180,7 +191,21 @@ async function flushDeletionOutbox(userId) {
       if (result.status === 'deleted' || result.status === 'already_deleted') {
         const writeStore = await store('readwrite', DELETION_STORE);
         await requestResult(writeStore.delete(item.key));
+        if (item.sync_uuid) {
+          const photoStore = await store('readwrite', PHOTO_STORE);
+          await requestResult(photoStore.delete(item.sync_uuid));
+        }
         deleted += 1;
+      } else if (item.record) {
+        // The server kept the scan (for example, its photo is in an approved
+        // research dataset). Put it back in history with the reason instead of
+        // retrying a deletion that cannot succeed.
+        const writeStore = await store('readwrite', DELETION_STORE);
+        await requestResult(writeStore.delete(item.key));
+        const history = await readCachedHistory(userId);
+        const reason = Object.values(result.errors || {}).flat()[0] || 'The server kept this scan.';
+        await cacheHistory(userId, [{ ...item.record, deletionError: reason }, ...history.filter((entry) => entry.id !== item.record.id)]
+          .sort((left, right) => new Date(right.date) - new Date(left.date)));
       } else {
         const writeStore = await store('readwrite', DELETION_STORE);
         await requestResult(writeStore.put({
@@ -205,13 +230,16 @@ export async function queueWebDiagnosisDeletion(userId, record) {
     if (!Number.isInteger(serverId) || serverId < 1) throw new Error('This saved result does not have a valid server identifier.');
   }
   const db = await database();
-  const transaction = db.transaction(pending ? [OUTBOX_STORE, DELETION_STORE] : [DELETION_STORE], 'readwrite');
+  const transaction = db.transaction(pending ? [OUTBOX_STORE, DELETION_STORE, PHOTO_STORE] : [DELETION_STORE], 'readwrite');
   if (pending) transaction.objectStore(OUTBOX_STORE).delete(syncUuid);
+  if (pending && syncUuid) transaction.objectStore(PHOTO_STORE).delete(syncUuid);
   transaction.objectStore(DELETION_STORE).put({
     key: `${userId}:${syncUuid || serverId}`,
     user_id: userId,
     server_id: serverId,
     sync_uuid: syncUuid,
+    // Server records keep a snapshot so a refused deletion can be restored.
+    record: pending ? null : { ...record, deletionError: undefined },
     last_error: null,
     created_at: new Date().toISOString(),
   });
@@ -237,6 +265,12 @@ export async function clearWebAccountData(userId, includePending = false) {
   await requestResult(history.delete(userId));
   const metadata = await store('readwrite', META_STORE);
   await requestResult(metadata.delete(`diagnoses:${userId}`));
+  const photoReader = await store('readonly', PHOTO_STORE);
+  const photoKeys = await requestResult(photoReader.index('user_id').getAllKeys(userId));
+  if (photoKeys.length) {
+    const photoWriter = await store('readwrite', PHOTO_STORE);
+    await Promise.all(photoKeys.map((key) => requestResult(photoWriter.delete(key))));
+  }
   if (!includePending) return;
 
   for (const storeName of [OUTBOX_STORE, DELETION_STORE]) {
@@ -253,6 +287,9 @@ export async function pullWebDiagnosisChanges(userId, mapDiagnosis) {
   let hasMore = false;
   let applied = 0;
   let history = await readCachedHistory(userId);
+  const photoStore = await store('readonly', PHOTO_STORE);
+  const photos = await requestResult(photoStore.index('user_id').getAll(userId));
+  const photoBySyncUuid = new Map(photos.map((photo) => [photo.sync_uuid, photo.image]));
 
   do {
     const query = cursor ? `?limit=100&cursor=${encodeURIComponent(cursor)}` : '?limit=100';
@@ -262,7 +299,7 @@ export async function pullWebDiagnosisChanges(userId, mapDiagnosis) {
       if (change.type === 'delete') records.delete(String(change.server_id));
       else {
         const mapped = mapDiagnosis(change.diagnosis);
-        records.set(String(mapped.id), mapped);
+        records.set(String(mapped.id), { ...mapped, image: mapped.image || photoBySyncUuid.get(mapped.syncUuid) || null });
       }
       applied += 1;
     }
@@ -296,7 +333,8 @@ function pendingRecord(item) {
     source: 'web',
     synced: false,
     syncStatus: item.last_error ? 'failed' : 'pending',
-    image: null,
+    lastError: item.last_error || null,
+    image: item.record.image || null,
     farmerNotes: item.record.farmerNotes || '',
     researchConsent: Boolean(item.record.researchConsent),
     latency: item.record.latency || 0,

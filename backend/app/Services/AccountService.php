@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -25,6 +26,25 @@ class AccountService
             $user->forceFill(['email_verified_at' => null])->save();
             $user->sendEmailVerificationNotification();
         }
+
+        return $user->fresh();
+    }
+
+    /** Replaces the profile photo; the previous file is removed after the new one is saved. */
+    public function updateAvatar(User $user, UploadedFile $photo): User
+    {
+        $previous = $user->avatar_path;
+        $user->forceFill(['avatar_path' => $this->images->store($photo, 'avatars', 512)])->save();
+        $this->images->delete($previous);
+
+        return $user->fresh();
+    }
+
+    public function removeAvatar(User $user): User
+    {
+        $previous = $user->avatar_path;
+        $user->forceFill(['avatar_path' => null])->save();
+        $this->images->delete($previous);
 
         return $user->fresh();
     }
@@ -61,6 +81,7 @@ class AccountService
             ->withTrashed()
             ->get(['image_path', 'gradcam_path'])
             ->flatMap(fn ($diagnosis) => [$diagnosis->image_path, $diagnosis->gradcam_path])
+            ->push($user->avatar_path)
             ->all();
 
         DB::transaction(function () use ($user): void {

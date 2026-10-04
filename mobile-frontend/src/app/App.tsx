@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, AppState, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import NetInfo from '@react-native-community/netinfo';
 import { StatusBar } from 'expo-status-bar';
 
-import { ChatAssistant } from '../features/chat/ChatAssistant';
+import { LoadingScreen } from '../components/LoadingScreen';
+import { FadeIn } from '../components/motion';
+import { ChatAssistant, type ScanTopic } from '../features/chat/ChatAssistant';
 import { AdminWorkspace } from '../features/connected/AdminWorkspace';
 import { ReviewerWorkspace } from '../features/connected/ReviewerWorkspace';
 import { ReviewerContentWorkspace } from '../features/connected/ReviewerContentWorkspace';
+import { RoleHome } from '../features/connected/RoleHome';
 import { landingTab, navigationForRole, TabKey, validTab } from './navigation';
+import { useTabBadges } from './useTabBadges';
+import { loadLanguage, useT, type StringKey } from '../i18n';
+import type { ClassKey } from '../features/classification/types';
 import { ConnectedWorkspace } from '../features/connected/ConnectedWorkspace';
 import { AuthModal, AuthMode } from '../features/connected/AuthModal';
 import { ServerAddress } from '../features/connected/ServerAddress';
@@ -22,13 +28,13 @@ import { synchronizeDiagnoses } from '../services/diagnosisSync';
 import { configureBackgroundSync } from '../services/backgroundSync';
 import { checkConnection, subscribeConnection, currentServerUrl, loadServerUrl, restoreSession, serverUrlFromLink, setServerUrl, setSessionExpiredHandler, SessionUser } from '../services/api';
 import { useMobilePrivacyProtection } from '../services/mobileSecurity';
-import { claimLocalOnlyDiagnoses, countLocalOnlyDiagnoses, guestScanChoice, initializeLocalDatabase } from '../storage/localDiagnoses';
+import { claimLocalOnlyDiagnoses, initializeLocalDatabase } from '../storage/localDiagnoses';
 
 const colors = { background: '#ffffff', green: '#236b4b', ink: '#1d2d24', muted: '#7b857f', border: '#e5eae7', activeTab: '#f0f6f2' };
 
 export default function App() {
   useMobilePrivacyProtection();
-  const [requestedTab, setTab] = useState<TabKey>('home');
+  const [requestedTab, setTab] = useState<TabKey>('scan');
   const dirtyScreen = useRef(false);
   const onDirtyChange = useCallback((dirty: boolean) => { dirtyScreen.current = dirty; }, []);
   const navigate = (next: TabKey) => {
@@ -41,6 +47,9 @@ export default function App() {
   const [authMode, setAuthMode] = useState<AuthMode | null>(null);
   const [sessionUser, setSessionUser] = useState<SessionUser | null | undefined>(undefined);
   const navItems = navigationForRole(sessionUser?.role);
+  const badges = useTabBadges(sessionUser);
+  const { t } = useT();
+  const tabLabel = (key: TabKey, fallback: string) => (['home', 'scan', 'history', 'guide', 'account'].includes(key) ? t(`nav.${key}` as StringKey) : fallback);
   const tab = validTab(requestedTab, sessionUser?.role);
   const pageScroll = useRef<ScrollView>(null);
   useEffect(() => { pageScroll.current?.scrollTo({ y: 0, animated: false }); dirtyScreen.current = false; }, [tab, sessionUser?.id]);
@@ -50,22 +59,37 @@ export default function App() {
   const modelStatus = useModelStatus();
   const [serverUnavailable, setServerUnavailable] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(false);
+  const [connectionNoticeOpen, setConnectionNoticeOpen] = useState(false);
+  const connectionNoticeOpacity = useRef(new Animated.Value(0)).current;
   const [connectionOpen, setConnectionOpen] = useState(false);
   const [resumeTab, setResumeTab] = useState<TabKey | null>(null);
   const [historyTarget, setHistoryTarget] = useState<string | null>(null);
   const [chatResume, setChatResume] = useState(0);
+  const [chatScan, setChatScan] = useState<ScanTopic | null>(null);
   const [resumeChat, setResumeChat] = useState(false);
-  const [guestCount, setGuestCount] = useState(0);
-  const [claimBusy, setClaimBusy] = useState(false);
-  const [claimError, setClaimError] = useState('');
   const openAuth = (mode: AuthMode) => { setResumeTab(tab === 'account' ? null : tab); setAuthMode(mode); };
   const openHistory = (id?: string) => { setHistoryTarget(id ?? null); setTab('history'); };
+  const [guideTarget, setGuideTarget] = useState<{ key: number; classKey: ClassKey } | null>(null);
+  const openGuide = (classKey: ClassKey) => { setGuideTarget((current) => ({ key: (current?.key ?? 0) + 1, classKey })); setTab('guide'); };
   const retryConnection = async () => {
     setCheckingConnection(true);
     try { await checkConnection(); stored(); } catch { /* Banner remains actionable. */ }
     finally { setCheckingConnection(false); }
   };
   useEffect(() => subscribeConnection(setServerUnavailable), []);
+  useEffect(() => { setConnectionNoticeOpen(serverUnavailable); }, [serverUnavailable]);
+  const showConnectionNotice = serverUnavailable && connectionNoticeOpen && !authMode && !connectionOpen;
+  useEffect(() => {
+    if (!showConnectionNotice) return;
+    Animated.timing(connectionNoticeOpacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    if (checkingConnection) return () => connectionNoticeOpacity.stopAnimation();
+    const timer = setTimeout(() => {
+      Animated.timing(connectionNoticeOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(({ finished }) => {
+        if (finished) setConnectionNoticeOpen(false);
+      });
+    }, 7000);
+    return () => { clearTimeout(timer); connectionNoticeOpacity.stopAnimation(); };
+  }, [showConnectionNotice, checkingConnection, connectionNoticeOpacity]);
   useEffect(() => {
     if (!serverUnavailable || !online) return;
     // Recheck reachability without retrying a submitted form or mutation.
@@ -77,23 +101,9 @@ export default function App() {
     setSessionUser(user); setAuthMode(null);
     setTab(user.role === 'farmer' ? validTab(resumeTab ?? 'home', user.role) : landingTab(user.role));
     if (resumeChat) { setChatResume((value) => value + 1); setResumeChat(false); }
-    if (user.role === 'farmer') {
-      try {
-        if (!await guestScanChoice(user.email.trim().toLowerCase())) setGuestCount(await countLocalOnlyDiagnoses());
-      } catch { /* The Account tab still offers manual claiming. */ }
-    }
-  };
-  const chooseGuestScans = async (add: boolean) => {
-    if (!sessionUser || claimBusy) return;
-    setClaimBusy(true); setClaimError('');
-    try {
-      if (add) await claimLocalOnlyDiagnoses(sessionUser.id);
-      await guestScanChoice(sessionUser.email.trim().toLowerCase(), add ? 'added' : 'kept');
-      setGuestCount(0); stored();
-    } catch { setClaimError('Your choice could not be saved. Please try again.'); }
-    finally { setClaimBusy(false); }
   };
 
+  useEffect(() => { void loadLanguage(); }, []);
   useEffect(() => { initializeLocalDatabase().catch((error) => setInfo({ title: 'Offline storage unavailable', message: error instanceof Error ? error.message : 'The local database could not be opened.' })); }, []);
   useEffect(() => {
     let active = true;
@@ -121,7 +131,7 @@ export default function App() {
         await loadServerUrl();
         await connectFromLink(await Linking.getInitialURL());
         const user = await restoreSession();
-        if (active) { setSessionUser(user); if (user && user.role !== 'farmer') setTab(landingTab(user.role)); }
+        if (active) { setSessionUser(user); if (user) setTab(landingTab(user.role)); }
       } catch {
         if (active) setSessionUser(null);
       }
@@ -151,20 +161,36 @@ export default function App() {
     });
     return () => setSessionExpiredHandler(null);
   }, [sessionUser?.id, sessionUser?.role, tab]);
+  // Scans made while signed out (or after a session expired) are added to the
+  // signed-in farmer's account automatically, then everything is synchronized.
+  const saveToAccount = async (userId: number) => {
+    await claimLocalOnlyDiagnoses(userId).catch(() => 0);
+    return synchronizeDiagnoses(userId);
+  };
+  // Farmers never sync by hand: scans sync when the connection returns, when
+  // the app comes back to the foreground, and every minute while it is open.
   useEffect(() => {
     if (sessionUser?.role !== 'farmer') return;
     let active = true;
-    const attempt = (connected = true) => {
-      if (!connected) return;
-      synchronizeDiagnoses(sessionUser.id).then(() => { if (active) setHistoryRefresh((value) => value + 1); }).catch(() => undefined);
+    let connected = false;
+    const attempt = () => {
+      if (!connected || AppState.currentState !== 'active') return;
+      saveToAccount(sessionUser.id).then(() => { if (active) setHistoryRefresh((value) => value + 1); }).catch(() => undefined);
     };
-    const unsubscribe = NetInfo.addEventListener((state) => attempt(Boolean(state.isConnected && state.isInternetReachable !== false)));
-    NetInfo.fetch().then((state) => attempt(Boolean(state.isConnected && state.isInternetReachable !== false))).catch(() => undefined);
-    return () => { active = false; unsubscribe(); };
+    const onNetwork = (state: { isConnected: boolean | null; isInternetReachable: boolean | null }) => {
+      const wasConnected = connected;
+      connected = Boolean(state.isConnected && state.isInternetReachable !== false);
+      if (connected && !wasConnected) attempt();
+    };
+    const unsubscribe = NetInfo.addEventListener(onNetwork);
+    NetInfo.fetch().then(onNetwork).catch(() => undefined);
+    const foreground = AppState.addEventListener('change', (state) => { if (state === 'active') attempt(); });
+    const timer = setInterval(attempt, 60000);
+    return () => { active = false; unsubscribe(); foreground.remove(); clearInterval(timer); };
   }, [sessionUser?.id, sessionUser?.role]);
   const stored = () => {
     setHistoryRefresh((value) => value + 1);
-    if (sessionUser?.role === 'farmer') synchronizeDiagnoses(sessionUser.id).then(() => setHistoryRefresh((value) => value + 1)).catch(() => undefined);
+    if (sessionUser?.role === 'farmer') saveToAccount(sessionUser.id).then(() => setHistoryRefresh((value) => value + 1)).catch(() => undefined);
   };
 
   return (
@@ -176,47 +202,62 @@ export default function App() {
             <Image source={require('../../assets/dahonmd-logo-green.png')} style={styles.logo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
             <Text style={styles.appName}>DahonMD</Text>
           </View>
+          {serverUnavailable && <Pressable accessibilityRole="button" accessibilityLabel={t('connection.offlineTitle')} accessibilityState={{ expanded: showConnectionNotice }} onPress={() => setConnectionNoticeOpen(true)} style={styles.connectionIcon}>
+            <Ionicons name="cloud-offline-outline" size={22} color="#8b5d13" />
+          </Pressable>}
+          {showConnectionNotice && <Animated.View style={[styles.connectionNotice, { opacity: connectionNoticeOpacity }]}>
+            <View style={styles.connectionNoticeHeading}>
+              <Ionicons name="cloud-offline-outline" size={20} color="#8b5d13" />
+              <Text style={styles.connectionNoticeTitle}>{t('connection.offlineTitle')}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Dismiss connection notice" onPress={() => setConnectionNoticeOpen(false)} style={styles.connectionNoticeClose}>
+                <Ionicons name="close" size={20} color="#705a32" />
+              </Pressable>
+            </View>
+            <Text style={styles.connectionNoticeText}>{t('connection.offlineText')}</Text>
+            <View style={styles.connectionNoticeActions}>
+              <Pressable accessibilityRole="button" disabled={checkingConnection} onPress={retryConnection} style={styles.connectionNoticeAction}><Text style={styles.connectionNoticeActionText}>{checkingConnection ? '…' : t('connection.retry')}</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { setConnectionNoticeOpen(false); setConnectionOpen(true); }} style={styles.connectionNoticeAction}><Text style={styles.connectionNoticeActionText}>{t('connection.settings')}</Text></Pressable>
+            </View>
+          </Animated.View>}
         </View>
-        {serverUnavailable && !authMode && <View style={styles.connectionBanner}>
-          <Text style={styles.infoText}>Server unavailable. Offline scanning still works.</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><ActionButton variant="secondary" disabled={checkingConnection} onPress={retryConnection}>{checkingConnection ? 'Checking...' : 'Retry'}</ActionButton><ActionButton variant="secondary" onPress={() => setConnectionOpen(true)}>Update connection</ActionButton></View>
-        </View>}
         <ScrollView ref={pageScroll} style={styles.pageScroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
-          {tab === 'home' && <FarmerHome user={sessionUser ?? null} ownerUserId={sessionUser?.role === 'farmer' ? sessionUser.id : null} online={online} refreshKey={historyRefresh} onNavigate={navigate} onSynced={() => setHistoryRefresh((value) => value + 1)} />}
-          {tab === 'scan' && <ScanScreen onDirtyChange={onDirtyChange} onOpenHistory={openHistory} user={sessionUser ?? null} onStored={stored} modelStatus={modelStatus} />}
-          {tab === 'history' && <LocalHistory onDirtyChange={onDirtyChange} focusId={historyTarget} onSignIn={!sessionUser ? () => openAuth('login') : undefined} ownerUserId={sessionUser?.role === 'farmer' ? sessionUser.id : null} refreshKey={historyRefresh} onChanged={stored} />}
-          {tab === 'guide' && <GuideScreen />}
-          {sessionUser?.role === 'agricultural_expert' && (tab === 'requests' || tab === 'reviewed') && <ReviewerWorkspace key={tab} scope={tab === 'requests' ? 'pending' : 'reviewed'} />}
+          <FadeIn trigger={tab}>
+          {tab === 'home' && sessionUser?.role === 'farmer' && <FarmerHome user={sessionUser} ownerUserId={sessionUser.id} online={online} refreshKey={historyRefresh} onNavigate={navigate} />}
+          {tab === 'home' && sessionUser && (sessionUser.role === 'admin' || sessionUser.role === 'agricultural_expert') && <RoleHome user={sessionUser} role={sessionUser.role} onNavigate={navigate} />}
+          {tab === 'scan' && <ScanScreen onDirtyChange={onDirtyChange} onOpenHistory={openHistory} onOpenGuide={openGuide} user={sessionUser ?? null} onStored={stored} modelStatus={modelStatus} />}
+          {tab === 'history' && <LocalHistory onDirtyChange={onDirtyChange} focusId={historyTarget} onSignIn={!sessionUser ? () => openAuth('login') : undefined} ownerUserId={sessionUser?.role === 'farmer' ? sessionUser.id : null} refreshKey={historyRefresh} onChanged={stored} onOpenGuide={openGuide} onAskAssistant={sessionUser?.role === 'farmer' ? (diagnosisId, label) => setChatScan((current) => ({ key: (current?.key ?? 0) + 1, diagnosisId, label })) : undefined} />}
+          {tab === 'guide' && <GuideScreen key={guideTarget?.key ?? 0} initialClass={guideTarget?.classKey ?? null} />}
+          {sessionUser?.role === 'agricultural_expert' && tab === 'reviewed' && <ReviewerWorkspace scope="reviewed" />}
           {sessionUser?.role === 'agricultural_expert' && tab === 'content' && <ReviewerContentWorkspace />}
-          {sessionUser?.role === 'admin' && (tab === 'overview' || tab === 'accounts' || tab === 'diagnoses' || tab === 'knowledge') && <AdminWorkspace key={tab} section={tab} />}
-          {tab === 'account' && <ConnectedWorkspace onOpenHistory={() => openHistory()} user={sessionUser ?? null} restoring={sessionUser === undefined} onUser={(user) => { setSessionUser(user); if (!user) setTab('home'); }} onOpenAuth={openAuth} onDataChanged={() => setHistoryRefresh((value) => value + 1)} onInfo={(title, message) => { setTab('home'); setInfo({ title, message }); }} />}
+          {sessionUser?.role === 'admin' && (tab === 'accounts' || tab === 'diagnoses' || tab === 'knowledge') && <AdminWorkspace key={tab} section={tab} />}
+          {tab === 'account' && <ConnectedWorkspace onOpenHistory={() => openHistory()} user={sessionUser ?? null} restoring={sessionUser === undefined} onUser={(user) => { setSessionUser(user); if (!user) setTab('scan'); }} onOpenAuth={openAuth} onDataChanged={() => setHistoryRefresh((value) => value + 1)} onInfo={(title, message) => { setTab('scan'); setInfo({ title, message }); }} />}
+          </FadeIn>
         </ScrollView>
         <View accessibilityRole="tablist" style={styles.bottomNav}>
           {navItems.map((item) => {
             const active = tab === item.key;
+            const badge = badges[item.key] ?? 0;
             return (
-              <Pressable key={item.key} accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={() => navigate(item.key)} style={({ pressed }) => [styles.navButton, active && styles.navButtonActive, pressed && styles.navPressed]}>
-                <Ionicons name={active ? item.active : item.inactive} size={23} color={active ? colors.green : colors.muted} />
-                <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
+              <Pressable key={item.key} accessibilityRole="tab" accessibilityLabel={badge ? `${tabLabel(item.key, item.label)}, ${badge} new` : tabLabel(item.key, item.label)} accessibilityState={{ selected: active }} onPress={() => navigate(item.key)} style={({ pressed }) => [styles.navButton, active && styles.navButtonActive, pressed && styles.navPressed]}>
+                <View>
+                  <Ionicons name={active ? item.active : item.inactive} size={23} color={active ? colors.green : colors.muted} />
+                  {badge > 0 && <View style={styles.navBadge}><Text style={styles.navBadgeText}>{badge > 9 ? '9+' : badge}</Text></View>}
+                </View>
+                <Text style={[styles.navLabel, active && styles.navLabelActive]}>{tabLabel(item.key, item.label)}</Text>
               </Pressable>
             );
           })}
         </View>
-        {(!sessionUser || sessionUser.role === 'farmer') && <ChatAssistant resumeKey={chatResume} user={sessionUser} onSignIn={() => { setResumeChat(true); openAuth('login'); }} />}
+        {(!sessionUser || sessionUser.role === 'farmer') && <ChatAssistant resumeKey={chatResume} scanTopic={chatScan} user={sessionUser} onSignIn={() => { setResumeChat(true); openAuth('login'); }} />}
         <AuthModal mode={authMode} onClose={() => { setAuthMode(null); setResumeChat(false); }} onMode={setAuthMode} onConnection={() => setConnectionOpen(true)} onAuthenticated={authenticated} />
         <ModalCard visible={connectionOpen} title="Connection settings" onClose={() => setConnectionOpen(false)}>
           <ServerAddress onChanged={() => { void restoreSession().then(setSessionUser); setConnectionOpen(false); }} />
-        </ModalCard>
-        <ModalCard visible={guestCount > 0} title="Keep your existing scans?" onClose={() => { if (!claimBusy) void chooseGuestScans(false); }}>
-          <Text style={styles.infoText}>{guestCount} scans were saved while signed out. Add their results to this account for syncing, or keep them only on this phone. Photos are shared only for review or research consent.</Text>
-          {claimError ? <Text style={styles.infoText}>{claimError}</Text> : null}
-          <ActionButton disabled={claimBusy} onPress={() => chooseGuestScans(true)}>Add existing scans</ActionButton>
-          <ActionButton disabled={claimBusy} variant="secondary" onPress={() => chooseGuestScans(false)}>Keep on this phone</ActionButton>
         </ModalCard>
         <ModalCard visible={Boolean(info)} title={info?.title || 'Notice'} onClose={() => setInfo(null)}>
           <View style={styles.infoBody}><Ionicons name="information-circle-outline" size={30} color={palette.green} /><Text style={styles.infoText}>{info?.message}</Text><ActionButton onPress={() => setInfo(null)}>Close</ActionButton></View>
         </ModalCard>
       </View>
+      <LoadingScreen ready={sessionUser !== undefined} />
     </SafeAreaView>
   );
 }
@@ -226,7 +267,7 @@ const styles = StyleSheet.create({
   app: { flex: 1 },
   pageScroll: { flex: 1 },
   page: { alignSelf: 'center', width: '100%', maxWidth: 600, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 96, gap: 14 },
-  topHeader: { minHeight: 60, paddingTop: (Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 0) + 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.border },
+  topHeader: { minHeight: 60, paddingTop: (Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 0) + 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 10, elevation: 10 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   logo: { width: 34, height: 34 },
   appName: { color: '#173c2a', fontSize: 18, fontWeight: '800' },
@@ -234,9 +275,19 @@ const styles = StyleSheet.create({
   navButton: { flex: 1, minHeight: 52, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 2 },
   navButtonActive: { backgroundColor: colors.activeTab },
   navPressed: { opacity: 0.7 },
+  navBadge: { position: 'absolute', top: -5, right: -10, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: '#c2410c', alignItems: 'center', justifyContent: 'center' },
+  navBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   navLabel: { color: colors.muted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
   navLabelActive: { color: colors.green, fontWeight: '800' },
-  connectionBanner: { padding: 12, gap: 8, backgroundColor: '#fff6d9' },
+  connectionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: '#fff6e5' },
+  connectionNotice: { position: 'absolute', top: '100%', right: 12, width: '85%', maxWidth: 340, padding: 14, gap: 8, backgroundColor: '#fffaf0', borderColor: '#ead7ad', borderWidth: 1, borderRadius: 14, elevation: 12, shadowColor: '#30240e', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },
+  connectionNoticeHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  connectionNoticeTitle: { flex: 1, color: '#684b14', fontSize: 15, fontWeight: '800' },
+  connectionNoticeClose: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  connectionNoticeText: { color: '#624f2a', fontSize: 13, lineHeight: 18 },
+  connectionNoticeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  connectionNoticeAction: { paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#dbc795', borderRadius: 8, backgroundColor: '#fff' },
+  connectionNoticeActionText: { color: '#684b14', fontSize: 12, fontWeight: '700' },
   infoBody: { gap: 14 },
   infoText: { color: colors.ink, fontSize: 15, lineHeight: 23 },
 });

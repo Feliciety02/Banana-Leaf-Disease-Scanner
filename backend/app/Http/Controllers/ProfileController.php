@@ -25,6 +25,23 @@ class ProfileController extends Controller
         return response()->json(['success' => true, 'message' => 'Profile updated.', 'data' => ['user' => new UserResource($user)]]);
     }
 
+    public function avatar(Request $request): JsonResponse
+    {
+        $request->validate([
+            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:max_width=5000,max_height=5000'],
+        ]);
+        $user = $this->accounts->updateAvatar($request->user(), $request->file('avatar'));
+
+        return response()->json(['success' => true, 'message' => 'Profile photo updated.', 'data' => ['user' => new UserResource($user)]]);
+    }
+
+    public function removeAvatar(Request $request): JsonResponse
+    {
+        $user = $this->accounts->removeAvatar($request->user());
+
+        return response()->json(['success' => true, 'message' => 'Profile photo removed.', 'data' => ['user' => new UserResource($user)]]);
+    }
+
     public function password(UpdatePasswordRequest $request): JsonResponse
     {
         $this->accounts->updatePassword(

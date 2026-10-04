@@ -1,5 +1,6 @@
-import { api, resolveServerUrl } from './api';
+import { api, currentServerUrl, resolveServerUrl } from './api';
 import { predictionDetails } from './predictionDetails';
+import { uploadSyncedScanImage } from './diagnosisReview';
 import {
   applyRemoteDeletion,
   completeLocalDeletion,
@@ -11,7 +12,11 @@ import {
   markDiagnosesSyncing,
   markDiagnosisFailed,
   markDiagnosisSynced,
+  restoreRefusedDeletion,
+  saveRemoteImageUrl,
+  serverDiagnosisIdsMissingPhoto,
   setSyncCursor,
+  syncedDiagnosesWithLocalPhoto,
   type RemoteDiagnosis,
   upsertRemoteDiagnosis,
 } from '../storage/localDiagnoses';
@@ -48,6 +53,7 @@ export type SyncSummary = {
 };
 
 const activeSyncs = new Map<number, Promise<SyncSummary>>();
+const reconciledPhotos = new Set<string>();
 
 export function synchronizeDiagnoses(ownerUserId: number) {
   const current = activeSyncs.get(ownerUserId);
@@ -80,6 +86,7 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
             diagnosed_at: item.diagnosed_at,
             research_consent: Boolean(item.research_consent),
             source: 'mobile',
+            ...(item.latitude != null && item.longitude != null ? { latitude: item.latitude, longitude: item.longitude } : {}),
             ...predictionDetails(item),
           })),
           deletions: deletions.map((item) => ({ server_id: item.server_id, sync_uuid: item.sync_uuid })),
@@ -87,10 +94,20 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
       });
 
       const processed = new Set<string>();
+      const pendingByUuid = new Map(pending.map((item) => [item.sync_uuid, item]));
       for (const result of response.data.results) {
         if (!result.sync_uuid) continue;
         processed.add(result.sync_uuid);
         if (result.status === 'created' || result.status === 'already_synchronized') {
+          const record = pendingByUuid.get(result.sync_uuid);
+          try {
+            if (record) await uploadSyncedScanImage(record);
+          } catch (uploadError) {
+            // Retried on the next sync: the push returns already_synchronized and the upload runs again.
+            await markDiagnosisFailed(result.sync_uuid, `The scan photo could not be uploaded: ${messageOf(uploadError)}`);
+            rejected += 1;
+            continue;
+          }
           await markDiagnosisSynced(result.sync_uuid, result.diagnosis_id);
           pushed += 1;
         } else {
@@ -108,7 +125,8 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
           await completeLocalDeletion(result.server_id, result.sync_uuid);
           deleted += 1;
         } else if (item) {
-          await markDeletionFailed(item.local_id, firstError(result.errors));
+          // A rejection is the server's final answer; retrying cannot succeed.
+          await restoreRefusedDeletion(item.local_id, firstError(result.errors));
           rejected += 1;
         }
       }
@@ -134,7 +152,64 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
   }
 
   const pulled = await pullServerChanges(ownerUserId);
+  await reconcileMissingPhotos(ownerUserId);
   return { pushed, rejected, pulled, deleted };
+}
+
+/**
+ * Fills photo gaps in both directions: shows server photos this device lacks,
+ * and uploads device photos of scans that synced before every photo was sent.
+ */
+/**
+ * Uploads every photo on this device that the server does not have yet, even
+ * if this session already checked. Returns how many could not be sent, so
+ * signing out never silently deletes the only copy of a farmer's photo.
+ */
+export async function uploadUnsentPhotos(ownerUserId: number): Promise<number> {
+  reconciledPhotos.delete(`${currentServerUrl()}|${ownerUserId}`);
+  const unsentBefore = (await syncedDiagnosesWithLocalPhoto(ownerUserId)).length;
+  if (!unsentBefore) return 0;
+  const failed = await reconcileMissingPhotos(ownerUserId);
+  return failed === null ? unsentBefore : failed;
+}
+
+/** Returns the number of uploads that failed, or null when the server could not be checked. */
+async function reconcileMissingPhotos(ownerUserId: number): Promise<number | null> {
+  const key = `${currentServerUrl()}|${ownerUserId}`;
+  if (reconciledPhotos.has(key)) return 0;
+  const missing = new Set(await serverDiagnosisIdsMissingPhoto(ownerUserId));
+  const unsent = new Map((await syncedDiagnosesWithLocalPhoto(ownerUserId)).map((record) => [record.server_id as number, record]));
+  if (!missing.size && !unsent.size) { reconciledPhotos.add(key); return 0; }
+
+  try {
+    let uploadFailures = 0;
+    let page = 1;
+    let lastPage = 1;
+    do {
+      const response = await api<{ items: Array<{ id: number; image_url: string | null }>; pagination: { last_page: number } }>(`/diagnoses?per_page=100&page=${page}`);
+      for (const item of response.data.items) {
+        if (missing.has(item.id) && item.image_url) {
+          const url = resolveServerUrl(item.image_url);
+          if (url) { await saveRemoteImageUrl(ownerUserId, item.id, url); missing.delete(item.id); }
+        }
+        const record = unsent.get(item.id);
+        if (record) {
+          unsent.delete(item.id);
+          if (!item.image_url) {
+            try { await uploadSyncedScanImage(record); } catch { uploadFailures += 1; }
+          }
+        }
+      }
+      lastPage = response.data.pagination.last_page;
+      page += 1;
+    } while ((missing.size || unsent.size) && page <= lastPage);
+    // A failed upload is retried on the next synchronization.
+    if (!uploadFailures) reconciledPhotos.add(key);
+    return uploadFailures;
+  } catch {
+    // Image repair is best effort; normal scan synchronization already succeeded.
+    return null;
+  }
 }
 
 function deletionKey(serverId?: number | null, syncUuid?: string | null) {

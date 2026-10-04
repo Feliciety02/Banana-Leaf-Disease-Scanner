@@ -9,6 +9,7 @@ use App\Services\ExpertReviewService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class DiagnosisReviewController extends Controller
 {
@@ -21,9 +22,39 @@ class DiagnosisReviewController extends Controller
         )]);
     }
 
-    public function show(Diagnosis $diagnosis): JsonResponse
+    public function show(Request $request, Diagnosis $diagnosis): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => 'Diagnosis review case retrieved.', 'data' => new DiagnosisResource($this->reviews->details($diagnosis))]);
+        $history = $this->reviews->farmerHistory($diagnosis)->map(fn (Diagnosis $item) => [
+            'id' => $item->id,
+            'predicted_class' => $item->predicted_class,
+            'confidence' => $item->confidence,
+            'diagnosed_at' => $item->diagnosed_at,
+            'has_photo' => (bool) $item->image_path,
+            'review_status' => $item->review?->review_status,
+            'verified_label' => $item->review?->verified_label,
+        ])->values();
+
+        return response()->json(['success' => true, 'message' => 'Diagnosis review case retrieved.', 'data' => [
+            ...(new DiagnosisResource($this->reviews->details($diagnosis)))->resolve($request),
+            'farmer_history' => $history,
+        ]]);
+    }
+
+    public function claim(Request $request, Diagnosis $diagnosis): JsonResponse
+    {
+        $claim = $this->reviews->claim($request->user(), $diagnosis);
+
+        return response()->json(['success' => true, 'message' => 'You are reviewing this case.', 'data' => [
+            'user' => $claim->user?->only(['id', 'name']),
+            'expires_at' => $claim->expires_at->toIso8601String(),
+        ]]);
+    }
+
+    public function release(Request $request, Diagnosis $diagnosis): JsonResponse
+    {
+        $this->reviews->release($request->user(), $diagnosis);
+
+        return response()->json(['success' => true, 'message' => 'Case released.', 'data' => (object) []]);
     }
 
     public function update(Request $request, Diagnosis $diagnosis): JsonResponse
@@ -35,7 +66,14 @@ class DiagnosisReviewController extends Controller
             'next_steps' => ['required', 'array', 'min:1'],
             'next_steps.*' => ['required', 'distinct', Rule::in(['retake_photo', 'monitor_plant', 'isolate_affected_plant', 'seek_field_inspection', 'other'])],
             'notes' => ['nullable', 'string', 'max:5000'],
+            'farmer_message' => ['nullable', 'string', 'max:2000'],
         ]);
+
+        if (! $diagnosis->image_path && $data['review_status'] !== 'cannot_determine') {
+            throw ValidationException::withMessages([
+                'review_status' => 'A scan photo is required for a disease or other-condition assessment. Choose cannot determine when no photo is available.',
+            ]);
+        }
 
         $diagnosis = $this->reviews->save($request->user(), $diagnosis, $data);
 

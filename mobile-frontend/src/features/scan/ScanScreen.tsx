@@ -7,12 +7,15 @@ import { ActionButton, palette } from '../connected/ui';
 import { analyzeLeaf, analyzeBaselineLeaf, type InferenceResult } from '../classification/inference';
 import { prepareImageForInference } from '../classification/preprocessing';
 import { checkBananaLeafPhoto, LEAF_GATE_BLOCKING } from '../classification/leafGate';
-import { TreatmentGuide } from '../classification/TreatmentGuide';
+import { shortSteps } from '../../i18n/content';
+import { useT } from '../../i18n';
+import type { ClassKey } from '../classification/types';
 import { saveLocalDiagnosis, type ModelComparisonEntry } from '../../storage/localDiagnoses';
 import type { SessionUser } from '../../services/api';
 import type { PredictionResult } from '../../types/prediction';
 import type { ModelStatusState } from '../status/modelStatus';
 import { ImageViewer } from '../../components/ImageViewer';
+import { ViewableImage } from '../../components/ViewableImage';
 import { SelectedImagePreview } from './SelectedImagePreview';
 import { ImageSelector } from './ImageSelector';
 import { CameraCapture } from './CameraCapture';
@@ -41,7 +44,8 @@ function toComparisonEntry(result: InferenceResult): ModelComparisonEntry {
   };
 }
 
-export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirtyChange }: { onDirtyChange: (dirty: boolean) => void; onOpenHistory: (id?: string) => void; user: SessionUser | null; onStored: () => void; modelStatus: ModelStatusState }) {
+export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenGuide, onDirtyChange }: { onDirtyChange: (dirty: boolean) => void; onOpenHistory: (id?: string) => void; onOpenGuide: (classKey: ClassKey) => void; user: SessionUser | null; onStored: () => void; modelStatus: ModelStatusState }) {
+  const { t, language } = useT();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [photoIssues, setPhotoIssues] = useState<ImageQualityIssue[] | null>(null);
   const [result, setResult] = useState<InferenceResult | null>(null);
@@ -50,7 +54,6 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirty
   const [modelError, setModelError] = useState('');
   const [cameraOpen, setCameraOpen] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
-  const [showCare, setShowCare] = useState(false);
   const savedIdRef = useRef<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -80,7 +83,6 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirty
     setPhase('scan');
     setSaveError('');
     setModelError('');
-    setShowCare(false);
     savedIdRef.current = null; setSavedId(null); setSaving(false); saveInput.current = null;
   };
 
@@ -138,7 +140,7 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirty
       if (!isCurrent()) return;
       // Technical details go to the log; farmers get a plain message.
       console.warn('[scan] analysis failed', error);
-      setModelError('This photo could not be checked. Please try again or choose another photo.');
+      setModelError(t('scan.error'));
       setPhase('ready');
       return;
     }
@@ -181,51 +183,58 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirty
   const enhanced: PredictionResult | null = resultPrediction ? toPredictionResult(resultPrediction) : null;
 
   if (phase === 'result' && result && enhanced) {
+    const retake = result.confidence < 0.7 || (photoIssues?.length ?? 0) > 0;
+    const healthy = result.classKey === 'healthy';
+    const steps = shortSteps(result.classKey, language);
+    const farmer = user?.role === 'farmer';
     return (
       <View style={styles.screen}>
-        <Text style={styles.heading}>Result</Text>
-
-        <ScanResult result={enhanced} />
-        <Text style={styles.nextText}>{saving ? 'Saving scan on this phone...' : savedId ? 'Saved on this phone. Open the scan to follow its sync and review progress.' : 'This result has not been saved yet.'}</Text>
-        {savedId && <ActionButton icon="time-outline" onPress={() => onOpenHistory(savedId)}>View saved scan / appeal result</ActionButton>}
-        {saveError && <ActionButton disabled={saving} onPress={retrySave}>Retry saving scan</ActionButton>}
-
-        <View style={styles.nextCard}>
-          <Ionicons name={result.confidence < 0.7 || (photoIssues?.length ?? 0) > 0 ? 'camera-outline' : 'leaf-outline'} size={22} color={palette.green} />
-          <View style={styles.nextCopy}>
-            <Text style={styles.nextTitle}>What to do next</Text>
-            <Text style={styles.nextText}>{result.confidence < 0.7 || (photoIssues?.length ?? 0) > 0 ? 'Take another clear photo in even light. Keep the whole leaf and affected area in focus.' : result.classKey === 'healthy' ? 'Keep monitoring this plant. Scan again if the leaf changes.' : 'Compare the visible signs and read the care guidance below. Ask a local expert if symptoms spread.'}</Text>
-          </View>
-        </View>
-
-        <Pressable accessibilityRole="button" disabled={saving || Boolean(saveError)} onPress={() => { reset(); setCameraOpen(true); }} style={styles.againButton}>
-          <Ionicons name="camera-outline" size={18} color={palette.green} />
-          <Text style={styles.againText}>{result.confidence < 0.7 || (photoIssues?.length ?? 0) > 0 ? 'Retake photo' : 'Scan another leaf'}</Text>
-        </Pressable>
-
-        {photoIssues?.length ? <ImageQualityNotice issues={photoIssues} /> : null}
-
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: showCare }} onPress={() => setShowCare((value) => !value)} style={styles.careToggle}>
-          <Ionicons name="book-outline" size={19} color={palette.green} />
-          <Text style={styles.careToggleText}>{showCare ? 'Hide care guidance' : 'Read care guidance'}</Text>
-          <Ionicons name={showCare ? 'chevron-up' : 'chevron-down'} size={19} color={palette.green} />
-        </Pressable>
-        {showCare && <TreatmentGuide classKey={result.classKey} />}
-
         {imageUri && (
           <Pressable accessibilityRole="button" accessibilityLabel="View full size image" onPress={() => setViewerVisible(true)}>
-            <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" />
+            <Image source={{ uri: imageUri }} style={styles.resultPhoto} resizeMode="cover" />
           </Pressable>
         )}
 
-        {saveError && (
-          <View style={styles.errorCard}>
-            <Ionicons name="alert-circle" size={18} color="#8e3028" />
-            <Text style={styles.errorText}>{saveError}</Text>
+        <ScanResult result={enhanced} />
+
+        {/* One clear next step: retake when unsure, otherwise what to do for this result. */}
+        <View style={styles.nextCard}>
+          <Ionicons name={retake ? 'camera-outline' : healthy ? 'checkmark-circle-outline' : 'medkit-outline'} size={22} color={palette.green} />
+          <View style={styles.nextCopy}>
+            <Text style={styles.nextTitle}>{retake ? t('result.clearerTitle') : t('result.next')}</Text>
+            {retake
+              ? <Text style={styles.nextText}>{t('result.clearerText')}</Text>
+              : steps.map((step, index) => <Text key={step} style={styles.nextText}>{index + 1}. {step}</Text>)}
+            {!retake && <Pressable accessibilityRole="button" onPress={() => onOpenGuide(result.classKey)} style={styles.guideLink}>
+              <Text style={styles.guideLinkText}>{healthy ? t('result.keepHealthy') : t('result.fullTreatment')}</Text>
+              <Ionicons name="arrow-forward" size={15} color={palette.green} />
+            </Pressable>}
+          </View>
+        </View>
+        {retake && photoIssues?.length ? <ImageQualityNotice issues={photoIssues} /> : null}
+
+        <View style={styles.actions}>
+          <ActionButton icon="camera-outline" variant={retake ? 'primary' : 'secondary'} disabled={saving} onPress={() => { reset(); setCameraOpen(true); }}>{retake ? t('result.retake') : t('result.another')}</ActionButton>
+          {farmer && savedId && !healthy && <ActionButton icon="person-outline" variant={retake ? 'secondary' : 'primary'} onPress={() => onOpenHistory(savedId)}>{t('result.askExpert')}</ActionButton>}
+        </View>
+
+        {saveError ? (
+          <View style={styles.actions}>
+            <View style={styles.errorCard}>
+              <Ionicons name="alert-circle" size={18} color="#8e3028" />
+              <Text style={styles.errorText}>{saveError}</Text>
+            </View>
+            <ActionButton variant="secondary" disabled={saving} onPress={retrySave}>{t('result.retrySave')}</ActionButton>
+          </View>
+        ) : (
+          <View style={styles.savedRow}>
+            {saving ? <ActivityIndicator size="small" color={palette.muted} /> : <Ionicons name="checkmark-circle" size={16} color={palette.success} />}
+            <Text style={styles.savedText}>{saving ? t('result.saving') : farmer ? t('result.savedHistory') : t('result.savedPhone')}</Text>
+            {savedId && !saving ? <Pressable accessibilityRole="button" onPress={() => onOpenHistory(savedId)}><Text style={styles.savedLink}>{t('result.open')}</Text></Pressable> : null}
           </View>
         )}
 
-        <Text style={styles.footer}>For research use only</Text>
+        <Text style={styles.footer}>{t('result.research')}</Text>
 
         <ImageViewer uri={imageUri} visible={viewerVisible} onClose={() => setViewerVisible(false)} />
       </View>
@@ -235,19 +244,19 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirty
   if (phase === 'rejected' && imageUri) {
     return (
       <View style={styles.screen}>
-        <Text style={styles.heading}>Not a real leaf photo</Text>
-        <Image source={{ uri: imageUri }} style={styles.photo} resizeMode="cover" accessibilityLabel="Photo that was not accepted" />
+        <Text style={styles.heading}>{t('rejected.heading')}</Text>
+        <ViewableImage source={{ uri: imageUri }} title="Photo that was not accepted" style={styles.photo} />
         <View style={styles.rejectCard}>
           <Ionicons name="close-circle" size={22} color="#8e3028" />
           <View style={styles.rejectCopy}>
-            <Text style={styles.rejectTitle}>This doesn't look like a real photo of a leaf</Text>
-            <Text style={styles.rejectText}>DahonMD only checks real photos of banana leaves. Paintings, drawings, cartoons and photos of other objects can't be diagnosed.</Text>
+            <Text style={styles.rejectTitle}>{t('rejected.title')}</Text>
+            <Text style={styles.rejectText}>{t('rejected.text')}</Text>
           </View>
         </View>
-        <Text style={styles.tipText}>Take a clear photo of one banana leaf in good light, with the leaf filling most of the picture.</Text>
+        <Text style={styles.tipText}>{t('rejected.tip')}</Text>
         <Pressable accessibilityRole="button" onPress={reset} style={({ pressed }) => [styles.checkButton, pressed && styles.dim]}>
           <Ionicons name="camera-outline" size={20} color="#fff" />
-          <Text style={styles.checkText}>Take another photo</Text>
+          <Text style={styles.checkText}>{t('rejected.again')}</Text>
         </Pressable>
       </View>
     );
@@ -255,8 +264,8 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirty
 
   return (
     <View style={styles.screen}>
-      <Text style={styles.heading}>Scan a leaf</Text>
-      <Text style={styles.subtitle}>Take or choose a clear banana leaf photo.</Text>
+      <Text style={styles.heading}>{t('scan.heading')}</Text>
+      <Text style={styles.subtitle}>{t('scan.subtitle')}</Text>
 
       <SelectedImagePreview uri={imageUri} />
 
@@ -265,41 +274,26 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onDirty
           <ImageSelector onSelectCamera={() => setCameraOpen(true)} onSelectGallery={chooseImage} />
           <View style={styles.tipRow}>
             <Ionicons name="bulb-outline" size={17} color={palette.muted} />
-            <Text style={styles.tipText}>Keep the whole leaf visible and avoid shadows.</Text>
+            <Text style={styles.tipText}>{t('scan.tip')}</Text>
           </View>
         </>
       ) : (
         <>
-          <View style={styles.previewActions}>
-            <Pressable accessibilityRole="button" onPress={reset} disabled={phase === 'checking'} style={styles.retakeButton}>
-              <Ionicons name="camera-outline" size={18} color={palette.green} />
-              <Text style={styles.retakeText}>Retake</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={chooseImage} disabled={phase === 'checking'} style={styles.retakeButton}>
-              <Ionicons name="images-outline" size={18} color={palette.green} />
-              <Text style={styles.retakeText}>Choose another</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.previewHint}>Check that the leaf fills the photo and the affected area is sharp.</Text>
           {modelUnavailable ? (
             <View style={styles.errorCard}>
               <Ionicons name="alert-circle" size={18} color="#8e3028" />
-              <Text style={styles.errorText}>The leaf checker could not start on this phone. Close and reopen DahonMD, then try again.</Text>
+              <Text style={styles.errorText}>{t('scan.unavailable')}</Text>
             </View>
-          ) : !modelReady ? (
-            <View style={styles.readyRow}><ActivityIndicator color={palette.green} /><Text style={styles.readyText}>Getting ready…</Text></View>
           ) : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Check leaf" disabled={phase === 'checking'} onPress={checkLeaf} style={[styles.checkButton, phase === 'checking' && styles.dim]}>
-              <Ionicons name="scan-outline" size={20} color="#fff" />
-              <Text style={styles.checkText}>{phase === 'checking' ? 'Checking…' : 'Use photo and check leaf'}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={t('scan.check')} disabled={phase === 'checking' || !modelReady} onPress={checkLeaf} style={[styles.checkButton, (phase === 'checking' || !modelReady) && styles.dim]}>
+              {phase === 'checking' || !modelReady ? <ActivityIndicator color="#fff" /> : <Ionicons name="scan-outline" size={22} color="#fff" />}
+              <Text style={styles.checkText}>{phase === 'checking' ? t('scan.checking') : !modelReady ? t('scan.preparing') : t('scan.check')}</Text>
             </Pressable>
           )}
-          {phase === 'checking' && (
-            <View style={styles.statusCard}>
-              <ActivityIndicator color={palette.green} />
-              <Text style={styles.statusText}>Checking the leaf…</Text>
-            </View>
-          )}
+          <Pressable accessibilityRole="button" onPress={reset} disabled={phase === 'checking'} style={styles.changeLink}>
+            <Ionicons name="refresh" size={16} color={palette.green} />
+            <Text style={styles.changeText}>{t('scan.changePhoto')}</Text>
+          </Pressable>
         </>
       )}
 
@@ -321,13 +315,18 @@ const styles = StyleSheet.create({
   subtitle: { color: palette.muted, fontSize: 14, lineHeight: 20, marginTop: -10 },
   tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4 },
   tipText: { flex: 1, color: '#737d77', fontSize: 12, lineHeight: 18 },
-  readyRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 4 },
-  readyText: { color: palette.green, fontSize: 15, fontWeight: '700' },
-  checkButton: { minHeight: 52, borderRadius: 12, backgroundColor: palette.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  checkText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  checkButton: { minHeight: 60, borderRadius: 14, backgroundColor: palette.green, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+  checkText: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  changeLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  changeText: { color: palette.green, fontSize: 15, fontWeight: '700' },
+  resultPhoto: { width: '100%', height: 190, borderRadius: 16, backgroundColor: '#edf1ee' },
+  guideLink: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, marginTop: 2 },
+  guideLinkText: { color: palette.green, fontSize: 15, fontWeight: '800' },
+  actions: { gap: 10 },
+  savedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  savedText: { color: palette.muted, fontSize: 13, fontWeight: '600' },
+  savedLink: { color: palette.green, fontSize: 13, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 8 },
   dim: { opacity: 0.65 },
-  statusCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 52, borderRadius: 10, backgroundColor: '#eef5f1' },
-  statusText: { color: palette.green, fontSize: 14, fontWeight: '700' },
   errorCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: 10, backgroundColor: '#fff0ee', padding: 12 },
   rejectCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, backgroundColor: '#fff0ee', borderWidth: 1, borderColor: '#efc2bd', padding: 14 },
   rejectCopy: { flex: 1, gap: 4 },
@@ -339,13 +338,5 @@ const styles = StyleSheet.create({
   nextCopy: { flex: 1, gap: 5 },
   nextTitle: { color: palette.ink, fontSize: 17, fontWeight: '800' },
   nextText: { color: '#405e4a', fontSize: 14, lineHeight: 21 },
-  careToggle: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff' },
-  careToggleText: { flex: 1, color: palette.green, fontSize: 15, fontWeight: '800' },
-  previewActions: { flexDirection: 'row', gap: 9 },
-  retakeButton: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 12, borderWidth: 1, borderColor: '#b9cbc1', backgroundColor: '#fff' },
-  retakeText: { color: palette.green, fontSize: 14, fontWeight: '800' },
-  previewHint: { color: palette.muted, fontSize: 14, lineHeight: 20 },
-  againButton: { minHeight: 50, borderRadius: 11, borderWidth: 1, borderColor: '#aac1b4', backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  againText: { color: '#245f43', fontSize: 15, fontWeight: '700' },
   footer: { color: '#89918c', fontSize: 11, textAlign: 'center', fontWeight: '600', marginTop: 4 },
 });

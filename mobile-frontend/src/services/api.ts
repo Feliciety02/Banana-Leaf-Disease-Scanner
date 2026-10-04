@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { FileSystemSessionType, FileSystemUploadType, uploadAsync } from 'expo-file-system/legacy';
 
 export type SessionUser = {
   id: number;
@@ -6,6 +7,7 @@ export type SessionUser = {
   email: string;
   role: 'admin' | 'farmer' | 'agricultural_expert' | string;
   email_verified_at?: string | null;
+  avatar_url?: string | null;
 };
 
 type ApiEnvelope<T> = {
@@ -26,6 +28,7 @@ const SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
 };
 const API_TIMEOUT_MS = 15_000;
 const SERVER_URL_KEY = 'dahonmd-server-url';
+const USB_TEST_API_URL = 'http://127.0.0.1:4174/api';
 const buildUrl = normalizeServerUrl(process.env.EXPO_PUBLIC_API_URL);
 const configuredPrivacyUrl = publicWebUrl(process.env.EXPO_PUBLIC_PRIVACY_URL);
 const configuredAccountDeletionUrl = publicWebUrl(process.env.EXPO_PUBLIC_ACCOUNT_DELETION_URL);
@@ -87,7 +90,7 @@ function apiUrl(path: string) {
   if (!configuredUrl) {
     throw new ApiError('Online features are not available in this version of the app.');
   }
-  if (!isDevelopmentBuild() && !configuredUrl.startsWith('https://')) {
+  if (!isDevelopmentBuild() && !configuredUrl.startsWith('https://') && !isUsbTestApiUrl(configuredUrl)) {
     throw new ApiError('Connected features require an HTTPS API URL in production builds.');
   }
   return `${configuredUrl}${path.startsWith('/') ? path : `/${path}`}`;
@@ -95,6 +98,10 @@ function apiUrl(path: string) {
 
 function isDevelopmentBuild() {
   return typeof __DEV__ !== 'undefined' && __DEV__;
+}
+
+function isUsbTestApiUrl(value: string) {
+  return process.env.EXPO_PUBLIC_TEST_USB_BRIDGE === 'true' && value === USB_TEST_API_URL;
 }
 
 /**
@@ -106,7 +113,9 @@ export function normalizeServerUrl(value?: string | null): string | null {
   const match = value?.trim().match(/^(https?):\/\/([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?)(\/[^?#\s]*)?$/i);
   if (!match) return null;
   const [, scheme, host, rawPath = ''] = match;
-  if (scheme.toLowerCase() !== 'https' && !(isDevelopmentBuild() && scheme.toLowerCase() === 'http')) return null;
+  if (scheme.toLowerCase() !== 'https' && !(isDevelopmentBuild() && scheme.toLowerCase() === 'http') &&
+      !(process.env.EXPO_PUBLIC_TEST_USB_BRIDGE === 'true' && scheme.toLowerCase() === 'http' &&
+        host === '127.0.0.1:4174' && (!rawPath || rawPath === '/' || rawPath === '/api'))) return null;
   const path = rawPath.replace(/\/+$/, '');
   return `${scheme.toLowerCase()}://${host.toLowerCase()}${path.endsWith('/api') ? path : `${path}/api`}`;
 }
@@ -242,6 +251,50 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<Ap
   return payload;
 }
 
+/**
+ * Uploads a local file as multipart form data from native code. React Native's
+ * fetch with a file part fails on some Android devices before the request is
+ * sent, so photos go through Expo's native uploader instead.
+ */
+export async function uploadFile<T>(path: string, fileUri: string, options: { fieldName: string; mimeType: string; parameters?: Record<string, string> }): Promise<ApiEnvelope<T>> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
+  let result: Awaited<ReturnType<typeof uploadAsync>>;
+  try {
+    result = await uploadAsync(apiUrl(path), fileUri, {
+      httpMethod: 'POST',
+      headers,
+      sessionType: FileSystemSessionType.FOREGROUND,
+      uploadType: FileSystemUploadType.MULTIPART,
+      fieldName: options.fieldName,
+      mimeType: options.mimeType,
+      parameters: options.parameters,
+    });
+  } catch (error) {
+    reportConnection(true);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError('The photo could not be sent. Check your internet connection and try again.');
+  }
+
+  let payload: ApiEnvelope<T> | null = null;
+  try { payload = JSON.parse(result.body) as ApiEnvelope<T>; } catch { payload = null; }
+  reportConnection(result.status >= 500 || !payload);
+  if (result.status < 200 || result.status >= 300) {
+    const error = new ApiError(
+      Object.values(payload?.errors || {}).flat()[0] || payload?.message || (result.status === 413 ? 'The photo is too large to send.' : 'The photo could not be sent.'),
+      result.status,
+      payload?.errors,
+    );
+    if (error.unauthorized && sessionToken) {
+      await clearSession();
+      onSessionExpired?.();
+    }
+    throw error;
+  }
+  if (!payload) throw new ApiError('The server returned an unreadable response.', result.status);
+  return payload;
+}
+
 export async function restoreSession(): Promise<SessionUser | null> {
   await loadServerUrl();
   const [token, rawUser, sessionServer] = await Promise.all([
@@ -321,6 +374,41 @@ export async function logout() {
   }
 }
 
+/** Updates name and email. Changing the email needs the current password and resets verification. */
+export async function uploadAvatar(fileUri: string, mimeType: string): Promise<SessionUser> {
+  const payload = await uploadFile<{ user: SessionUser }>('/profile/avatar', fileUri, { fieldName: 'avatar', mimeType });
+  await writeSecureItem(USER_KEY, JSON.stringify(payload.data.user));
+  return payload.data.user;
+}
+
+export async function removeAvatar(): Promise<SessionUser> {
+  const payload = await api<{ user: SessionUser }>('/profile/avatar', { method: 'DELETE' });
+  await writeSecureItem(USER_KEY, JSON.stringify(payload.data.user));
+  return payload.data.user;
+}
+
+export async function updateProfile(fields: { name: string; email: string; currentPassword?: string }): Promise<SessionUser> {
+  const payload = await api<{ user: SessionUser }>('/profile', {
+    method: 'PUT',
+    body: JSON.stringify({
+      name: fields.name.trim(),
+      email: fields.email.trim().toLowerCase(),
+      ...(fields.currentPassword ? { current_password: fields.currentPassword } : {}),
+    }),
+  });
+  await writeSecureItem(USER_KEY, JSON.stringify(payload.data.user));
+  return payload.data.user;
+}
+
+/** Changes the password; the server keeps this device signed in and ends other sessions. */
+export async function updatePassword(currentPassword: string, password: string, passwordConfirmation: string) {
+  const payload = await api<Record<string, never>>('/profile/password', {
+    method: 'PUT',
+    body: JSON.stringify({ current_password: currentPassword, password, password_confirmation: passwordConfirmation }),
+  });
+  return payload.message;
+}
+
 export async function deleteAccount(currentPassword: string) {
   await api('/profile', { method: 'DELETE', body: JSON.stringify({ current_password: currentPassword }) });
   await clearSession();
@@ -367,7 +455,7 @@ function isSessionUser(value: unknown): value is SessionUser {
 }
 
 export function hasConnectedConfiguration() {
-  return Boolean(configuredUrl && (configuredUrl.startsWith('https://') || isDevelopmentBuild()));
+  return Boolean(configuredUrl && (configuredUrl.startsWith('https://') || isDevelopmentBuild() || isUsbTestApiUrl(configuredUrl)));
 }
 
 function serverPageUrl(path: string) {
@@ -390,11 +478,26 @@ export function resolveServerUrl(value?: string | null) {
     const apiOrigin = new URL(configuredUrl).origin;
     const url = new URL(value, apiOrigin);
     if (url.origin !== apiOrigin) return null;
-    if (url.protocol !== 'https:' && !(isDevelopmentBuild() && url.protocol === 'http:')) return null;
+    if (url.protocol !== 'https:' && !(isDevelopmentBuild() && url.protocol === 'http:') && !isUsbTestApiUrl(configuredUrl)) return null;
     return url.toString();
   } catch {
     return null;
   }
+}
+
+/**
+ * Downloads a private image (such as a profile photo) with the session token.
+ * Rejects with the HTTP status when the server does not return an image.
+ */
+export async function fetchPrivateImage(value: string): Promise<Uint8Array> {
+  const uri = resolveServerUrl(value);
+  if (!uri || !/^https?:\/\//i.test(uri)) throw new ApiError('This photo address is not allowed.');
+  const response = await fetch(uri, { headers: { Accept: 'image/*', ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}) } });
+  const type = response.headers.get('content-type') ?? '';
+  if (!response.ok || !type.startsWith('image/')) {
+    throw new ApiError(`The photo could not be loaded (HTTP ${response.status}).`, response.status);
+  }
+  return new Uint8Array(await response.arrayBuffer());
 }
 
 export function authenticatedImageSource(value?: string | null) {

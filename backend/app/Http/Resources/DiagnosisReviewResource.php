@@ -16,9 +16,13 @@ class DiagnosisReviewResource extends JsonResource
             'image_quality' => $this->image_quality,
             'next_steps' => $this->next_steps ?? [],
             'notes' => $this->when($request->user()?->isAdmin() || $request->user()?->isAgriculturalExpert(), $this->notes),
+            // Written by the reviewer for the farmer, so every viewer of the scan sees it.
+            'farmer_message' => $this->farmer_message,
+            'farmer_reply' => $this->farmer_reply,
             'requires_field_inspection' => $this->requires_field_inspection,
             'requested_at' => $this->requested_at,
             'reviewed_at' => $this->reviewed_at,
+            'farmer_seen_at' => $this->farmer_seen_at,
             'reviewer' => $this->whenLoaded('expert', fn () => $this->expert?->only(['id', 'name'])),
             'farmer_follow_up' => $this->farmerFollowUp(),
             'revisions' => $this->when(
@@ -29,6 +33,8 @@ class DiagnosisReviewResource extends JsonResource
                     'image_quality' => $revision->image_quality,
                     'next_steps' => $revision->next_steps ?? [],
                     'notes' => $revision->notes,
+                    'farmer_message' => $revision->farmer_message,
+                    'farmer_reply' => $revision->farmer_reply,
                     'reviewed_at' => $revision->reviewed_at,
                     'reviewer' => $revision->expert?->only(['id', 'name']),
                 ])->values(),

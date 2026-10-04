@@ -54,6 +54,13 @@
         }
       ],
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow DahonMD to add your farm location to a scan when you choose to.",
+          "isAndroidBackgroundLocationEnabled": false
+        }
+      ],
+      [
         "expo-secure-store",
         {
           "configureAndroidBackup": true

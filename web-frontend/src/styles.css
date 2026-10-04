@@ -666,6 +666,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .expert-case-row > div { min-width: 0; display: grid; gap: 4px; }.expert-case-row small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.expert-case-row > b { font-size: 12px; }.expert-case-row > em { padding: 5px 7px; color: #76551f; background: var(--amber-soft); border-radius: 20px; font-size: 9px; font-style: normal; font-weight: 800; text-align: center; }
 .expert-review-layout { display: grid; grid-template-columns: minmax(340px,.8fr) minmax(430px,1.2fr); gap: 20px; align-items: start; }.expert-review-card { padding: 22px; position: sticky; top: 82px; }.expert-leaf-image, .expert-gradcam { width: 100%; max-height: 390px; margin: 14px 0; object-fit: contain; background: #14211d; border-radius: 9px; }.expert-leaf-placeholder { height: 260px; margin: 14px 0; display: grid; place-items: center; color: var(--green); background: var(--green-soft); border-radius: 9px; }.expert-review-card dl { margin: 0 0 18px; }.expert-review-card dl div { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 15px; border-bottom: 1px solid var(--line); }.expert-review-card dt { color: var(--muted); font-size: 10px; }.expert-review-card dd { margin: 0; font-size: 11px; font-weight: 800; text-align: right; }
 .expert-review-form { display: grid; gap: 15px; }.expert-review-form fieldset { padding: 14px; display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 8px; }.expert-review-form legend { padding: 0 6px; font-size: 11px; font-weight: 800; }.expert-review-form fieldset label { display: flex; align-items: center; gap: 9px; font-size: 11px; }.expert-review-form > label, .expert-content-review > label { display: grid; gap: 7px; color: #53615c; font-size: 10px; font-weight: 800; }.expert-review-form select, .expert-review-form textarea, .expert-content-review textarea { width: 100%; min-height: 43px; padding: 10px; border: 1px solid #cbd6d0; border-radius: 7px; }.expert-review-form textarea, .expert-content-review textarea { min-height: 110px; resize: vertical; }
+.expert-photo-open { width: 100%; padding: 0; border: 0; background: none; color: var(--green); cursor: zoom-in; text-align: right; font-weight: 700; }
+.expert-photo-open .expert-leaf-image { margin-bottom: 3px; }
+.expert-photo-zoom { display: block; max-width: 100%; max-height: 75vh; margin: auto; object-fit: contain; }
+.expert-photo-missing { min-height: 190px; margin: 14px 0; display: grid; place-content: center; justify-items: center; gap: 7px; padding: 20px; background: var(--green-soft); border-radius: 10px; text-align: center; }
+.expert-photo-missing p { margin: 0; color: var(--muted); }
+.expert-reference-section { margin: 18px 0; }.expert-reference-section h3 { margin: 0 0 4px; }.expert-reference-section > p { margin: 0 0 10px; color: var(--muted); }
+.expert-reference-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.expert-reference-grid button { min-width: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); cursor: zoom-in; text-align: left; }
+.expert-reference-grid img { width: 100%; height: 72px; object-fit: cover; display: block; }.expert-reference-grid span { display: block; padding: 6px; font-size: 11px; font-weight: 700; }
+.expert-review-form fieldset label.selected { color: var(--green); font-weight: 800; }
+@media (max-width: 560px) { .expert-reference-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.user-avatar-img { width: 100%; height: 100%; display: block; object-fit: cover; border-radius: inherit; }
+.sidebar-account > span, .farmer-header-avatar { overflow: hidden; }
+.account-avatar { width: 30px; height: 30px; flex: none; display: inline-grid; place-items: center; overflow: hidden; color: var(--green); background: var(--green-soft); border-radius: 50%; font-size: 11px; font-style: normal; font-weight: 800; }
+.account-name-cell { display: grid !important; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; }.account-name-cell .account-avatar { grid-row: span 2; }
+.account-name-inline { display: inline-flex; align-items: center; gap: 8px; }.account-name-inline .account-avatar { width: 24px; height: 24px; font-size: 9px; }
+.profile-photo-panel { padding: 20px; display: flex; align-items: center; gap: 18px; }.profile-photo-panel h2 { margin: 0 0 4px; }.profile-photo-panel p { margin: 0 0 12px; color: var(--muted); }
+.profile-photo { width: 84px; height: 84px; flex: none; display: grid; place-items: center; overflow: hidden; color: var(--green); background: var(--green-soft); border-radius: 50%; font-size: 26px; font-weight: 800; }
+.profile-photo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }.profile-photo-actions label { cursor: pointer; }.profile-photo-actions label.disabled { opacity: .6; pointer-events: none; }
+@media (max-width: 560px) { .profile-photo-panel { flex-direction: column; text-align: center; }.profile-photo-actions { justify-content: center; } }
+.farmer-review-progress { margin: 10px 0 6px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; list-style: none; }
+.farmer-review-progress li { padding: 6px 4px; display: flex; align-items: center; justify-content: center; gap: 4px; color: var(--muted); background: #fff; border-radius: 20px; font-size: 11px; font-weight: 700; text-align: center; }
+.farmer-review-progress li.done { color: var(--green); }.farmer-review-progress li.current { color: #fff; background: var(--green); }
+.farmer-review-steps { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 5px; font-size: 12px; line-height: 1.5; }
 .review-notice, .review-result { margin: 17px 0; padding: 14px; color: #2b5749; background: var(--green-soft); border-radius: 8px; }.review-notice { display: flex; gap: 10px; }.review-notice p, .review-result p { margin: 5px 0 0; font-size: 11px; line-height: 1.55; }.review-result h3 { margin: 7px 0; }
 .expert-content-review { padding: 24px; }.expert-content-review > header { display: flex; justify-content: space-between; gap: 20px; }.expert-content-grid { margin: 18px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }.expert-content-grid article { padding: 18px; background: #f6f9f7; border-radius: 8px; }.expert-content-grid p { color: var(--muted); font-size: 11px; line-height: 1.6; }.expert-content-review footer { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; }
 
@@ -3550,6 +3574,13 @@ body { background: var(--page); }
   border-radius: 12px;
 }
 .crud-dialog:not(.auth) .crud-dialog-body { padding: 24px; }
+/* Pop-up dialogs are wider and grow to the screen height before their body
+   scrolls, so ordinary forms fit without an inner scrollbar. */
+.crud-overlay.modal { padding: 16px; }
+.crud-dialog.modal { width: min(820px, 100%); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); }
+.crud-dialog.modal.small { width: min(540px, 100%); }
+.crud-dialog.modal.large { width: min(1120px, 100%); }
+.crud-dialog.modal .crud-dialog-body { overflow-y: auto; scrollbar-gutter: auto; }
 .crud-dialog:not(.auth) .modal-form input,
 .crud-dialog:not(.auth) .modal-form select,
 .crud-dialog:not(.auth) .modal-form textarea { border-radius: 12px; background: #fff; }
@@ -3703,3 +3734,33 @@ body { background: var(--page); }
 .auth-test-profiles button:hover { background: #e3eee6; }
 .auth-test-profiles button:focus-visible { outline: 2px solid #236b4b; outline-offset: 3px; }
 .auth-test-profiles button:disabled { opacity: .5; cursor: wait; }
+
+/* Unread counts on navigation: new expert reviews (farmer) and waiting requests (reviewer). */
+.nav-icon { position: relative; display: inline-flex; }
+.nav-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #c2410c; color: #fff; font-size: 10px; font-weight: 800; line-height: 18px; text-align: center; }
+.nav-icon .nav-badge { position: absolute; top: -6px; right: -11px; }
+.role-sidebar nav button .nav-badge { margin-left: auto; }
+.new-review-label { color: #b45a09; font-weight: 800; }
+.reviewer-message { white-space: pre-wrap; padding: 10px 12px; border-left: 3px solid #2f7d5a; background: #f2f8f4; border-radius: 6px; }
+.review-reply-form { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #dbe5df; }
+.review-reply-form textarea { min-height: 84px; }
+.reopened-note { padding: 8px 10px; border-radius: 6px; background: #fff6e5; }
+.claimed-label { color: #b45a09; font-weight: 700; }
+.farmer-history { font-size: 13px; color: #4b5f55; } .farmer-history ul { margin: 6px 0 0; padding-left: 18px; } .farmer-history summary { cursor: pointer; font-weight: 700; }
+.ai-topic { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; margin-bottom: 8px; border-radius: 10px; background: #eaf4ee; font-size: 13px; } .ai-topic span { flex: 1; } .ai-topic button { border: 0; background: none; cursor: pointer; }
+.auth-test-profiles .auth-test-email { font-size: 10px; font-weight: 500; color: #5b6f64; overflow-wrap: anywhere; text-align: center; }
+
+/* Plain-language certainty (Very likely / Likely / Not sure), matching the phone app. */
+.certainty-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; color: #1e6b47; }
+.certainty-badge.level-1 { color: #8a5a00; }
+.certainty-bars { display: inline-flex; align-items: flex-end; gap: 3px; }
+.certainty-bars i { display: block; width: 6px; border-radius: 2px; background: #dde5e0; }
+.certainty-bars i:nth-child(1) { height: 10px; } .certainty-bars i:nth-child(2) { height: 15px; } .certainty-bars i:nth-child(3) { height: 20px; }
+.certainty-badge.level-1 .certainty-bars i.on { background: #8a5a00; }
+.certainty-badge.level-2 .certainty-bars i.on, .certainty-badge.level-3 .certainty-bars i.on { background: #1e6b47; }
+.scan-check-button { min-height: 56px; font-size: 18px; }
+.language-panel { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.language-panel h2 { margin: 0; font-size: 16px; }
+.language-options { display: flex; gap: 8px; }
+.language-options button { min-height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid #c9dccf; background: #fff; color: #236b4b; font: inherit; font-weight: 700; cursor: pointer; }
+.language-options button.active { background: #236b4b; color: #fff; border-color: #236b4b; }

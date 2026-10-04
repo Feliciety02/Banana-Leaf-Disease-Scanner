@@ -1,0 +1,226 @@
+import { useSyncExternalStore } from 'react';
+
+// Farmer-facing website text in Filipino, keyed by the English sentence so a
+// missing entry simply shows English. Keep the wording in step with the phone
+// app (mobile-frontend/src/i18n) and have a native speaker review it.
+const FIL = {
+  // Navigation and shell
+  Home: 'Home', Scan: 'I-scan', History: 'Kasaysayan', Guide: 'Gabay', Profile: 'Profile',
+  'Log out': 'Mag-log out', 'Open profile': 'Buksan ang profile',
+  Language: 'Wika', English: 'English', Filipino: 'Filipino',
+
+  // Home
+  'Good to see you, {name}.': 'Magandang araw, {name}.',
+  'A clearer picture of your banana leaves starts here.': 'Dito nagsisimula ang mas malinaw na pagtingin sa inyong mga dahon ng saging.',
+  'Scan a banana leaf': 'I-scan ang dahon ng saging',
+  'Take a photo to see a screening result and practical next steps.': 'Kumuha ng litrato para makita ang resulta at ang mga susunod na hakbang.',
+  'Start a scan': 'Magsimulang mag-scan',
+  'Saved scans': 'Naka-save', Uncertain: 'Hindi tiyak', 'To sync': 'Ipapadala',
+  "You're offline": 'Walang internet',
+  'Saved results stay in this browser and upload automatically when the connection returns.': 'Naka-save sa browser na ito ang mga resulta at awtomatikong maipapadala kapag may internet na.',
+  'Scans sync automatically with your other devices while you are online.': 'Awtomatikong naipapadala ang mga scan sa iba ninyong device kapag may internet.',
+  'Browser history is connected': 'Konektado ang kasaysayan sa browser',
+  '{count} browser change(s) waiting': '{count} pagbabago ang naghihintay',
+  'Before you scan': 'Bago mag-scan',
+  'A clear photo gives the scanner more to work with.': 'Mas maayos ang resulta kapag malinaw ang litrato.',
+  'Useful links': 'Mga kapaki-pakinabang na link',
+  'Disease guide': 'Gabay sa sakit',
+  'Compare visible signs and read verified guidance.': 'Ihambing ang mga palatandaan at basahin ang beripikadong gabay.',
+  'Scan history': 'Kasaysayan ng scan',
+  'Return to your saved results.': 'Balikan ang inyong mga naka-save na resulta.',
+  'Recent scans': 'Mga huling scan', 'View all': 'Tingnan lahat',
+  'Review an uncertain result': 'Suriin ang hindi tiyak na resulta',
+  'Keep your scans in sync': 'May mga scan na naghihintay maipadala',
+  'Keep an eye on your leaves': 'Bantayan ang inyong mga dahon',
+  'Start with your first leaf': 'Simulan sa unang dahon',
+  '{count} new expert review(s)': '{count} bagong sagot ng eksperto',
+  'An agricultural reviewer has assessed your scan. Open History to read the result and next steps.': 'Nasuri na ng agricultural reviewer ang inyong scan. Buksan ang Kasaysayan para mabasa ang sagot at mga susunod na hakbang.',
+  '{count} saved result(s) were not sure. Compare visible signs in the guide or ask an expert.': '{count} na resulta ang hindi tiyak. Ihambing ang mga palatandaan sa Gabay o magtanong sa eksperto.',
+  '{count} browser change(s) waiting. They upload automatically when you are online.': '{count} na pagbabago ang naghihintay. Awtomatiko itong maipapadala kapag may internet.',
+  'Check your saved results or scan a new leaf if its appearance changes.': 'Tingnan ang mga naka-save na resulta o mag-scan ulit kapag nag-iba ang itsura ng dahon.',
+  'Scan one clear leaf photo to create your first saved result.': 'Mag-scan ng isang malinaw na litrato ng dahon para ma-save ang unang resulta.',
+  'Read review': 'Basahin ang sagot', 'Open history': 'Buksan ang Kasaysayan', 'Start scanning': 'Magsimulang mag-scan',
+  'New expert review': 'Bagong sagot ng eksperto',
+  Synced: 'Naipadala', 'Needs retry': 'Hindi naipadala', 'Waiting to sync': 'Naghihintay maipadala',
+  'Uncertain result': 'Hindi tiyak na resulta', 'No supported pattern detected': 'Walang nakitang sinusuring sakit',
+  ' · Review pending': ' · Naghihintay ng eksperto', ' · Waiting for an expert': ' · Naghihintay ng eksperto', ' · Expert reviewing now': ' · Sinusuri na ng eksperto',
+
+  // Certainty words (same as the phone app)
+  'Very likely': 'Halos tiyak', Likely: 'Malamang', 'Not sure': 'Hindi tiyak',
+
+  // Scan
+  'Take or choose a clear banana leaf photo.': 'Kumuha o pumili ng malinaw na litrato ng dahon ng saging.',
+  'No photo selected': 'Wala pang napiling litrato', 'Center one leaf in good light.': 'Ilagay sa gitna ang isang dahon, sa maliwanag na lugar.',
+  'Opening camera...': 'Binubuksan ang kamera…', 'Allow camera access when your browser asks.': 'Payagan ang kamera kapag nagtanong ang browser.',
+  'Camera did not open': 'Hindi bumukas ang kamera', "Allow camera access, or use your phone's camera picker below.": 'Payagan ang kamera, o gamitin ang kamera ng telepono sa ibaba.',
+  'Use phone camera': 'Gamitin ang kamera ng telepono', 'Try live camera again': 'Subukan ulit ang kamera',
+  'Keep the affected area in focus': 'Dapat malinaw ang apektadong bahagi',
+  'Choose from file': 'Pumili mula sa file', Camera: 'Kamera', Gallery: 'Gallery',
+  'Keep the whole leaf visible and avoid shadows.': 'Ipakita ang buong dahon at iwasan ang anino.',
+  'Check leaf': 'Suriin ang dahon', 'Choose a different photo': 'Pumili ng ibang litrato', 'Checking the leaf…': 'Sinusuri ang dahon…',
+  'Results are screening support only and cannot confirm disease.': 'Gabay lamang ang resulta at hindi nito makukumpirma ang sakit.',
+  'Something went wrong. Please try again.': 'Nagkaproblema. Pakisubukan ulit.',
+  'The result or photo could not be saved in this browser. Please try again.': 'Hindi na-save sa browser na ito ang resulta o litrato. Pakisubukan ulit.',
+  'Check the leaf and affected area before continuing.': 'Tingnan ang dahon at apektadong bahagi bago magpatuloy.',
+  'Review your photo': 'Tingnan ang inyong litrato', 'Take a clear photo': 'Kumuha ng malinaw na litrato',
+  'Make sure the leaf is centered and easy to see.': 'Siguraduhing nasa gitna at malinaw ang dahon.',
+  'Use these tips for a clearer result.': 'Sundin ang mga tip na ito para sa mas malinaw na resulta.',
+  'Use bright, even light': 'Gumamit ng maliwanag at pantay na ilaw', 'Use bright, even light.': 'Gumamit ng maliwanag at pantay na ilaw.',
+  'Center one leaf': 'Isang dahon sa gitna', 'Center one leaf.': 'Isang dahon sa gitna.',
+  'Keep symptoms in focus.': 'Dapat malinaw ang mga batik.', 'Keep the affected area sharp': 'Dapat malinaw ang apektadong bahagi',
+
+  // Result
+  'Back to scan': 'Bumalik sa pag-scan', 'Photo submitted for screening': 'Litratong isinumite',
+  'Possible match': 'Posibleng tugma', 'not a diagnosis': 'hindi diagnosis',
+  'What to do next': 'Ano ang susunod na gagawin',
+  'Research comparison': 'Paghahambing para sa pananaliksik', 'These outputs are experimental and are not a diagnosis.': 'Pang-eksperimento ang mga resultang ito at hindi diagnosis.',
+  'Screening unavailable': 'Hindi magamit ang pagsusuri', 'Connect the model service to produce a result.': 'Ikonekta ang serbisyo ng pagsusuri para makakuha ng resulta.',
+  'For a clearer second photo': 'Para sa mas malinaw na pangalawang litrato',
+  'Save result': 'I-save ang resulta', 'Scan another leaf': 'Mag-scan ng ibang dahon', 'Open leaf guide': 'Buksan ang Gabay',
+  'Save to history without review': 'I-save sa Kasaysayan nang walang eksperto',
+  'See model scores': 'Tingnan ang mga detalye ng pagsusuri',
+  'Ask an expert to check': 'Magpasuri sa eksperto', 'An expert looks at your photo and tells you what to do': 'Titingnan ng eksperto ang inyong litrato at sasabihin kung ano ang gagawin',
+  'Tell the expert what you see (optional)': 'Sabihin sa eksperto ang inyong nakikita (opsyonal)',
+  'Save & ask an expert': 'I-save at magtanong sa eksperto', 'Compare both models': 'Ihambing ang dalawang pagsusuri',
+  'Understand the results and take the right steps': 'Unawain ang resulta at gawin ang tamang hakbang',
+  "Here's what this class means and how to manage it in your field.": 'Narito ang ibig sabihin nito at kung paano ito haharapin sa inyong taniman.',
+  'What this class means': 'Ano ang ibig sabihin nito', 'Recommended action': 'Inirerekomendang gawin',
+  'Keep your plants healthy and monitored': 'Panatilihing malusog at bantayan ang halaman',
+  'Follow good farm practices': 'Sundin ang mabuting gawi sa pagsasaka', 'Get expert advice when needed': 'Humingi ng payo ng eksperto kung kailangan',
+  'Areas the system noticed': 'Mga bahaging napansin ng sistema', 'Original leaf': 'Orihinal na dahon',
+  'Screening service unavailable': 'Hindi magamit ang serbisyo ng pagsusuri', 'Possible leaf problem': 'Posibleng problema sa dahon',
+  'This scan needs another look': 'Kailangang tingnan ulit ang scan na ito',
+  'No supported disease pattern was strongly detected': 'Walang malinaw na palatandaan ng sinusuring sakit',
+  'Possible disease pattern found': 'May posibleng palatandaan ng sakit',
+  'No diagnosis produced': 'Walang nabuong resulta', 'No confident match': 'Walang tiyak na tugma',
+  'Your photo is safe, but the screening service did not return a classification.': 'Ligtas ang inyong litrato, pero walang naibalik na resulta ang pagsusuri.',
+  'Here is what the photo may show and what you can safely do next.': 'Narito ang maaaring ipakita ng litrato at ang ligtas na susunod na gawin.',
+  'The image did not match one supported class strongly enough for disease-specific guidance.': 'Hindi sapat na tumugma ang litrato sa isang sinusuring sakit para makapagbigay ng tiyak na gabay.',
+  'Review the screening result and recommended next steps below.': 'Tingnan ang resulta at ang inirerekomendang susunod na hakbang sa ibaba.',
+  'No screening result is available.': 'Walang resulta ng pagsusuri.',
+  'Both model outputs are shown below for comparison.': 'Ipinapakita sa ibaba ang dalawang resulta para maihambing.',
+  'DahonMD is not sure about this photo. Take another one in good light with the whole leaf in view.': 'Hindi sigurado ang DahonMD sa litratong ito. Kumuha ulit sa maliwanag na lugar at ipakita ang buong dahon.',
+  'Review the model result before saving it.': 'Tingnan ang resulta bago ito i-save.',
+  'Try again when screening is available.': 'Subukan ulit kapag magagamit na ang pagsusuri.',
+  'Retake the leaf in even light with the affected area in focus. If symptoms spread, ask a local agricultural expert.': 'Kunan ulit ang dahon sa pantay na liwanag at dapat malinaw ang apektadong bahagi. Kapag kumalat ang sintomas, magtanong sa lokal na eksperto sa agrikultura.',
+  'Compare visible signs in the leaf guide. This experimental match is not a diagnosis.': 'Ihambing ang mga palatandaan sa Gabay. Hindi diagnosis ang pang-eksperimentong tugmang ito.',
+  'Keep monitoring the plant and scan again if the leaf changes.': 'Patuloy na bantayan ang halaman at mag-scan ulit kapag nagbago ang dahon.',
+  'Compare the visible signs and read the care guidance below. Ask a local expert if symptoms spread.': 'Ihambing ang mga palatandaan at basahin ang gabay sa ibaba. Magtanong sa lokal na eksperto kapag kumalat ang sintomas.',
+  'Return to scan': 'Bumalik sa pag-scan', 'Take another photo': 'Kumuha ng ibang litrato',
+  'Insufficient verified evidence available.': 'Kulang pa ang beripikadong ebidensya.',
+  'No supported disease pattern was strongly detected in this image. The model covers only its trained classes, so continue monitoring the plant.': 'Walang malinaw na palatandaan ng sinusuring sakit sa litratong ito. Ilang sakit lang ang sinusuri ng DahonMD, kaya patuloy na bantayan ang halaman.',
+  'Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.': 'Magtanong sa kwalipikadong eksperto sa agrikultura kapag malala, kakaiba, mabilis kumalat, o hindi tiyak ang sintomas.',
+  'About this screening result': 'Tungkol sa resultang ito',
+  'Some diseases, nutrient problems, and environmental damage can look alike in a photo. Ask a qualified agriculture or plant-health professional when symptoms are severe, unusual, spreading quickly, or the result is uncertain.': 'Maaaring magkamukha sa litrato ang ilang sakit, kakulangan sa sustansya at pinsala mula sa kapaligiran. Magtanong sa kwalipikadong eksperto kapag malala, kakaiba, mabilis kumalat, o hindi tiyak ang resulta.',
+
+  // History and scan details
+  'All results': 'Lahat ng resulta', Healthy: 'Malusog', 'Possible disease': 'Posibleng sakit',
+  'All scans': 'Lahat ng scan', 'Review pending': 'Naghihintay ng eksperto',
+  'No matching scans': 'Walang tugmang scan', 'No saved scans yet': 'Wala pang naka-save na scan',
+  'Adjust your filters and try again.': 'Baguhin ang filter at subukan ulit.', 'Scan your first leaf to start your history.': 'Mag-scan ng unang dahon para magsimula ang inyong kasaysayan.',
+  Date: 'Petsa', Source: 'Pinagmulan', 'Save status': 'Kalagayan', 'Your notes': 'Ang inyong tala',
+  'Your review request or photo did not finish sending': 'Hindi natapos maipadala ang inyong kahilingan o litrato',
+  'It is retried each time you sync.': 'Susubukan ulit ito tuwing magsi-sync.',
+  'This scan could not be deleted': 'Hindi nabura ang scan na ito',
+  'Safely stored in this browser': 'Ligtas na naka-save sa browser na ito',
+  'Reconnect to upload this record before requesting another review action.': 'Kumonekta ulit para maipadala ito bago humiling ng ibang aksyon.',
+  'You will see the answer here.': 'Makikita ninyo rito ang sagot.',
+  'The expert cannot see the photo yet.': 'Hindi pa nakikita ng eksperto ang litrato.',
+  'Your reply:': 'Ang inyong sagot:', 'What to do now': 'Ano ang gagawin ngayon',
+  'Ask Dahon about this scan': 'Itanong kay Dahon ang scan na ito', 'Delete saved scan': 'Burahin ang naka-save na scan',
+  'The photo could not be sent.': 'Hindi naipadala ang litrato.', 'Sending…': 'Ipinapadala…', 'Send photo to expert': 'Ipadala ang litrato sa eksperto',
+  'Think this result is wrong?': 'Sa tingin ninyo ba mali ang resulta?',
+  'This scan has no photo, so the expert can only read your note.': 'Walang litrato ang scan na ito, kaya ang tala lang ang mababasa ng eksperto.',
+  'Your request was not sent. Please try again.': 'Hindi naipadala ang inyong kahilingan. Pakisubukan ulit.',
+  'Ask an expert': 'Magtanong sa eksperto',
+  'Waiting for an expert to pick up your {item}': 'Naghihintay ng ekspertong susuri sa inyong {item}',
+  'An expert is reviewing your {item} now': 'Sinusuri na ng eksperto ang inyong {item}',
+  photo: 'litrato', note: 'tala',
+  'An expert will look at your {item} and tell you what to do.': 'Titingnan ng eksperto ang inyong {item} at sasabihin kung ano ang gagawin.',
+  'Message from {name}': 'Mensahe mula kay {name}', 'the reviewer': 'ang reviewer',
+  'Read about {name} in the guide': 'Basahin ang tungkol sa {name} sa Gabay',
+  'Checked': 'Nasuri', 'Checked by {name}': 'Sinuri ni {name}',
+  'Sent': 'Naipadala', 'Expert reviewing': 'Sinusuri ng eksperto', 'Expert review': 'Sagot ng eksperto', 'Answer ready': 'May sagot na',
+  'New expert review': 'Bagong sagot ng eksperto',
+
+  // Review answers
+  'Take a new, clear photo of the leaf in daylight.': 'Kumuha ng bago at malinaw na litrato ng dahon sa liwanag ng araw.',
+  'Check the plant again over the next few days.': 'Tingnan ulit ang halaman sa mga susunod na araw.',
+  'Do not move soil, water, or tools from this plant to healthy plants.': 'Huwag ilipat ang lupa, tubig, o gamit mula sa halamang ito papunta sa malulusog na halaman.',
+  'Ask your local agriculture office to check the plant in person.': 'Hilingin sa inyong lokal na tanggapan ng agrikultura na personal na suriin ang halaman.',
+  'Expert says: no disease seen': 'Sabi ng eksperto: walang nakitang sakit',
+  'The expert did not see Black Sigatoka, Panama disease, or Cordana leaf spot in this photo.': 'Walang nakitang Black Sigatoka, Panama disease, o Cordana leaf spot ang eksperto sa litratong ito.',
+  'Expert says: {name}': 'Sabi ng eksperto: {name}', 'a different result': 'ibang resulta',
+  'The expert agrees with your scan.': 'Sang-ayon ang eksperto sa inyong scan.',
+  'The expert thinks this is {name}, not {scan}.': 'Sa tingin ng eksperto, ito ay {name}, hindi {scan}.',
+  'The expert could not tell from this photo': 'Hindi matiyak ng eksperto mula sa litratong ito',
+  'The photo was not clear enough to decide.': 'Hindi sapat ang linaw ng litrato para makapagpasya.',
+  'This may be a different problem': 'Maaaring ibang problema ito',
+  'It does not look like one of the 3 diseases this app checks.': 'Hindi ito mukhang isa sa 3 sakit na sinusuri ng app na ito.',
+  'The plant needs to be checked in person': 'Kailangang personal na suriin ang halaman',
+  'The photo alone is not enough to decide.': 'Hindi sapat ang litrato lang para makapagpasya.',
+
+  // Reply to a review
+  'Reply or send a new photo': 'Sumagot o magpadala ng bagong litrato', 'Reply to the reviewer': 'Sumagot sa reviewer',
+  'New photo (optional)': 'Bagong litrato (opsyonal)',
+  'Your earlier result is kept. The case goes back to an agricultural reviewer.': 'Mananatili ang dati ninyong resulta. Babalik ang kaso sa agricultural reviewer.',
+  'What changed, or what would you like to ask?': 'Ano ang nagbago, o ano ang gusto ninyong itanong?',
+  Cancel: 'Kanselahin', 'Your reply could not be sent.': 'Hindi naipadala ang inyong sagot.', 'Send to reviewer': 'Ipadala sa reviewer',
+
+  // Assistant
+  'Ask Dahon': 'Itanong kay Dahon', 'Sign in to chat': 'Mag-sign in para makipag-chat',
+  'Ask questions about banana leaf care using your DahonMD account.': 'Magtanong tungkol sa pag-aalaga ng dahon ng saging gamit ang inyong DahonMD account.',
+  'Guidance only. Confirm a diagnosis with the scanner or an expert.': 'Gabay lamang. Kumpirmahin ang diagnosis gamit ang scanner o sa eksperto.',
+  'Sign in': 'Mag-sign in', 'General guidance only': 'Pangkalahatang gabay lamang',
+  'The assistant could not answer. The scanner is still available.': 'Hindi nakasagot ang assistant. Magagamit pa rin ang scanner.',
+  'Ask about a banana leaf…': 'Magtanong tungkol sa dahon ng saging…', 'Reconnect to use Ask Dahon': 'Kumonekta ulit para magamit ang Itanong kay Dahon',
+  'Ask me about banana leaf symptoms, care, or taking a clear photo.': 'Magtanong tungkol sa sintomas ng dahon ng saging, pag-aalaga, o pagkuha ng malinaw na litrato.',
+  'What is Sigatoka?': 'Ano ang Sigatoka?', 'How do I take a clear photo?': 'Paano kumuha ng malinaw na litrato?', 'When should I get help?': 'Kailan dapat humingi ng tulong?',
+  'What does this result mean?': 'Ano ang ibig sabihin ng resultang ito?', 'What should I do next with this plant?': 'Ano ang susunod kong gagawin sa halamang ito?',
+  'About your scan: {label}. Dahon sees its result and any expert review, not your photo or location.': 'Tungkol sa inyong scan: {label}. Nakikita ni Dahon ang resulta at sagot ng eksperto, hindi ang inyong litrato o lokasyon.',
+
+  // Page headings and research consent
+  'Scan a leaf': 'I-scan ang dahon', 'Banana leaf guide': 'Gabay sa dahon ng saging',
+  'Only source-verified records appear here.': 'Mga beripikadong tala lamang ang makikita rito.',
+  '{count} saved scan(s) · newest first.': '{count} naka-save na scan · pinakabago muna.',
+  'Research consent granted': 'Ibinahagi para sa pananaliksik',
+  'Reviewers may nominate this photo for a research dataset. You can withdraw until it is approved.': 'Maaaring imungkahi ng mga reviewer ang litratong ito para sa pananaliksik. Maaari ninyo itong bawiin hangga\'t hindi pa naaaprubahan.',
+  'Withdraw research consent': 'Bawiin ang pahintulot sa pananaliksik', 'Saving…': 'Sine-save…',
+
+  // Log in and sign up
+  'Full name': 'Buong pangalan', 'Email address': 'Email address', Password: 'Password', 'Confirm password': 'Ulitin ang password',
+  'Remember me': 'Tandaan ako', 'Forgot password?': 'Nakalimutan ang password?', 'Enter your email address first.': 'Ilagay muna ang inyong email address.',
+  'Create your account': 'Gumawa ng account', 'Log in to your account': 'Mag-log in sa inyong account',
+  'Save your scans and keep them in sync across devices.': 'I-save ang mga scan at panatilihing pareho sa lahat ng inyong device.',
+  'Your scans and account are ready when you are.': 'Handa na ang inyong mga scan at account.',
+  Farmer: 'Magsasaka', Reviewer: 'Reviewer', Admin: 'Admin',
+  'Hide password': 'Itago ang password', 'Show password': 'Ipakita ang password', 'Please wait': 'Sandali lang',
+  'Create account': 'Gumawa ng account', 'Log in': 'Mag-log in', 'Already have an account?': 'May account na?', 'New to DahonMD?': 'Bago sa DahonMD?', 'Sign up': 'Mag-sign up',
+};
+
+const STORAGE_KEY = 'dahonmd-language';
+let current = 'en';
+try { if (window.localStorage.getItem(STORAGE_KEY) === 'fil') current = 'fil'; } catch { /* English by default */ }
+const listeners = new Set();
+
+export function getLanguage() { return current; }
+
+export function setLanguage(language) {
+  current = language === 'fil' ? 'fil' : 'en';
+  try { window.localStorage.setItem(STORAGE_KEY, current); } catch { /* still applies until reload */ }
+  document.documentElement.lang = current === 'fil' ? 'fil' : 'en';
+  listeners.forEach((listener) => listener());
+}
+
+/** Translates an English sentence; {name}-style placeholders are filled in both languages. */
+export function tr(text, vars) {
+  const value = current === 'fil' ? (FIL[text] ?? text) : text;
+  return vars ? value.replace(/\{(\w+)\}/g, (match, key) => (key in vars ? String(vars[key]) : match)) : value;
+}
+
+/** Re-renders the calling component (the app root) whenever the language changes. */
+export function useLanguage() {
+  return useSyncExternalStore((listener) => { listeners.add(listener); return () => listeners.delete(listener); }, getLanguage, getLanguage);
+}
+
+export const FILIPINO_TEXTS = FIL;
