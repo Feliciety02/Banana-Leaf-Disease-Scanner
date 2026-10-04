@@ -344,6 +344,13 @@ export const EN = {
   'guest.deleteAccount': 'Delete an account',
   'guest.deleteAccountText': 'Remove an account from the website',
 
+  // Notifications
+  'notify.channel': 'Expert reviews',
+  'notify.reviewTitle': 'Expert answer ready',
+  'notify.reviewBody': 'An agricultural reviewer checked your {name} scan. Tap to read the answer.',
+  'notify.manyTitle': '{count} expert answers ready',
+  'notify.manyBody': 'Open History to read what the reviewers said.',
+
   // Connection (plain words)
   'connection.offlineTitle': 'No connection',
   'connection.offlineText': 'Scanning still works. Your scans are saved and send automatically when the connection is back.',
@@ -682,6 +689,11 @@ export const FIL: Record<StringKey, string> = {
   'guest.offline': 'Gumagana ang pag-scan kahit walang internet. Kailangan ng internet para mag-sign in, magpadala ng scan at magtanong sa eksperto.',
   'guest.deleteAccount': 'Magbura ng account',
   'guest.deleteAccountText': 'Burahin ang account mula sa website',
+  'notify.channel': 'Sagot ng eksperto',
+  'notify.reviewTitle': 'May sagot na ang eksperto',
+  'notify.reviewBody': 'Nasuri na ng agricultural reviewer ang inyong {name} scan. Pindutin para mabasa ang sagot.',
+  'notify.manyTitle': '{count} sagot ng eksperto ang handa na',
+  'notify.manyBody': 'Buksan ang Kasaysayan para mabasa ang sinabi ng mga reviewer.',
   'connection.offlineTitle': 'Walang koneksyon',
   'connection.offlineText': 'Gumagana pa rin ang pag-scan. Naka-save ang inyong mga scan at awtomatikong maipapadala kapag may koneksyon na.',
   'connection.retry': 'Subukan ulit',

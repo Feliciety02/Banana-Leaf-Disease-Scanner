@@ -707,6 +707,26 @@ function removeStoredImage(uri: string | null) {
   }
 }
 
+/** Reads or writes a small device-only value in sync_state. */
+export async function deviceStateValue(key: string, value?: string) {
+  const db = await database();
+  if (value !== undefined) {
+    await db.runAsync('INSERT INTO sync_state (state_key, state_value, updated_at) VALUES (?, ?, ?) ON CONFLICT(state_key) DO UPDATE SET state_value = excluded.state_value, updated_at = excluded.updated_at', key, value, new Date().toISOString());
+    return value;
+  }
+  return (await db.getFirstAsync<{ state_value: string }>('SELECT state_value FROM sync_state WHERE state_key = ?', key))?.state_value ?? null;
+}
+
+/** Synced scans of this account whose completed review the farmer has not opened yet. */
+export async function diagnosesWithNewReviews(ownerUserId: number) {
+  const db = await database();
+  const rows = await db.getAllAsync<LocalDiagnosis>(
+    `SELECT * FROM local_diagnoses WHERE owner_user_id = ? AND review_json IS NOT NULL AND sync_status NOT IN ('pending_delete', 'delete_failed')`,
+    ownerUserId,
+  );
+  return rows.filter((row) => isNewReview(parseDiagnosisReview(row.review_json)));
+}
+
 /** Stores a per-server/account choice without adding a schema migration. */
 export async function guestScanChoice(key: string, value?: string) {
   const db = await database();

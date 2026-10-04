@@ -1,6 +1,7 @@
 import { api, currentServerUrl, resolveServerUrl } from './api';
 import { predictionDetails } from './predictionDetails';
 import { uploadSyncedScanImage } from './diagnosisReview';
+import { notifyNewReviews } from './reviewNotifications';
 import {
   applyRemoteDeletion,
   completeLocalDeletion,
@@ -153,6 +154,8 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
 
   const pulled = await pullServerChanges(ownerUserId);
   await reconcileMissingPhotos(ownerUserId);
+  // Also runs in the background task, so an answer can reach a farmer who is not in the app.
+  await notifyNewReviews(ownerUserId).catch(() => 0);
   return { pushed, rejected, pulled, deleted };
 }
 
