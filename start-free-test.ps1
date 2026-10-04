@@ -132,6 +132,23 @@ if (-not $Stop) {
     $phpCheck = 'missing'
     try { $phpCheck = (& $php -d display_startup_errors=0 -r $extensionCheck 2>$null | Select-Object -Last 1) } catch { }
     if ($phpCheck -ne 'ok') {
+        # Smart App Control judges each file by reputation, so a very new PHP
+        # release can be blocked while an older official one is allowed. Try any
+        # other official PHP in dev-tools (for example dev-tools\php-8.3.35).
+        $otherPhps = Get-ChildItem (Join-Path $env:LOCALAPPDATA 'dev-tools') -Directory -Filter 'php-8.*' -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending | ForEach-Object { Join-Path $_.FullName 'php.exe' } | Where-Object { Test-Path -LiteralPath $_ }
+        foreach ($candidate in $otherPhps) {
+            $candidateCheck = 'missing'
+            try { $candidateCheck = (& $candidate -d display_startup_errors=0 -r $extensionCheck 2>$null | Select-Object -Last 1) } catch { }
+            if ($candidateCheck -eq 'ok') {
+                $php = $candidate
+                $phpCheck = 'ok'
+                Write-Host "Using $php (Windows blocks the default PHP's extensions)." -ForegroundColor Cyan
+                break
+            }
+        }
+    }
+    if ($phpCheck -ne 'ok') {
         $wslCheck = 'missing'
         if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
             try { $wslCheck = (& wsl.exe -e php -r $extensionCheck 2>$null | Select-Object -Last 1) } catch { }
