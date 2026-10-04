@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, AppState, Image, Linking, Platform, Pressable, SafeAreaView, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import NetInfo from '@react-native-community/netinfo';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 
 import { LoadingScreen } from '../components/LoadingScreen';
@@ -104,6 +105,17 @@ export default function App() {
   };
 
   useEffect(() => { void loadLanguage(); }, []);
+  // Tapping an "expert answer ready" notification opens that scan in History.
+  useEffect(() => {
+    const open = (response: Notifications.NotificationResponse | null) => {
+      const localId = response?.notification.request.content.data?.localId;
+      if (typeof localId === 'string') openHistory(localId);
+      else if (response) setTab('history');
+    };
+    void Notifications.getLastNotificationResponseAsync().then(open).catch(() => undefined);
+    const subscription = Notifications.addNotificationResponseReceivedListener(open);
+    return () => subscription.remove();
+  }, []);
   useEffect(() => { initializeLocalDatabase().catch((error) => setInfo({ title: 'Offline storage unavailable', message: error instanceof Error ? error.message : 'The local database could not be opened.' })); }, []);
   useEffect(() => {
     let active = true;

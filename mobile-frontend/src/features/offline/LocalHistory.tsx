@@ -21,6 +21,7 @@ import { synchronizeDiagnoses } from '../../services/diagnosisSync';
 import { hasLocalScanImage, markReviewSeen, sendReviewFollowUp, requestAgriculturalReview, shareScanForResearch, uploadReviewImage, withdrawScanResearchConsent } from '../../services/diagnosisReview';
 import { ImageViewer } from '../../components/ImageViewer';
 import { ScanLocationControl } from '../../components/ScanLocationControl';
+import { askToNotifyAboutReviews } from '../../services/reviewNotifications';
 import { ViewableScanImage } from '../../components/ViewableImage';
 import { smoothLayout } from '../../components/motion';
 import { ActionButton, ConfirmSheet, formatDate, palette } from '../connected/ui';
@@ -145,6 +146,8 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
     setError('');
     try {
       await requestAgriculturalReview(item.local_id, reviewDraft[item.local_id]);
+      // Now is when a notification for the answer is useful, so ask here rather than at app start.
+      void askToNotifyAboutReviews();
       setReviewDraft((current) => { const next = { ...current }; delete next[item.local_id]; return next; });
       setError('');
       onChanged?.();
