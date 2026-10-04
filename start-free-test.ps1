@@ -115,14 +115,32 @@ function Get-PhoneSerial([string]$adb) {
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 $php = Find-Tool 'php.exe' (Join-Path $env:LOCALAPPDATA 'dev-tools\php\php.exe')
 $node = Find-Tool 'node.exe' (Join-Path $env:LOCALAPPDATA 'dev-tools\node-v24.19.0-win-x64\node.exe')
-# Laravel needs PHP's openssl and curl extensions. Windows App Control (Smart App
-# Control) can block their unsigned DLLs; stop here with a clear message instead
-# of failing later with a confusing error.
+# Laravel needs PHP's openssl and curl extensions. Windows Smart App Control can
+# block the unsigned Windows DLLs; PHP inside WSL (Ubuntu) is not affected, so
+# the backend runs there instead. Paths are converted to /mnt/c/... for WSL.
+$phpInWsl = $false
+function ConvertTo-WslPath([string]$path) {
+    $full = [IO.Path]::GetFullPath($path)
+    return '/mnt/' + $full.Substring(0, 1).ToLower() + $full.Substring(2).Replace('\', '/')
+}
+function Invoke-Php {
+    if ($phpInWsl) { & wsl.exe --cd (ConvertTo-WslPath (Get-Location).Path) -e php @args }
+    else { & $php @args }
+}
 if (-not $Stop) {
+    $extensionCheck = "echo (extension_loaded('openssl') && extension_loaded('curl') && extension_loaded('pdo_sqlite')) ? 'ok' : 'missing';"
     $phpCheck = 'missing'
-    try { $phpCheck = (& $php -d display_startup_errors=0 -r "echo (extension_loaded('openssl') && extension_loaded('curl')) ? 'ok' : 'missing';" 2>$null | Select-Object -Last 1) } catch { }
+    try { $phpCheck = (& $php -d display_startup_errors=0 -r $extensionCheck 2>$null | Select-Object -Last 1) } catch { }
     if ($phpCheck -ne 'ok') {
-        throw "PHP cannot load its openssl/curl extensions, so the backend cannot run. Windows may be blocking them ('An Application Control policy has blocked this file'). Check Windows Security > App & browser control > Smart App Control, or ask your IT administrator to allow $(Split-Path -Parent $php)\ext."
+        $wslCheck = 'missing'
+        if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
+            try { $wslCheck = (& wsl.exe -e php -r $extensionCheck 2>$null | Select-Object -Last 1) } catch { }
+        }
+        if ($wslCheck -ne 'ok') {
+            throw "PHP cannot load its openssl/curl extensions on Windows (Smart App Control blocks them), and PHP is not ready in WSL. Install WSL as administrator: wsl --install -d Ubuntu-24.04, restart, then in Ubuntu run: sudo apt update && sudo apt install -y php8.3-cli php8.3-sqlite3 php8.3-curl php8.3-mbstring php8.3-xml php8.3-intl php8.3-gd php8.3-zip php8.3-bcmath"
+        }
+        $phpInWsl = $true
+        Write-Host 'Windows is blocking its PHP extensions; running the backend in WSL (Ubuntu) instead.' -ForegroundColor Cyan
     }
 }
 $npm = Find-Tool 'npm.cmd' (Join-Path $env:LOCALAPPDATA 'dev-tools\node-v24.19.0-win-x64\npm.cmd')
@@ -159,6 +177,7 @@ $lastFingerprint = if ($previous) { $previous.mobileFingerprint } else { $null }
 Stop-OurProcess $previous.tunnelPid "127.0.0.1:$webPort"
 Stop-OurProcess $previous.webPid "--port $webPort"
 Stop-OurProcess $previous.backendPid "127.0.0.1:$backendPort"
+if ($previous.phpInWsl) { try { & wsl.exe -e pkill -f "php .*-S 127.0.0.1:$backendPort" 2>$null | Out-Null } catch { } }
 if ($previous.url -eq "http://127.0.0.1:$webPort") {
     $oldSerial = Get-PhoneSerial $adb
     # The old USB forward may already be gone (phone unplugged); that must not stop the launch.
@@ -241,7 +260,7 @@ try {
     }
     $database = Join-Path $testBackend 'database\database.sqlite'
     if (-not (Test-Path -LiteralPath $database)) { New-Item -ItemType File -Path $database | Out-Null }
-    $databaseForEnv = $database.Replace('\', '/')
+    $databaseForEnv = if ($phpInWsl) { ConvertTo-WslPath $database } else { $database.Replace('\', '/') }
     $settings = @(
         'APP_NAME=DahonMD', 'APP_ENV=production', "APP_KEY=$appKey", 'APP_DEBUG=false', "APP_URL=$url",
         'DB_CONNECTION=sqlite', "DB_DATABASE=$databaseForEnv", 'SESSION_DRIVER=database', 'SESSION_ENCRYPT=true',
@@ -255,32 +274,38 @@ try {
     [IO.File]::WriteAllLines((Join-Path $testBackend '.env'), [string[]]$settings, [Text.UTF8Encoding]::new($false))
     Push-Location $testBackend
     try {
-        & $php artisan migrate --force --no-interaction
+        Invoke-Php artisan migrate --force --no-interaction
         if ($LASTEXITCODE -ne 0) { throw 'The test database migration failed.' }
         $oldSeedEnv = $env:APP_ENV
         $env:APP_ENV = 'testing'
         try {
-            & $php artisan db:seed --class=DemoLoginSeeder --force --no-interaction
+            Invoke-Php artisan db:seed --class=DemoLoginSeeder --force --no-interaction
             if ($LASTEXITCODE -ne 0) { throw 'Test profile setup failed.' }
             # Seed the source-audited disease knowledge only once, so later launches
             # keep whatever reviewers changed in this test database.
-            $sourceCount = & $php -r '$db = new PDO(''sqlite:'' . $argv[1]); echo $db->query(''SELECT COUNT(*) FROM research_sources'')->fetchColumn();' $database
+            $sourceCount = Invoke-Php -r '$db = new PDO(''sqlite:'' . $argv[1]); echo $db->query(''SELECT COUNT(*) FROM research_sources'')->fetchColumn();' $databaseForEnv | Select-Object -Last 1
             if ($LASTEXITCODE -ne 0) { throw 'Could not read the test knowledge base.' }
             if ([int]$sourceCount -eq 0) {
-                & $php artisan db:seed --class=ScientificKnowledgeSeeder --force --no-interaction
+                Invoke-Php artisan db:seed --class=ScientificKnowledgeSeeder --force --no-interaction
                 if ($LASTEXITCODE -ne 0) { throw 'Disease knowledge setup failed.' }
             }
         } finally { $env:APP_ENV = $oldSeedEnv }
     } finally { Pop-Location }
 
-    $ca = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python311\Lib\site-packages\certifi\cacert.pem'
-    if (-not (Test-Path -LiteralPath $ca)) {
-        $ca = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\Lib\site-packages\pip\_vendor\certifi\cacert.pem'
-    }
-    if (-not (Test-Path -LiteralPath $ca)) { throw 'A CA certificate bundle is required for the password safety check. Install Python certifi or configure PHP curl.cainfo.' }
     $router = Join-Path $testBackend 'vendor\laravel\framework\src\Illuminate\Foundation\resources\server.php'
-    # The API accepts leaf photos up to 10 MB; PHP's default upload limit is 2 MB.
-    $backend = Start-Process -FilePath $php -ArgumentList @('-d', "curl.cainfo=$ca", '-d', "openssl.cafile=$ca", '-d', 'upload_max_filesize=10M', '-d', 'post_max_size=12M', '-S', "127.0.0.1:$backendPort", $router) -WorkingDirectory (Join-Path $testBackend 'public') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $stateDir 'backend.out.log') -RedirectStandardError (Join-Path $stateDir 'backend.err.log')
+    $backendLogs = @{ RedirectStandardOutput = (Join-Path $stateDir 'backend.out.log'); RedirectStandardError = (Join-Path $stateDir 'backend.err.log') }
+    if ($phpInWsl) {
+        # Ubuntu's PHP uses the system certificate store.
+        $backend = Start-Process -FilePath 'wsl.exe' -ArgumentList @('--cd', (ConvertTo-WslPath (Join-Path $testBackend 'public')), '-e', 'php', '-d', 'upload_max_filesize=10M', '-d', 'post_max_size=12M', '-S', "127.0.0.1:$backendPort", (ConvertTo-WslPath $router)) -PassThru -WindowStyle Hidden @backendLogs
+    } else {
+        $ca = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python311\Lib\site-packages\certifi\cacert.pem'
+        if (-not (Test-Path -LiteralPath $ca)) {
+            $ca = Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\Lib\site-packages\pip\_vendor\certifi\cacert.pem'
+        }
+        if (-not (Test-Path -LiteralPath $ca)) { throw 'A CA certificate bundle is required for the password safety check. Install Python certifi or configure PHP curl.cainfo.' }
+        # The API accepts leaf photos up to 10 MB; PHP's default upload limit is 2 MB.
+        $backend = Start-Process -FilePath $php -ArgumentList @('-d', "curl.cainfo=$ca", '-d', "openssl.cafile=$ca", '-d', 'upload_max_filesize=10M', '-d', 'post_max_size=12M', '-S', "127.0.0.1:$backendPort", $router) -WorkingDirectory (Join-Path $testBackend 'public') -PassThru -WindowStyle Hidden @backendLogs
+    }
     Wait-Http "http://127.0.0.1:$backendPort/api/health" | Out-Null
 
     Write-Host 'Building the website...' -ForegroundColor Cyan
@@ -327,7 +352,7 @@ try {
     if (-not $NoOpen) { Start-Process $url }
 
     $fingerprint = (Get-MobileFingerprint) + $(if ($useUsb) { '-usb' } else { '-cloudflare' })
-    $state = [ordered]@{ appKey = $appKey; url = $url; tunnelPid = $(if ($tunnel) { $tunnel.Id } else { $null }); backendPid = $backend.Id; webPid = $web.Id; mobileFingerprint = $lastFingerprint; updatedAt = (Get-Date).ToString('o') }
+    $state = [ordered]@{ appKey = $appKey; url = $url; tunnelPid = $(if ($tunnel) { $tunnel.Id } else { $null }); backendPid = $backend.Id; webPid = $web.Id; mobileFingerprint = $lastFingerprint; phpInWsl = $phpInWsl; updatedAt = (Get-Date).ToString('o') }
     $state | ConvertTo-Json | Set-Content -LiteralPath $stateFile -Encoding UTF8
 
     if (-not $SkipPhone) {
@@ -416,6 +441,7 @@ try {
 } catch {
     if ($web) { Stop-OurProcess $web.Id "--port $webPort" }
     if ($backend) { Stop-OurProcess $backend.Id "127.0.0.1:$backendPort" }
+    if ($phpInWsl) { try { & wsl.exe -e pkill -f "php .*-S 127.0.0.1:$backendPort" 2>$null | Out-Null } catch { } }
     if ($tunnel) { Stop-OurProcess $tunnel.Id "127.0.0.1:$webPort" }
     Remove-Item -LiteralPath (Join-Path $stateDir 'tunnel-url.txt'), (Join-Path $stateDir 'connect-phone.png') -Force -ErrorAction SilentlyContinue
     $savedFingerprint = if ($state) { $state.mobileFingerprint } else { $lastFingerprint }
