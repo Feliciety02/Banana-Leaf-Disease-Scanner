@@ -115,6 +115,16 @@ function Get-PhoneSerial([string]$adb) {
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 $php = Find-Tool 'php.exe' (Join-Path $env:LOCALAPPDATA 'dev-tools\php\php.exe')
 $node = Find-Tool 'node.exe' (Join-Path $env:LOCALAPPDATA 'dev-tools\node-v24.19.0-win-x64\node.exe')
+# Laravel needs PHP's openssl and curl extensions. Windows App Control (Smart App
+# Control) can block their unsigned DLLs; stop here with a clear message instead
+# of failing later with a confusing error.
+if (-not $Stop) {
+    $phpCheck = 'missing'
+    try { $phpCheck = (& $php -d display_startup_errors=0 -r "echo (extension_loaded('openssl') && extension_loaded('curl')) ? 'ok' : 'missing';" 2>$null | Select-Object -Last 1) } catch { }
+    if ($phpCheck -ne 'ok') {
+        throw "PHP cannot load its openssl/curl extensions, so the backend cannot run. Windows may be blocking them ('An Application Control policy has blocked this file'). Check Windows Security > App & browser control > Smart App Control, or ask your IT administrator to allow $(Split-Path -Parent $php)\ext."
+    }
+}
 $npm = Find-Tool 'npm.cmd' (Join-Path $env:LOCALAPPDATA 'dev-tools\node-v24.19.0-win-x64\npm.cmd')
 $cloudflared = Find-Tool 'cloudflared.exe' (Join-Path $env:LOCALAPPDATA 'dev-tools\cloudflared.exe')
 $adb = Find-Tool 'adb.exe' (Join-Path $env:LOCALAPPDATA 'dev-tools\platform-tools\adb.exe')
