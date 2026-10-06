@@ -19,7 +19,10 @@ class ResearchImageRetentionTest extends TestCase
     private function approvedCopy(): array
     {
         Storage::fake('local');
-        $farmer = User::factory()->farmer()->create(['password' => Hash::make('Correct123!')]);
+        $farmer = User::factory()->farmer()->create([
+            'password' => Hash::make('Correct123!'),
+            'research_photo_consent_at' => now()->subMinute(), 'research_photo_consent_version' => config('banana.research_consent_version'),
+        ]);
         $expert = User::factory()->agriculturalExpert()->create();
         $admin = User::factory()->admin()->create();
         Storage::disk('local')->put('diagnoses/research-source.jpg', 'research-photo-bytes');
@@ -68,6 +71,23 @@ class ResearchImageRetentionTest extends TestCase
         $this->assertDatabaseHas('research_images', ['id' => $copy->id, 'source_user_id' => null, 'image_path' => null]);
         $this->assertNotNull($copy->fresh()->revoked_at);
         Storage::disk('local')->assertMissing($path);
+    }
+
+    public function test_disabling_account_research_sharing_removes_approved_copy_after_scan_deletion(): void
+    {
+        [$farmer, , $diagnosis, , $copy] = $this->approvedCopy();
+        $path = $copy->image_path;
+        Sanctum::actingAs($farmer);
+        $this->deleteJson("/api/diagnoses/{$diagnosis->id}")->assertNoContent();
+        $this->assertTrue(Diagnosis::withTrashed()->findOrFail($diagnosis->id)->trashed());
+        Storage::disk('local')->assertExists($path);
+
+        $this->putJson('/api/profile/research-consent', ['research_photo_consent' => false])
+            ->assertOk()->assertJsonPath('data.user.research_photo_consent', false);
+
+        $this->assertNotNull($copy->fresh()->revoked_at);
+        Storage::disk('local')->assertMissing($path);
+        $this->assertNotNull(Diagnosis::withTrashed()->findOrFail($diagnosis->id)->research_consent_withdrawn_at);
     }
 
     public function test_staff_removal_records_reason_and_blocks_private_photo_access(): void

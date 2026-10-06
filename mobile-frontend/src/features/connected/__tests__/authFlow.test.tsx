@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { AuthModal } from '../AuthModal';
+import { register } from '../../../services/api';
 
 jest.mock('@expo/vector-icons/Ionicons', () => 'Icon');
 jest.mock('../../../services/api', () => ({
@@ -42,4 +43,22 @@ it('keeps entered credentials across mode changes and asks before discarding', a
   await waitFor(() => expect(screen.getByLabelText('Password').props.value).toBe(''));
   expect(screen.getByLabelText('Email address').props.value).toBe('');
   alert.mockRestore();
+});
+
+it('requires account terms while leaving research sharing optional', async () => {
+  const onAuthenticated = jest.fn();
+  const screen = await render(<AuthModal mode="register" onClose={jest.fn()} onMode={jest.fn()} onAuthenticated={onAuthenticated} onConnection={jest.fn()} />);
+  await fireEvent.changeText(screen.getByLabelText('Full name'), 'Farmer Ana');
+  await fireEvent.changeText(screen.getByLabelText('Email address'), 'ana@example.test');
+  await fireEvent.changeText(screen.getByLabelText('Password'), 'Correct123!');
+  await fireEvent.changeText(screen.getByLabelText('Confirm password'), 'Correct123!');
+  await fireEvent.press(screen.getByText('Create account'));
+  expect(register).not.toHaveBeenCalled();
+  expect(screen.getByText('Please agree to the Terms of Use to create an account.')).toBeTruthy();
+
+  (register as jest.Mock).mockResolvedValue({ id: 1, role: 'farmer', name: 'Farmer Ana', email: 'ana@example.test' });
+  await fireEvent.press(screen.getByLabelText('I agree to the Terms of Use and have read the Privacy Policy.'));
+  await fireEvent.press(screen.getByText('Create account'));
+  await waitFor(() => expect(register).toHaveBeenCalledWith('Farmer Ana', 'ana@example.test', 'Correct123!', 'Correct123!', false));
+  expect(onAuthenticated).toHaveBeenCalled();
 });

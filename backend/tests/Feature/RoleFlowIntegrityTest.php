@@ -232,31 +232,72 @@ class RoleFlowIntegrityTest extends TestCase
         $this->getJson('/api/expert/dashboard')->assertOk()->assertJsonPath('data.farmer_review_requests', 1);
     }
 
-    public function test_farmer_grants_and_withdraws_research_consent_after_saving(): void
+    public function test_account_research_preference_automatically_shares_future_scans(): void
     {
         Storage::fake('local');
         $farmer = User::factory()->farmer()->create();
         Sanctum::actingAs($farmer);
-        $syncUuid = '0d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111';
-        $this->postJson('/api/sync', ['diagnoses' => [[
-            'sync_uuid' => $syncUuid, 'predicted_class' => 'panama-disease', 'confidence' => 88,
-            'diagnosed_at' => now()->toIso8601String(), 'source' => 'mobile',
+        $sync = fn (string $uuid, ?string $at = null) => $this->postJson('/api/sync', ['diagnoses' => [[
+            'sync_uuid' => $uuid, 'predicted_class' => 'panama-disease', 'confidence' => 88,
+            'diagnosed_at' => $at ?? now()->toIso8601String(), 'source' => 'mobile', 'research_consent' => true,
         ]]])->assertOk()->assertJsonPath('data.results.0.status', 'created');
-        $diagnosis = Diagnosis::query()->where('sync_uuid', $syncUuid)->firstOrFail();
 
-        $this->post("/api/sync/{$syncUuid}/image", ['image' => UploadedFile::fake()->image('leaf.jpg')], ['Accept' => 'application/json'])
-            ->assertOk();
-        $this->assertNotNull($diagnosis->fresh()->image_path);
-        $this->assertFalse($diagnosis->fresh()->hasActiveResearchConsent());
-        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', true);
+        // Without the account preference, a client cannot opt a scan in by itself.
+        $sync('0d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111');
+        $unshared = Diagnosis::query()->where('sync_uuid', '0d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111')->firstOrFail();
+        $this->assertFalse($unshared->hasActiveResearchConsent());
+        $this->postJson("/api/diagnoses/{$unshared->id}/research-consent")->assertUnprocessable();
 
-        $this->deleteJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', false);
-        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', true);
+        $this->travel(1)->minutes();
+        $this->putJson('/api/profile/research-consent', ['research_photo_consent' => true])
+            ->assertOk()->assertJsonPath('data.user.research_photo_consent', true);
+        $this->assertFalse($unshared->fresh()->hasActiveResearchConsent(), 'Older scans stay unshared.');
+
+        $this->travel(1)->minutes();
+        $sync('1d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111');
+        $shared = Diagnosis::query()->where('sync_uuid', '1d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111')->firstOrFail();
+        $this->assertTrue($shared->hasActiveResearchConsent());
+
+        // A farmer can still stop sharing one scan, and re-share a scan made after opting in.
+        $this->deleteJson("/api/diagnoses/{$shared->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', false);
+        $this->postJson("/api/diagnoses/{$shared->id}/research-consent")->assertOk()->assertJsonPath('data.research_consent', true);
 
         Sanctum::actingAs(User::factory()->farmer()->create());
-        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
+        $this->postJson("/api/diagnoses/{$shared->id}/research-consent")->assertForbidden();
+        $this->deleteJson("/api/diagnoses/{$shared->id}/research-consent")->assertForbidden();
 
-        $this->deleteJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
+        // Turning the preference off withdraws existing consent and stops future sharing.
+        Sanctum::actingAs($farmer);
+        $this->putJson('/api/profile/research-consent', ['research_photo_consent' => false])
+            ->assertOk()->assertJsonPath('data.user.research_photo_consent', false);
+        $this->assertFalse($shared->fresh()->hasActiveResearchConsent());
+        $sync('2d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111');
+        $this->assertFalse(Diagnosis::query()->where('sync_uuid', '2d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111')->firstOrFail()->hasActiveResearchConsent());
+    }
+
+    public function test_unverified_farmers_scans_are_not_shared_automatically(): void
+    {
+        config(['banana.require_verified_email' => true]);
+        $farmer = User::factory()->farmer()->unverified()->create([
+            'research_photo_consent_at' => now()->subMinute(), 'research_photo_consent_version' => config('banana.research_consent_version'),
+        ]);
+        Sanctum::actingAs($farmer);
+        $this->postJson('/api/sync', ['diagnoses' => [[
+            'sync_uuid' => '3d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111', 'predicted_class' => 'panama-disease', 'confidence' => 88,
+            'diagnosed_at' => now()->toIso8601String(), 'source' => 'mobile',
+        ]]])->assertOk()->assertJsonPath('data.results.0.status', 'created');
+        $this->assertFalse(Diagnosis::query()->where('sync_uuid', '3d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111')->firstOrFail()->hasActiveResearchConsent());
+    }
+
+    public function test_research_sharing_is_a_separate_optional_choice_at_registration(): void
+    {
+        $base = ['name' => 'Farmer', 'password' => 'Correct123!', 'password_confirmation' => 'Correct123!', 'device_name' => 'test'];
+        $this->postJson('/api/auth/register', [...$base, 'email' => 'no-terms@example.com'])
+            ->assertUnprocessable()->assertJsonValidationErrors('terms_accepted');
+        $this->postJson('/api/auth/register', [...$base, 'email' => 'terms-only@example.com', 'terms_accepted' => true])
+            ->assertCreated()->assertJsonPath('data.user.research_photo_consent', false);
+        $this->postJson('/api/auth/register', [...$base, 'email' => 'research@example.com', 'terms_accepted' => true, 'research_photo_consent' => true])
+            ->assertCreated()->assertJsonPath('data.user.research_photo_consent', true);
     }
 
     public function test_unverified_farmers_can_ask_an_expert_but_research_and_staff_tools_need_verification(): void
@@ -281,13 +322,13 @@ class RoleFlowIntegrityTest extends TestCase
             'sync_uuid' => '6a0e1c0c-7d7c-4c8f-9d0a-7f1f9a8f2c23',
             'predicted_class' => 'sigatoka', 'confidence' => 72,
             'diagnosed_at' => now()->toIso8601String(), 'research_consent' => true,
-        ]]])->assertOk()->assertJsonPath('data.results.0.status', 'rejected');
-        $this->assertDatabaseMissing('diagnoses', ['sync_uuid' => '6a0e1c0c-7d7c-4c8f-9d0a-7f1f9a8f2c23']);
+        ]]])->assertOk()->assertJsonPath('data.results.0.status', 'created');
+        $this->assertDatabaseHas('diagnoses', ['sync_uuid' => '6a0e1c0c-7d7c-4c8f-9d0a-7f1f9a8f2c23', 'research_consented_at' => null]);
         $this->post('/api/diagnoses', [
             'predicted_class' => 'sigatoka', 'confidence' => 72,
             'source' => 'web', 'diagnosed_at' => now()->toIso8601String(),
             'research_consent' => true, 'image' => UploadedFile::fake()->image('unverified.jpg'),
-        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('research_consent');
+        ], ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('data.research_consent', false);
 
         Sanctum::actingAs(User::factory()->admin()->unverified()->create());
         $this->getJson('/api/admin/dashboard')->assertForbidden();

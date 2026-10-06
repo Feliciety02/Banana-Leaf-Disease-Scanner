@@ -28,6 +28,7 @@ class SecurityReliabilityTest extends TestCase
             'email' => '  FARMER@Example.Test  ',
             'password' => $password,
             'password_confirmation' => $password,
+            'terms_accepted' => true,
         ])->assertCreated();
 
         $registration->assertJsonPath('data.user.name', 'Field Farmer')

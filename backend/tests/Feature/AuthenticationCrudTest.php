@@ -43,7 +43,7 @@ class AuthenticationCrudTest extends TestCase
     public function test_registration_login_duplicate_credentials_and_logout(): void
     {
         $this->getJson('/api/profile')->assertUnauthorized();
-        $payload = ['name' => 'Field Farmer', 'email' => 'field@example.test', 'password' => 'Secret123!', 'password_confirmation' => 'Secret123!', 'role' => 'admin'];
+        $payload = ['name' => 'Field Farmer', 'email' => 'field@example.test', 'password' => 'Secret123!', 'password_confirmation' => 'Secret123!', 'terms_accepted' => true, 'role' => 'admin'];
         $response = $this->postJson('/api/auth/register', $payload)->assertCreated()->assertJsonPath('data.user.role', 'farmer');
         $this->postJson('/api/auth/register', $payload)->assertUnprocessable()->assertJsonPath('success', false);
         $this->postJson('/api/auth/login', ['email' => $payload['email'], 'password' => 'wrong-password'])->assertUnprocessable();
@@ -198,7 +198,7 @@ class AuthenticationCrudTest extends TestCase
     public function test_research_consent_requires_an_image_and_records_the_current_consent_version(): void
     {
         Storage::fake('local');
-        $user = User::factory()->create();
+        $user = User::factory()->create(['research_photo_consent_at' => now()->subMinute(), 'research_photo_consent_version' => config('banana.research_consent_version')]);
         Sanctum::actingAs($user);
         $payload = [
             'predicted_class' => 'healthy', 'confidence' => 80,
@@ -333,10 +333,10 @@ class AuthenticationCrudTest extends TestCase
         $this->assertDatabaseCount('diagnoses', 1);
     }
 
-    public function test_mobile_uploads_only_an_explicitly_consented_research_image(): void
+    public function test_mobile_uploads_an_account_consented_research_image(): void
     {
         Storage::fake('local');
-        $user = User::factory()->create();
+        $user = User::factory()->create(['research_photo_consent_at' => now()->subMinute(), 'research_photo_consent_version' => config('banana.research_consent_version')]);
         Sanctum::actingAs($user);
         $syncUuid = 'c68fdf7b-b2ab-464f-bde4-f1df128b69d8';
         $payload = ['diagnoses' => [[
@@ -365,6 +365,7 @@ class AuthenticationCrudTest extends TestCase
             'email' => 'shared@example.test',
             'password' => 'Secret123!',
             'password_confirmation' => 'Secret123!',
+            'terms_accepted' => true,
         ];
 
         $registration = $this->postJson('/api/auth/register', $credentials)->assertCreated();
