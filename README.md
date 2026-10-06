@@ -8,7 +8,7 @@ The Android app classifies a leaf photo on the phone, offline, as **Healthy**, *
 When a signed-in farmer requests review, the agriculturist's final verdict
 syncs into farmer history and appears in the admin record beside the original
 AI result. A private photo can be shared for history and review; research use
-requires separate consent. The optional web API records whether it can verify
+requires a separate optional choice at account registration or in Account settings. Once enabled, future account scans are automatically marked for research consideration after expert review; turning it off withdraws existing consent. The optional web API records whether it can verify
 a saved prediction with its own inference receipt. Phone results remain
 client-reported to that API even when the on-device model ran successfully.
 
@@ -18,66 +18,27 @@ All commands use **Windows PowerShell** from the project folder.
 
 ## 🚀 Quick start: website + phone test link
 
+For the **first APK installation**, connect and authorize the Android phone over USB, then run:
+
 ```powershell
 Set-Location 'C:\Users\feann\OneDrive\Documents\Banana-Leaf-Disease-Scanner'
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1 -Cloudflare
 ```
 
-Starts the test backend and website. With a USB-debugging phone connected, it installs the app and connects it directly through USB. Without a phone, it opens a free Cloudflare HTTPS link:
-
-- **Website** opens in your browser; the link is also copied to the clipboard.
-- **Phone on USB** (USB debugging on): installs/updates the APK and opens it with the new link.
-- **No phone plugged in**: a QR code opens on screen. Scan it with the phone camera and tap **Open DahonMD app**. (Or open `<link>/connect.html` in the phone browser.)
-
-| Command | What it does |
-| --- | --- |
-| `.\start-free-test.ps1` | Start or restart; use USB when a phone is connected, otherwise Cloudflare |
-| `.\start-free-test.ps1 -Stop` | Stop the tunnel, website and backend |
-| `.\start-free-test.ps1 -NoOpen` | Don't open the browser or QR code |
-| `.\start-free-test.ps1 -SkipPhone` | Website only; don't touch the phone |
-| `.\start-free-test.ps1 -ForceApkBuild` | Rebuild the APK even if mobile code is unchanged |
-| `.\start-free-test.ps1 -UsbOnly` | Connect a USB-debugging phone directly when Cloudflare is unavailable |
-| `.\start-free-test.ps1 -Cloudflare` | Request a public Cloudflare link even when a USB phone is connected |
-
-### USB phone connection (no Cloudflare)
-
-Keep the phone unlocked with USB debugging authorized, then run the quick start command above. To require USB mode explicitly, run:
+For **repeat demos with the app already installed**, use this when ADB can detect
+the phone. It sends a new HTTPS link after USB reconnects:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1 -UsbOnly
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1 -Cloudflare -SkipPhone -AutoConnectPhone
 ```
 
-The script builds a test APK, installs it, creates an ADB reverse connection,
-and sends `http://127.0.0.1:4174` to the app. Wait for **Server connected** on
-the phone and sign in again. Keep the USB cable attached while using connected
-features; offline scanning still works after disconnecting. This loopback HTTP
-address is accepted only by the USB test APK built by this command.
+If ADB does **not** detect the phone, the watcher cannot send a link. Open
+`<printed-link>/connect.html` on the phone and tap **Open DahonMD app**. The
+offline scanner does not need the website.
 
-### Restart Cloudflare (new link)
+See [AUTOMATION_README.md](AUTOMATION_README.md) for every startup option, reconnection behavior, and troubleshooting.
 
-The free link changes every run and stops working once the tunnel stops. The
-app signs out when the server address changes, so sign in again after the phone
-shows **Server connected**. To get a new link:
-
-```powershell
-.\start-free-test.ps1 -Stop
-.\start-free-test.ps1 -Cloudflare
-```
-
-Wait for `Website and phone server: https://…` before using the phone. If a port (8002 or 4174) is still busy, find it with:
-
-```powershell
-Get-NetTCPConnection -LocalPort 8002,4174 -State Listen | Select-Object LocalPort, OwningProcess
-```
-
-The script retries Cloudflare over HTTP/2 and QUIC, waits for a registered
-tunnel connection, then checks the public API before handing the link to the
-phone. If all attempts fail, check `tunnel-*.err.log` under `.dahonmd\free-test\`
-and retry when the network can reach Cloudflare.
-
-Test data lives in `.dahonmd\free-test\` and is kept between runs. The script
-applies pending backend migrations to that isolated database at startup. Emails
-are only written to the log. Keep the computer on while using the link.
+For a presentation, follow the [step-by-step demo speaking script](DEMO_WALKTHROUGH.md). It pairs each phone and website action with the words to say while showing it.
 
 ---
 
