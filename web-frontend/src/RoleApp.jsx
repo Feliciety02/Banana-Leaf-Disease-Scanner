@@ -6,6 +6,8 @@ import { CLASS_NAMES, getHighestClass, normalizeClassProbabilities } from './ser
 import { AUTH_EXPIRED_EVENT, api, apiFileUrl, authenticate, logout, requestPasswordReset, setToken } from './services/api';
 import { cacheHistory, clearWebAccountData, countPendingWebChanges, flushWebDiagnosisOutbox, listPendingWebDiagnoses, pullWebDiagnosisChanges, queueWebDiagnosis, queueWebDiagnosisDeletion, readCachedHistory } from './services/offlineDiagnoses';
 import { normalizeChatText } from './utils/chatText';
+import { ARTICLE_IMAGE_LINE, numberedLineText, parseInline } from './utils/articleFormat';
+import { ArticleEditor } from './ArticleEditor';
 
 const THRESHOLD = Number(import.meta.env.VITE_CONFIDENCE_THRESHOLD ?? 70);
 const FARMER_NAV = [['/farmer/dashboard', 'Home', Home], ['/farmer/scan', 'Scan', ScanLine], ['/farmer/history', 'History', History], ['/farmer/diseases', 'Guide', BookOpen], ['/farmer/profile', 'Profile', CircleUserRound]];
@@ -215,9 +217,10 @@ function FarmerReviewProgress({ inProgress = false }) { return <ol className="fa
 
 function AuthPanel({ mode, onAuthenticated, onMode, onDirtyChange }) {
   const signup = mode === 'register'; const [form, setForm] = useState({ name: '', email: '', password: '', password_confirmation: '' }); const [error, setError] = useState(''); const [errors, setErrors] = useState({}); const [busy, setBusy] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false); const [researchPhotoConsent, setResearchPhotoConsent] = useState(false);
   const [showPassword, setShowPassword] = useState(false); const [remember, setRemember] = useState(true); const [notice, setNotice] = useState('');
-  useEffect(() => { onDirtyChange?.(busy || Object.values(form).some(Boolean)); }, [form, busy, onDirtyChange]);
-  const submit = async (event) => { event.preventDefault(); setBusy(true); setError(''); setErrors({}); setNotice(''); try { const user = await authenticate(mode, form, remember); onAuthenticated(user); } catch (exception) { setError(exception.message); setErrors(exception.errors || {}); } finally { setBusy(false); } };
+  useEffect(() => { onDirtyChange?.(busy || termsAccepted || researchPhotoConsent || Object.values(form).some(Boolean)); }, [form, busy, termsAccepted, researchPhotoConsent, onDirtyChange]);
+  const submit = async (event) => { event.preventDefault(); if (signup && !termsAccepted) { setError(tr('Please agree to the Terms of Use to create an account.')); return; } setBusy(true); setError(''); setErrors({}); setNotice(''); try { const user = await authenticate(mode, signup ? { ...form, terms_accepted: termsAccepted, research_photo_consent: researchPhotoConsent } : form, remember); onAuthenticated(user); } catch (exception) { setError(exception.message); setErrors(exception.errors || {}); } finally { setBusy(false); } };
   const loginProfile = async (email) => {
     if (busy) return;
     setBusy(true); setError(''); setErrors({}); setNotice('');
@@ -241,6 +244,7 @@ function AuthPanel({ mode, onAuthenticated, onMode, onDirtyChange }) {
       <label>{tr('Email address')}<div className="auth-field"><Mail size={18} /><input type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></div>{errors.email && <small>{errors.email[0]}</small>}</label>
       <label>{tr('Password')}<div className="auth-field"><LockKeyhole size={18} /><input type={showPassword ? 'text' : 'password'} autoComplete={signup ? 'new-password' : 'current-password'} placeholder="Enter your password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required /><button type="button" className="auth-eye" aria-label={showPassword ? tr('Hide password') : tr('Show password')} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{errors.password && <small>{errors.password[0]}</small>}</label>
       {signup && <label>{tr('Confirm password')}<div className="auth-field"><LockKeyhole size={18} /><input type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Repeat your password" value={form.password_confirmation} onChange={(event) => setForm({ ...form, password_confirmation: event.target.value })} required /></div></label>}
+      {signup && <div className="auth-consent"><label><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} required /> {tr('I agree to the')} <a href="/api/terms" target="_blank" rel="noreferrer">{tr('Terms of Use')}</a> {tr('and have read the')} <a href="/privacy" target="_blank" rel="noreferrer">{tr('Privacy Policy')}</a>.</label><label><input type="checkbox" checked={researchPhotoConsent} onChange={(event) => setResearchPhotoConsent(event.target.checked)} /> {tr('Optional: Automatically share my future account scan photos for research consideration after expert review. An approved private copy may remain after I delete a scan. I can turn this off in Profile.')}</label></div>}
       <div className="auth-options"><label className="remember-control"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><span><Check size={12} /></span>{tr('Remember me')}</label>{!signup && <button type="button" disabled={busy} onClick={forgotPassword}>{tr('Forgot password?')}</button>}</div>
       {(error || notice) && <div className={error ? 'form-error' : 'auth-notice'} role="status">{error || notice}</div>}
       <button className="primary-button auth-submit" disabled={busy}>{busy ? <RefreshCw className="spin" size={17} /> : <Leaf size={18} />}{busy ? tr('Please wait') : signup ? tr('Create account') : tr('Log in')}</button>
@@ -489,17 +493,13 @@ function historyPhotoPreview(uri) {
 }
 
 function FarmerHome({ user, records, online, navigate, onOpen, pendingChanges }) {
-  const firstName = user.name.trim().split(/\s+/)[0];
   const uncertain = records.filter((record) => record.confidence < THRESHOLD && (!record.review || record.review.review_status === 'pending')).length;
   const newReviews = records.filter((record) => isNewReview(record.review)).length;
   const nextTitle = newReviews ? tr('{count} new expert review(s)', { count: newReviews }) : uncertain ? tr('Review an uncertain result') : pendingChanges ? tr('Keep your scans in sync') : records.length ? tr('Keep an eye on your leaves') : tr('Start with your first leaf');
   const nextText = newReviews ? tr('An agriculturist has assessed your scan. Open History to read the result and next steps.') : uncertain ? tr('{count} saved result(s) were not sure. Compare visible signs in the guide or ask an expert.', { count: uncertain }) : pendingChanges ? tr('{count} browser change(s) waiting. They upload automatically when you are online.', { count: pendingChanges }) : records.length ? tr('Check your saved results or scan a new leaf if its appearance changes.') : tr('Scan one clear leaf photo to create your first saved result.');
 
   return <div className="role-stack farmer-dashboard">
-    <section className="farmer-welcome farmer-dashboard-intro">
-      <h1>{tr('Good to see you, {name}.', { name: firstName })}</h1>
-      <p>{tr('A clearer picture of your banana leaves starts here.')}</p>
-    </section>
+    <Welcome user={user} text={tr('Scan a leaf or check your saved results below.')} />
 
     <section className="farmer-dashboard-hero">
       <div className="farmer-dashboard-hero-copy">
@@ -569,7 +569,7 @@ function Tips() {
   </ul>;
 }
 
-function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = true }) {
+function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = true, autoStartCamera = true }) {
   const cameraInput = useRef(null); const galleryInput = useRef(null); const video = useRef(null); const cameraStream = useRef(null); const cameraRequest = useRef(0); const [image, setImage] = useState(null); const [imageFile, setImageFile] = useState(null); const [fileName, setFileName] = useState(''); const [stage, setStage] = useState('choose'); const [result, setResult] = useState(null); const [comparison, setComparison] = useState(null); const [error, setError] = useState(''); const [cameraStatus, setCameraStatus] = useState('idle');
   const stopCamera = useCallback(() => { cameraRequest.current += 1; cameraStream.current?.getTracks().forEach((track) => track.stop()); cameraStream.current = null; if (video.current) video.current.srcObject = null; }, []);
   const startCamera = useCallback(async () => {
@@ -588,9 +588,9 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
     }
   }, [stopCamera]);
   useEffect(() => {
-    if (window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) startCamera();
+    if (autoStartCamera && window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) startCamera();
     return stopCamera;
-  }, [startCamera, stopCamera]);
+  }, [autoStartCamera, startCamera, stopCamera]);
   const useFile = (file) => { if (!file?.type.startsWith('image/')) { setError("We couldn't use this photo. Please choose another image."); return; } stopCamera(); if (image?.startsWith('blob:')) URL.revokeObjectURL(image); setImage(URL.createObjectURL(file)); setImageFile(file); setFileName(file.name); setStage('preview'); setError(''); };
   const takePhoto = () => {
     const source = video.current;
@@ -599,7 +599,7 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
     stopCamera(); setCameraStatus('idle');
     canvas.toBlob((blob) => { if (!blob) { setError("We couldn't capture this photo. Please try again."); return; } useFile(new File([blob], `banana-leaf-${Date.now()}.jpg`, { type: 'image/jpeg' })); }, 'image/jpeg', .92);
   };
-  const reset = () => { if (image?.startsWith('blob:')) URL.revokeObjectURL(image); setImage(null); setImageFile(null); setFileName(''); setResult(null); setComparison(null); setStage('choose'); setError(''); setCameraStatus('idle'); if (window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) startCamera(); };
+  const reset = () => { if (image?.startsWith('blob:')) URL.revokeObjectURL(image); setImage(null); setImageFile(null); setFileName(''); setResult(null); setComparison(null); setStage('choose'); setError(''); setCameraStatus('idle'); if (autoStartCamera && window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) startCamera(); };
   const check = async () => {
     stopCamera(); setCameraStatus('idle'); setStage('checking'); setComparison(null); setError('');
     const comparePhoto = async () => {
@@ -615,7 +615,7 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
       setResult(screening); setComparison(research); setStage('result');
     } catch { setError(tr('Something went wrong. Please try again.')); setStage('preview'); }
   };
-  const save = async (requestReview = false, farmerNotes = '', researchConsent = false) => { if (!onSaved) { onAuthRequired?.('login'); return; } try { const savedPhoto = imageFile ? await historyPhotoPreview(image) : image; await onSaved({ diseaseId: result.diseaseId, confidence: result.confidence, latency: result.latency, date: new Date().toISOString(), source: 'web', model: result.model, isSimulated: Boolean(result.is_simulated), inferenceReceipt: result.inference_receipt || null, probabilities: normalizeClassProbabilities(result), image: savedPhoto, farmerNotes, researchConsent }, imageFile, requestReview); navigate('/farmer/history'); } catch { setError(tr('The result or photo could not be saved in this browser. Please try again.')); } };
+  const save = async (requestReview = false, farmerNotes = '') => { if (!onSaved) { onAuthRequired?.('login'); return; } try { const savedPhoto = imageFile ? await historyPhotoPreview(image) : image; await onSaved({ diseaseId: result.diseaseId, confidence: result.confidence, latency: result.latency, date: new Date().toISOString(), source: 'web', model: result.model, isSimulated: Boolean(result.is_simulated), inferenceReceipt: result.inference_receipt || null, probabilities: normalizeClassProbabilities(result), image: savedPhoto, farmerNotes }, imageFile, requestReview); navigate('/farmer/history'); } catch { setError(tr('The result or photo could not be saved in this browser. Please try again.')); } };
   if (stage === 'result') return <FarmerResult image={image} result={result} comparison={comparison} onReset={reset} onSave={save} navigate={navigate} error={error} />;
   return <div className="role-stack scan-page">
     <Heading title={tr('Scan a leaf')} text={image ? tr('Check the leaf and affected area before continuing.') : tr('Take or choose a clear banana leaf photo.')} />
@@ -813,6 +813,8 @@ function Warning() {
     <p>{tr('Some diseases, nutrient problems, and environmental damage can look alike in a photo. Ask a qualified agriculture or plant-health professional when symptoms are severe, unusual, spreading quickly, or the result is uncertain.')}</p>
   </details>;
 }
+// Same welcome for every role: the full name exactly as the user entered it.
+function Welcome({ user, text }) { const name = user?.name?.trim().replace(/\s+/g, ' '); return <section className="farmer-welcome farmer-dashboard-intro"><h1>{name ? tr('Welcome, {name}', { name }) : tr('Welcome')}</h1>{text && <p>{text}</p>}</section>; }
 function Heading({ title, text, action }) { return <section className="role-page-heading"><div><h1>{title}</h1>{text && <p>{text}</p>}</div>{action && <div className="role-page-actions">{action}</div>}</section>; }
 
 function SectionHeading({ title, text }) {
@@ -1047,7 +1049,7 @@ function DiseaseGuide({ initialClass = null, navigate, onOpenLibrary }) {
 function ReviewReplyForm({ onSubmit }) {
   const [open, setOpen] = useState(false); const [text, setText] = useState(''); const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  if (!open) return <button type="button" className="secondary-button" onClick={() => setOpen(true)}>{tr('Reply or send a new photo')}</button>;
+  if (!open) return <button type="button" className="secondary-button" onClick={() => setOpen(true)}><MessageCircle size={16} />{tr('Reply or send a new photo')}</button>;
   const submit = async (event) => {
     event.preventDefault(); setBusy(true); setError('');
     try { await onSubmit(text.trim(), file); setOpen(false); setText(''); setFile(null); }
@@ -1055,10 +1057,13 @@ function ReviewReplyForm({ onSubmit }) {
     finally { setBusy(false); }
   };
   return <form className="review-reply-form" onSubmit={submit}>
-    <label>{tr('Reply to the agriculturist')}<textarea required maxLength={1000} value={text} onChange={(event) => setText(event.target.value)} placeholder={tr('What changed, or what would you like to ask?')} /></label>
-    <label>{tr('New photo (optional)')}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
+    <label className="review-reply-field"><span>{tr('Reply to the agriculturist')}</span><textarea required maxLength={1000} value={text} onChange={(event) => setText(event.target.value)} placeholder={tr('What changed, or what would you like to ask?')} /></label>
+    <div className="review-reply-field"><span>{tr('New photo (optional)')}</span>
+      <label className="review-reply-photo"><ImagePlus size={18} /><span>{file ? file.name : tr('Choose a photo')}</span><input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
+      {file && <button type="button" className="text-button" onClick={() => setFile(null)}>{tr('Remove photo')}</button>}
+    </div>
     {error && <p className="form-error" role="alert">{error}</p>}
-    <p className="review-meta">{tr('Your earlier result is kept. The case goes back to an agriculturist.')}</p>
+    <p className="review-reply-note"><Info size={15} />{tr('Your earlier result is kept. The case goes back to an agriculturist.')}</p>
     <div className="confirm-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => setOpen(false)}>{tr('Cancel')}</button><button className="primary-button" disabled={busy || !text.trim()}>{busy ? tr('Sending…') : tr('Send to agriculturist')}</button></div>
   </form>;
 }
@@ -1085,8 +1090,7 @@ function DiagnosisDialog({ record, onClose, onRequestReview, onDelete, onResearc
       {record.review?.review_status === 'pending' && <section className="review-notice"><ShieldCheck size={20} /><div><strong>{tr(reviewInProgress(record) ? 'An expert is reviewing your {item} now' : 'Waiting for an expert to pick up your {item}', { item: record.serverImage ? tr('photo') : tr('note') })}</strong><FarmerReviewProgress inProgress={reviewInProgress(record)} /><p>{tr('You will see the answer here.')}</p>{!record.serverImage && <p>{tr('The expert cannot see the photo yet.')}</p>}{record.review.requested_at && <p className="review-meta">Sent {formatDate(record.review.requested_at, true)}</p>}{!record.serverImage && record.syncUuid && record.image?.startsWith('data:image/') && <button type="button" className="secondary-button" disabled={photoBusy} onClick={sendReviewPhoto}>{photoBusy ? tr('Sending…') : tr('Send photo to expert')}</button>}{photoError && <p className="form-error" role="alert">{photoError}</p>}{record.review.farmer_reply && <p><strong>{tr('Your reply:')}</strong> {record.review.farmer_reply}</p>}</div></section>}
       {reviewed && (() => { const outcome = farmerReviewOutcome(record.review, record.predictedClass); return <section className="review-result"><h3>{outcome.title}</h3><p>{outcome.message}</p>{record.review.farmer_message && <><p><strong>{tr('Message from {name}', { name: record.review.reviewer?.name || tr('the agriculturist') })}</strong></p><p className="reviewer-message">{record.review.farmer_message}</p></>}{outcome.steps.length > 0 && <><p><strong>{tr('What to do now')}</strong></p><ol className="farmer-review-steps">{outcome.steps.map((step) => <li key={step}>{step}</li>)}</ol></>}{(record.review.reviewer || record.review.reviewed_at) && <p className="review-meta">{record.review.reviewer ? tr('Checked by {name}', { name: record.review.reviewer.name }) : tr('Checked')}{record.review.reviewed_at ? ` · ${formatDate(record.review.reviewed_at, true)}` : ''}</p>}{record.review.verified_label && onOpenGuide && <button type="button" className="secondary-button" onClick={() => onOpenGuide(record.review.verified_label)}><BookOpen size={16} />{tr('Read about {name} in the guide', { name: titleCase(record.review.verified_label) })}</button>}{record.synced && onReply && <ReviewReplyForm onSubmit={(text, file) => onReply(record, text, file)} />}</section>; })()}
       {!record.review && record.synced && <ReviewRequestForm initialNotes={record.farmerNotes} hasPhoto={Boolean(record.serverImage || record.syncUuid && record.image?.startsWith('data:image/'))} onSubmit={(notes) => onRequestReview(record, notes)} />}
-      {record.synced && record.researchConsent && <section className="review-notice"><Database size={20} /><div><strong>{tr(record.researchConsentCurrent ? 'Research consent granted' : 'Research consent needs renewal')}</strong><p>{tr(record.researchConsentCurrent ? 'If approved, a private research copy remains after scan deletion. You can withdraw consent and remove the copy at any time.' : 'Renew consent for a separate private research copy before this photo can be approved.')}</p>{consentError && <p className="form-error">{consentError}</p>}{!record.researchConsentCurrent && <button className="secondary-button" disabled={consentBusy} onClick={() => changeConsent(true)}>{consentBusy ? tr('Saving…') : tr('Renew research consent')}</button>}<button className="secondary-button" disabled={consentBusy} onClick={() => changeConsent(false)}>{consentBusy ? tr('Saving…') : tr('Withdraw research consent')}</button></div></section>}
-      {record.synced && !record.researchConsent && record.serverImage && <section className="review-notice"><Database size={20} /><div><strong>{tr('Optional research sharing')}</strong><p>{tr('If approved, a separate private copy remains after scan deletion. You can remove it from your profile at any time.')}</p>{consentError && <p className="form-error">{consentError}</p>}<button className="secondary-button" disabled={consentBusy} onClick={() => changeConsent(true)}>{consentBusy ? tr('Saving…') : tr('Share photo for research')}</button></div></section>}
+      {record.synced && record.researchConsent && <section className="review-notice"><Database size={20} /><div><strong>{tr(record.researchConsentCurrent ? 'Research consent granted' : 'Research consent needs renewal')}</strong><p>{tr('If approved, a private research copy remains after scan deletion. You can withdraw consent and remove the copy at any time.')}</p>{consentError && <p className="form-error">{consentError}</p>}<button className="secondary-button" disabled={consentBusy} onClick={() => changeConsent(false)}>{consentBusy ? tr('Saving…') : tr('Withdraw research consent')}</button></div></section>}
       {record.synced && onAskAssistant && <button className="secondary-button full" onClick={() => onAskAssistant(record)}><MessageCircle size={17} />{tr('Ask Dahon about this scan')}</button>}
       <button className="danger-button full" onClick={() => setDeleteOpen(true)}><Trash2 size={17} />{tr('Delete saved scan')}</button>
       <Warning />
@@ -1104,11 +1108,12 @@ function FarmerResearchPhotos() {
   return <section className="panel role-form"><h2>{tr('Approved research photos')}</h2><p>{tr('These private copies remain after you delete a scan. You can remove them here at any time. Keep the photo ID if you may request removal after account deletion.')}</p>{error && <p className="form-error">{error}</p>}{visible.map((item) => <div key={item.id} className="review-notice"><Database size={20} /><div><strong>#{item.id} · {titleCase(item.verified_label)}</strong><p>{item.file_removal_pending ? tr('Photo removal is pending; retry below.') : formatDate(item.approved_at, true)}</p><button type="button" className="danger-button" disabled={busy} onClick={() => remove(item)}>{tr(item.file_removal_pending ? 'Retry photo removal' : 'Remove research photo')}</button></div></div>)}{!visible.length && <p>{tr('No approved research photos are retained.')}</p>}</section>;
 }
 
-function ProfilePage({ user, onUser, onAccountDeleted }) {
+function ProfilePage({ user, onUser, onAccountDeleted, onResearchPreferenceChanged }) {
   const [profile, setProfile] = useState({ name: user.name, email: user.email, current_password: '' }); const [passwords, setPasswords] = useState({ current_password: '', password: '', password_confirmation: '' }); const [deletePassword, setDeletePassword] = useState(''); const [removeResearchCopies, setRemoveResearchCopies] = useState(false); const [deleteOpen, setDeleteOpen] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [error, setError] = useState('');
   const emailChanged = profile.email.trim().toLowerCase() !== user.email.toLowerCase();
   const save = async (event) => { event.preventDefault(); try { const payload = await api('/profile', { method: 'PUT', body: JSON.stringify(profile) }); onUser(payload.data.user); setProfile({ name: payload.data.user.name, email: payload.data.user.email, current_password: '' }); setMessage(tr('Profile updated.')); setError(''); } catch (exception) { setError(exception.message); } }; const change = async (event) => { event.preventDefault(); try { await api('/profile/password', { method: 'PUT', body: JSON.stringify(passwords) }); setPasswords({ current_password: '', password: '', password_confirmation: '' }); setMessage(tr('Password updated.')); setError(''); } catch (exception) { setError(exception.message); } }; const remove = async () => { setBusy(true); try { await api('/profile', { method: 'DELETE', body: JSON.stringify({ current_password: deletePassword, remove_research_copies: removeResearchCopies }) }); setToken(null); await onAccountDeleted(); } catch (exception) { setError(exception.message); setDeleteOpen(false); } finally { setBusy(false); } };
   const resendVerification = async () => { try { const payload = await api('/auth/verification-notification', { method: 'POST' }); setMessage(payload.message); setError(''); } catch (exception) { setError(exception.message); } };
+  const changeResearchPreference = async (enabled) => { setBusy(true); setError(''); try { const payload = await api('/profile/research-consent', { method: 'PUT', body: JSON.stringify({ research_photo_consent: enabled }) }); onUser(payload.data.user); await onResearchPreferenceChanged?.(); setMessage(enabled ? 'Future account scans will be shared for research consideration.' : 'Research sharing is off. Existing consent has been withdrawn.'); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
   const [photoBusy, setPhotoBusy] = useState(false);
   const changePhoto = async (file) => {
     if (!file) return;
@@ -1119,7 +1124,7 @@ function ProfilePage({ user, onUser, onAccountDeleted }) {
     catch (exception) { setError(exception.message); } finally { setPhotoBusy(false); }
   };
   const removePhoto = async () => { setPhotoBusy(true); try { const payload = await api('/profile/avatar', { method: 'DELETE' }); onUser(payload.data.user); setMessage(tr('Profile photo removed.')); setError(''); } catch (exception) { setError(exception.message); } finally { setPhotoBusy(false); } };
-  return <div className="role-stack"><Heading title={tr('Profile')} text={tr('Keep your account information simple and up to date.')} /><section className="panel language-panel" aria-label={tr('Language')}><h2>{tr('Language')} / {getLanguage() === 'fil' ? 'Language' : 'Wika'}</h2><div className="language-options">{[['en', 'English'], ['fil', 'Filipino']].map(([value, label]) => <button key={value} type="button" className={getLanguage() === value ? 'active' : ''} aria-pressed={getLanguage() === value} onClick={() => setLanguage(value)}>{label}</button>)}</div></section><section className="panel profile-photo-panel"><span className="profile-photo"><AvatarContent user={user} /></span><div><h2>{tr('Profile photo')}</h2><p>{tr('Optional. Use a clear photo of your face. JPG, PNG, or WebP up to 5 MB.')}</p><div className="profile-photo-actions"><label className={`secondary-button${photoBusy ? ' disabled' : ''}`}><Camera size={17} />{photoBusy ? 'Saving…' : user.avatar_url ? tr('Change photo') : tr('Upload photo')}<input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={photoBusy} onChange={(event) => { changePhoto(event.target.files?.[0]); event.target.value = ''; }} /></label>{user.avatar_url && <button type="button" className="text-button" disabled={photoBusy} onClick={removePhoto}>{tr('Remove photo')}</button>}</div></div></section>{!user.email_verified_at && <section className="review-notice"><Mail size={20} /><div><strong>{tr('Verify your email address')}</strong><p>{tr(user.role === 'farmer' ? 'Verify your email so you can reset your password if you forget it. You can still scan and ask an expert without it. Open the link sent to {email}.' : 'Agriculturist and administrator tools need a verified email. Open the link sent to {email}.', { email: user.email })}</p><button type="button" className="secondary-button" onClick={resendVerification}>{tr('Resend verification email')}</button></div></section>}<section className="profile-role-grid"><form className="panel role-form" onSubmit={save}><h2>{tr('Edit Profile')}</h2><label>{tr('Name')}<input value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} required /></label><label>{tr('Email')}<input type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} required /></label><label>{emailChanged ? tr('Current password') : tr('Current password (required only to change email)')}<input type="password" autoComplete="current-password" value={profile.current_password} onChange={(event) => setProfile({ ...profile, current_password: event.target.value })} required={emailChanged} /></label><button className="primary-button">{tr('Save Profile')}</button></form><form className="panel role-form" onSubmit={change}><h2>{tr('Change Password')}</h2><label>{tr('Current password')}<input type="password" value={passwords.current_password} onChange={(event) => setPasswords({ ...passwords, current_password: event.target.value })} required /></label><label>{tr('New password')}<input type="password" value={passwords.password} onChange={(event) => setPasswords({ ...passwords, password: event.target.value })} required /></label><label>{tr('Confirm new password')}<input type="password" value={passwords.password_confirmation} onChange={(event) => setPasswords({ ...passwords, password_confirmation: event.target.value })} required /></label><button className="secondary-button">{tr('Update Password')}</button><button type="button" className="danger-button" onClick={() => setDeleteOpen(true)}>{tr('Delete Account')}</button></form></section>{user.role === 'farmer' && <FarmerResearchPhotos />}{message && <div className="success-message">{message}</div>}{error && <div className="form-error">{error}</div>}<ConfirmDialog open={deleteOpen} title={tr('Permanently delete account?')} text={tr(user.role === 'farmer' ? 'This deletes your account and scans. Approved private research copies remain unless you choose to remove them below.' : 'This deletes the account and its associated diagnosis records. Confirm your current password to continue.')} confirmLabel="Delete My Account" danger busy={busy} confirmDisabled={!deletePassword} onCancel={() => { setDeleteOpen(false); setDeletePassword(''); }} onConfirm={remove}><label className="role-form">{tr('Current password')}<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label>{user.role === 'farmer' && <label className="role-form"><input type="checkbox" checked={removeResearchCopies} onChange={(event) => setRemoveResearchCopies(event.target.checked)} />{tr('Also remove my approved research photos')}</label>}</ConfirmDialog></div>;
+  return <div className="role-stack"><Heading title={tr('Profile')} text={tr('Keep your account information simple and up to date.')} /><section className="panel language-panel" aria-label={tr('Language')}><h2>{tr('Language')} / {getLanguage() === 'fil' ? 'Language' : 'Wika'}</h2><div className="language-options">{[['en', 'English'], ['fil', 'Filipino']].map(([value, label]) => <button key={value} type="button" className={getLanguage() === value ? 'active' : ''} aria-pressed={getLanguage() === value} onClick={() => setLanguage(value)}>{label}</button>)}</div></section><section className="panel profile-photo-panel"><span className="profile-photo"><AvatarContent user={user} /></span><div><h2>{tr('Profile photo')}</h2><p>{tr('Optional. Use a clear photo of your face. JPG, PNG, or WebP up to 5 MB.')}</p><div className="profile-photo-actions"><label className={`secondary-button${photoBusy ? ' disabled' : ''}`}><Camera size={17} />{photoBusy ? 'Saving…' : user.avatar_url ? tr('Change photo') : tr('Upload photo')}<input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={photoBusy} onChange={(event) => { changePhoto(event.target.files?.[0]); event.target.value = ''; }} /></label>{user.avatar_url && <button type="button" className="text-button" disabled={photoBusy} onClick={removePhoto}>{tr('Remove photo')}</button>}</div></div></section>{!user.email_verified_at && <section className="review-notice"><Mail size={20} /><div><strong>{tr('Verify your email address')}</strong><p>{tr(user.role === 'farmer' ? 'Verify your email so you can reset your password if you forget it. You can still scan and ask an expert without it. Open the link sent to {email}.' : 'Agriculturist and administrator tools need a verified email. Open the link sent to {email}.', { email: user.email })}</p><button type="button" className="secondary-button" onClick={resendVerification}>{tr('Resend verification email')}</button></div></section>}<section className="profile-role-grid"><form className="panel role-form" onSubmit={save}><h2>{tr('Edit Profile')}</h2><label>{tr('Name')}<input value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} required /></label><label>{tr('Email')}<input type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} required /></label><label>{emailChanged ? tr('Current password') : tr('Current password (required only to change email)')}<input type="password" autoComplete="current-password" value={profile.current_password} onChange={(event) => setProfile({ ...profile, current_password: event.target.value })} required={emailChanged} /></label><button className="primary-button">{tr('Save Profile')}</button></form><form className="panel role-form" onSubmit={change}><h2>{tr('Change Password')}</h2><label>{tr('Current password')}<input type="password" value={passwords.current_password} onChange={(event) => setPasswords({ ...passwords, current_password: event.target.value })} required /></label><label>{tr('New password')}<input type="password" value={passwords.password} onChange={(event) => setPasswords({ ...passwords, password: event.target.value })} required /></label><label>{tr('Confirm new password')}<input type="password" value={passwords.password_confirmation} onChange={(event) => setPasswords({ ...passwords, password_confirmation: event.target.value })} required /></label><button className="secondary-button">{tr('Update Password')}</button><button type="button" className="danger-button" onClick={() => setDeleteOpen(true)}>{tr('Delete Account')}</button></form></section>{user.role === 'farmer' && <section className="panel role-form"><h2>{tr('Research photo sharing')}</h2><p>{tr('Optional. When on, your future account scan photos are automatically considered for research after expert review. An approved private copy may remain after you delete a scan. Turning this off withdraws consent from your existing scans.')}</p><label className="research-preference"><input type="checkbox" checked={Boolean(user.research_photo_consent)} disabled={busy} onChange={(event) => changeResearchPreference(event.target.checked)} />{tr('Share my future account scan photos for research')}</label></section>}{user.role === 'farmer' && <FarmerResearchPhotos key={user.research_photo_consent ? 'research-on' : 'research-off'} />}{message && <div className="success-message">{message}</div>}{error && <div className="form-error">{error}</div>}<ConfirmDialog open={deleteOpen} title={tr('Permanently delete account?')} text={tr(user.role === 'farmer' ? 'This deletes your account and scans. Approved private research copies remain unless you choose to remove them below.' : 'This deletes the account and its associated diagnosis records. Confirm your current password to continue.')} confirmLabel="Delete My Account" danger busy={busy} confirmDisabled={!deletePassword} onCancel={() => { setDeleteOpen(false); setDeletePassword(''); }} onConfirm={remove}><label className="role-form">{tr('Current password')}<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label>{user.role === 'farmer' && <label className="role-form"><input type="checkbox" checked={removeResearchCopies} onChange={(event) => setRemoveResearchCopies(event.target.checked)} />{tr('Also remove my approved research photos')}</label>}</ConfirmDialog></div>;
 }
 
 function Stat({ label, value, note, icon: Icon }) { return <article className="admin-stat-card"><span><Icon size={21} /></span><div><h3>{label}</h3><strong>{value}</strong><p>{note}</p></div></article>; }
@@ -1127,9 +1132,9 @@ function useAdmin(path, refreshMs = 0) { const [data, setData] = useState(null);
 function Distribution({ title, values, extra }) { return <article className="panel admin-distribution"><h2>{title}</h2>{Object.entries(values).map(([label, value]) => <div key={label}><span>{titleCase(label)}</span><strong>{value}</strong></div>)}{!Object.keys(values).length && <p className="empty-copy">No diagnoses yet.</p>}{extra && <div><span>{extra[0]}</span><strong>{extra[1]}</strong></div>}</article>; }
 function DiagnosisRows({ items }) { return items.length ? items.map((item) => <div className="admin-record-row" key={item.id}>{item.image_url ? <img src={item.image_url} alt="" /> : <span className="record-placeholder"><Leaf size={20} /></span>}<div><strong>{item.review && item.review.review_status !== 'pending' ? agriculturistVerdict(item.review, item.predicted_class) : item.disease?.name || titleCase(item.predicted_class)}</strong><small>{item.user?.name || 'Unknown farmer'} · AI: {item.disease?.name || titleCase(item.predicted_class)}</small></div><span>{percent(item.confidence)}</span><span>{titleCase(item.source)} · {item.prediction_verified ? 'Server verified' : 'Client reported'}</span><time>{formatDate(item.diagnosed_at, true)}</time></div>) : <Empty icon={ScanLine} title="No diagnoses yet." text="New saved scans will appear here." />; }
 
-function AdminDashboard() {
+function AdminDashboard({ user }) {
   const { data, error } = useAdmin('/admin/dashboard', 60000); if (error) return <div className="form-error">{error}</div>; if (!data) return <Loading text="Loading dashboard..." />;
-  return <div className="role-stack"><Heading title="System Overview" text="Every value below comes from the current database." /><section className="admin-stat-grid"><Stat label="Total Farmers" value={data.total_farmers} note="Farmer accounts" icon={Users} /><Stat label="Total Diagnoses" value={data.total_diagnoses} note="Mobile and web" icon={Database} /><Stat label="Scans Today" value={data.diagnoses_today} note="Current database date" icon={Activity} /><Stat label="Average Model Confidence" value={data.average_confidence == null ? "Not available" : `${Number(data.average_confidence).toFixed(1)}%`} note="Not biological probability" icon={BarChart3} /><Stat label="Uncertain Results" value={data.uncertain_predictions} note={`${Number(data.uncertain_prediction_rate).toFixed(1)}% of records`} icon={AlertTriangle} /><Stat label="Awaiting Photo Upload" value={data.awaiting_image_uploads} note="Shared scans without a photo" icon={CloudOff} /></section><section className="admin-stat-grid" aria-label="Review turnaround"><Stat label="Reviews Waiting" value={data.review_turnaround?.waiting_requests ?? 0} note="Farmer requests not yet answered" icon={ShieldCheck} /><Stat label={`Waiting Over ${data.review_turnaround?.overdue_days ?? 3} Days`} value={data.review_turnaround?.waiting_over_overdue ?? 0} note={data.review_turnaround?.oldest_waiting_hours != null ? `Oldest: ${data.review_turnaround.oldest_waiting_hours} h` : "No requests waiting"} icon={AlertTriangle} /><Stat label="Median Answer Time" value={data.review_turnaround?.median_hours_last_30_days == null ? "—" : `${data.review_turnaround.median_hours_last_30_days} h`} note={`${data.review_turnaround?.completed_last_30_days ?? 0} reviews in the last 30 days`} icon={History} /></section><p className="scope-note">{data.verified_predictions} server-verified model results · {data.unverified_predictions} client-reported results. Model summaries below use verified results only.</p><section className="admin-overview-grid"><Distribution title="Diagnosis Distribution" values={data.diagnoses_per_class} /><Distribution title="Condition summary" values={{ healthy: data.healthy_predictions, 'possible disease': data.diseased_predictions }} /><Distribution title="Source Distribution" values={data.diagnoses_per_source} extra={['Simulated records', data.simulated_predictions]} /></section><section className="panel admin-list-panel"><h2>Recent Diagnoses</h2><DiagnosisRows items={data.recent_diagnoses} /></section></div>;
+  return <div className="role-stack"><Welcome user={user} text="Accounts, scans and disease records are summarised below." /><section className="admin-stat-grid"><Stat label="Total Farmers" value={data.total_farmers} note="Farmer accounts" icon={Users} /><Stat label="Total Diagnoses" value={data.total_diagnoses} note="Mobile and web" icon={Database} /><Stat label="Scans Today" value={data.diagnoses_today} note="Current database date" icon={Activity} /><Stat label="Average Model Confidence" value={data.average_confidence == null ? "Not available" : `${Number(data.average_confidence).toFixed(1)}%`} note="Not biological probability" icon={BarChart3} /><Stat label="Uncertain Results" value={data.uncertain_predictions} note={`${Number(data.uncertain_prediction_rate).toFixed(1)}% of records`} icon={AlertTriangle} /><Stat label="Awaiting Photo Upload" value={data.awaiting_image_uploads} note="Shared scans without a photo" icon={CloudOff} /></section><section className="admin-stat-grid" aria-label="Review turnaround"><Stat label="Reviews Waiting" value={data.review_turnaround?.waiting_requests ?? 0} note="Farmer requests not yet answered" icon={ShieldCheck} /><Stat label={`Waiting Over ${data.review_turnaround?.overdue_days ?? 3} Days`} value={data.review_turnaround?.waiting_over_overdue ?? 0} note={data.review_turnaround?.oldest_waiting_hours != null ? `Oldest: ${data.review_turnaround.oldest_waiting_hours} h` : "No requests waiting"} icon={AlertTriangle} /><Stat label="Median Answer Time" value={data.review_turnaround?.median_hours_last_30_days == null ? "—" : `${data.review_turnaround.median_hours_last_30_days} h`} note={`${data.review_turnaround?.completed_last_30_days ?? 0} reviews in the last 30 days`} icon={History} /></section><p className="scope-note">{data.verified_predictions} server-verified model results · {data.unverified_predictions} client-reported results. Model summaries below use verified results only.</p><section className="admin-overview-grid"><Distribution title="Diagnosis Distribution" values={data.diagnoses_per_class} /><Distribution title="Condition summary" values={{ healthy: data.healthy_predictions, 'possible disease': data.diseased_predictions }} /><Distribution title="Source Distribution" values={data.diagnoses_per_source} extra={['Simulated records', data.simulated_predictions]} /></section><section className="panel admin-list-panel"><h2>Recent Diagnoses</h2><DiagnosisRows items={data.recent_diagnoses} /></section></div>;
 }
 
 function AdminAnalytics() {
@@ -1270,7 +1275,6 @@ function searchLibrary(articles, { query, disease, topic }) {
   return words.length ? [...matches].sort((a, b) => titleScore(b) - titleScore(a)) : matches;
 }
 
-const ARTICLE_IMAGE_LINE = /^\[\[image:([^\]]+)\]\]$/;
 const articleImageUrl = (photo) => apiFileUrl(`/article-images/${encodeURIComponent(photo.file)}`);
 
 function ArticlePhoto({ photo }) {
@@ -1280,17 +1284,35 @@ function ArticlePhoto({ photo }) {
   </figure>;
 }
 
+/** One line of article text with its **bold** and *italic* parts styled. */
+function InlineText({ text }) {
+  return parseInline(text).map((span, index) => {
+    if (!span.bold && !span.italic) return span.text;
+    const content = span.italic ? <em>{span.text}</em> : span.text;
+    return span.bold ? <strong key={index}>{content}</strong> : <em key={index}>{span.text}</em>;
+  });
+}
+
 function ArticleBody({ body = '', images = [] }) {
   const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
   const blocks = [];
+  const addListItem = (type, key, text) => { const last = blocks[blocks.length - 1]; if (last?.type === type) last.items.push(text); else blocks.push({ type, key, items: [text] }); };
   lines.forEach((line, index) => {
     const placed = ARTICLE_IMAGE_LINE.exec(line);
+    const numbered = numberedLineText(line);
     if (placed) { const photo = images.find((item) => item.file === placed[1].trim()); if (photo) blocks.push({ type: 'photo', key: index, photo }); }
-    else if (line.startsWith('- ')) { const last = blocks[blocks.length - 1]; if (last?.type === 'list') last.items.push(line.slice(2)); else blocks.push({ type: 'list', key: index, items: [line.slice(2)] }); }
+    else if (line.startsWith('- ')) addListItem('list', index, line.slice(2));
+    else if (numbered !== null) addListItem('numbered', index, numbered);
     else if (line.startsWith('## ')) blocks.push({ type: 'heading', key: index, text: line.slice(3) });
     else blocks.push({ type: 'paragraph', key: index, text: line });
   });
-  return <div className="article-body">{blocks.map((block) => block.type === 'photo' ? <ArticlePhoto key={block.key} photo={block.photo} /> : block.type === 'heading' ? <h3 key={block.key}>{block.text}</h3> : block.type === 'list' ? <ul key={block.key}>{block.items.map((item, i) => <li key={i}>{item}</li>)}</ul> : <p key={block.key}>{block.text}</p>)}</div>;
+  return <div className="article-body">{blocks.map((block) => {
+    if (block.type === 'photo') return <ArticlePhoto key={block.key} photo={block.photo} />;
+    if (block.type === 'heading') return <h3 key={block.key}><InlineText text={block.text} /></h3>;
+    if (block.type === 'list') return <ul key={block.key}>{block.items.map((item, i) => <li key={i}><InlineText text={item} /></li>)}</ul>;
+    if (block.type === 'numbered') return <ol key={block.key}>{block.items.map((item, i) => <li key={i}><InlineText text={item} /></li>)}</ol>;
+    return <p key={block.key}><InlineText text={block.text} /></p>;
+  })}</div>;
 }
 
 function GuideTabs({ active, navigate, onOpenLibrary }) {
@@ -1355,11 +1377,12 @@ function ArticlesAdmin() {
   const [uploading, setUploading] = useState(false);
   const [items, setItems] = useState([]); const [sources, setSources] = useState([]); const [form, setForm] = useState(empty); const [editing, setEditing] = useState(null); const [modalOpen, setModalOpen] = useState(false); const [deleteTarget, setDeleteTarget] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState(''); const [preview, setPreview] = useState(false);
   const [filters, setFilters] = useState({ search: '', disease: 'all', status: 'all' }); const [sourceSearch, setSourceSearch] = useState('');
+  const editor = useRef(null); const setBody = useCallback((body) => setForm((current) => ({ ...current, body })), []);
   const load = useCallback(() => { api('/admin/articles').then((payload) => { setItems(payload.data); setError(''); }).catch((exception) => setError(exception.message)); }, []);
   useEffect(() => { load(); api('/admin/research-sources').then((payload) => setSources(payload.data)).catch(() => setSources([])); }, [load]);
   const create = () => { setEditing(null); setForm(empty); setPreview(false); setError(''); setModalOpen(true); };
   const edit = (item) => { setEditing(item.id); setForm({ ...empty, ...item, disease_key: item.disease_key || '', source_ids: (item.references || []).map((ref) => ref.id), images: (item.images || []).map(({ url, ...photo }) => ({ ...photo, license_url: photo.license_url || '', source_url: photo.source_url || '' })) }); setPreview(false); setError(''); setModalOpen(true); };
-  const submit = async (event) => { event.preventDefault(); setBusy(true); try { await api(`/admin/articles${editing ? `/${editing}` : ''}`, { method: editing ? 'PUT' : 'POST', body: JSON.stringify({ ...form, disease_key: form.disease_key || null, images: form.images.map((photo) => ({ ...photo, license_url: photo.license_url || null, source_url: photo.source_url || null })) }) }); setModalOpen(false); setMessage(editing ? 'Article updated. Phones download the change on their next connection.' : 'Article added.'); setError(''); load(); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
+  const submit = async (event) => { event.preventDefault(); if (!form.body.trim()) { setError('Write the article text before saving.'); return; } setBusy(true); try { await api(`/admin/articles${editing ? `/${editing}` : ''}`, { method: editing ? 'PUT' : 'POST', body: JSON.stringify({ ...form, disease_key: form.disease_key || null, images: form.images.map((photo) => ({ ...photo, license_url: photo.license_url || null, source_url: photo.source_url || null })) }) }); setModalOpen(false); setMessage(editing ? 'Article updated. Phones download the change on their next connection.' : 'Article added.'); setError(''); load(); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
   const remove = async () => { if (!deleteTarget) return; setBusy(true); try { await api(`/admin/articles/${deleteTarget.id}`, { method: 'DELETE' }); setDeleteTarget(null); setMessage('Article deleted.'); load(); } catch (exception) { setError(exception.message); setDeleteTarget(null); } finally { setBusy(false); } };
   // Photos are re-encoded as WebP by the server; each needs a caption, credit and license before saving.
   const uploadPhoto = async (file) => {
@@ -1367,8 +1390,9 @@ function ArticlesAdmin() {
     try {
       const body = new FormData(); body.append('image', file);
       const payload = await api('/admin/article-images', { method: 'POST', body });
-      const marker = `[[image:${payload.data.file}]]`;
-      setForm((current) => ({ ...current, images: [...current.images, { file: payload.data.file, caption: '', credit: '', license: '', license_url: '', source_url: '' }], body: `${current.body.trimEnd()}${current.body.trim() ? '\n\n' : ''}${marker}\n` }));
+      const photo = { file: payload.data.file, caption: '', credit: '', license: '', license_url: '', source_url: '' };
+      setForm((current) => ({ ...current, images: [...current.images, photo] }));
+      editor.current?.insertPhoto(photo);
     } catch (exception) { setError(exception.message); } finally { setUploading(false); }
   };
   const updatePhoto = (file, field, value) => setForm((current) => ({ ...current, images: current.images.map((photo) => photo.file === file ? { ...photo, [field]: value } : photo) }));
@@ -1380,26 +1404,28 @@ function ArticlesAdmin() {
     <section className="panel diagnosis-filters"><label>Search<input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Title, author or summary" /></label><label>Leaf condition<select value={filters.disease} onChange={(event) => setFilters({ ...filters, disease: event.target.value })}><option value="all">All</option>{ARTICLE_DISEASES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}<option value="general">General</option></select></label><label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="all">All</option><option value="published">Published</option><option value="draft">Draft</option></select></label></section>
     {message && <div className="success-message">{message}</div>}{error && !modalOpen && <div className="form-error">{error}</div>}
     <section className="panel admin-table-role article-table"><header><span>Article</span><span>Condition</span><span>Topic</span><span>Status</span><span>References</span><span>Actions</span></header>{visible.map((item) => <div key={item.id}><span><strong>{item.title}</strong><small>{item.authors} · {item.reading_minutes} min · updated {formatDate(item.updated_at)}</small></span><span>{ARTICLE_DISEASES.find(([value]) => value === item.disease_key)?.[1] || 'General'}</span><span>{ARTICLE_TOPICS.find(([value]) => value === item.topic)?.[1] || item.topic}</span><span><b className={`status-pill ${item.status === 'published' ? 'ok' : 'muted'}`}>{titleCase(item.status)}</b></span><span>{(item.references || []).length}</span><span><button onClick={() => edit(item)}>Edit</button><button className="danger-link" onClick={() => setDeleteTarget(item)}>Delete</button></span></div>)}{!visible.length && <Empty icon={Library} title="No articles found." text={items.length ? 'Adjust the filters and try again.' : 'Add an article and cite the research sources it summarises.'} action={items.length ? undefined : create} actionLabel="Add Article" />}</section>
-    <ModalShell open={modalOpen} title={editing ? 'Edit Article' : 'Add Article'} description="Write in plain language for farmers. Start a line with ## for a heading and with - for a bullet point." onClose={() => { if (!busy) setModalOpen(false); }} size="large"><form className="admin-editor article-editor modal-form" onSubmit={submit}>
+    <ModalShell open={modalOpen} title={editing ? 'Edit Article' : 'Add Article'} description="Write in plain language for farmers. Format the text with the toolbar, as in a word processor, or paste from Word or Google Docs." onClose={() => { if (!busy) setModalOpen(false); }} size="large"><form className="admin-editor article-editor modal-form" onSubmit={submit}>
       {error && <div className="form-error">{error}</div>}
       <label>Title<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required maxLength={255} /></label>
       <div className="article-editor-row"><label>Leaf condition<select value={form.disease_key} onChange={(event) => setForm({ ...form, disease_key: event.target.value })}><option value="">General (all conditions)</option>{ARTICLE_DISEASES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Topic<select value={form.topic} onChange={(event) => setForm({ ...form, topic: event.target.value })}>{ARTICLE_TOPICS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Language<select value={form.language} onChange={(event) => setForm({ ...form, language: event.target.value })}><option value="en">English</option><option value="fil">Filipino</option></select></label><label>Status<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })}><option value="draft">Draft (hidden)</option><option value="published">Published</option></select></label></div>
       <label>Authors<input value={form.authors} onChange={(event) => setForm({ ...form, authors: event.target.value })} required maxLength={500} placeholder="Who wrote or compiled this article" /></label>
       <label>Summary<textarea rows={3} value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} required maxLength={1000} /></label>
-      <div className="article-body-field"><div className="article-body-heading"><span>Article text</span><button type="button" className="text-button" onClick={() => setPreview(!preview)}>{preview ? 'Edit text' : 'Preview'}</button></div>{preview ? <div className="article-preview"><ArticleBody body={form.body} images={form.images} /></div> : <textarea rows={14} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} required maxLength={30000} placeholder={'## Why it helps\nExplain in plain words.\n\n- One practical step\n- Another step'} />}</div>
+      <div className="article-body-field"><div className="article-body-heading"><span>Article text</span><div className="admin-tabs article-mode-tabs" role="tablist" aria-label="Article view"><button type="button" role="tab" aria-selected={!preview} className={!preview ? 'active' : ''} onClick={() => setPreview(false)}>Write</button><button type="button" role="tab" aria-selected={preview} className={preview ? 'active' : ''} onClick={() => setPreview(true)}><Eye size={16} />Preview on phone</button></div></div>
+        <div hidden={preview}><ArticleEditor value={form.body} images={form.images} imageUrl={articleImageUrl} onChange={setBody} onAddPhoto={uploadPhoto} uploading={uploading} controller={editor} placeholder="Start writing. Use the toolbar for headings, bold, lists and photos, or paste from Word." /></div>
+        {preview && <div className="article-preview phone"><ArticleBody body={form.body} images={form.images} />{!form.body.trim() && <p className="field-hint">Nothing to preview yet.</p>}</div>}
+        <small className="field-hint">{form.body.length.toLocaleString()} / 30,000 characters</small></div>
       <fieldset className="article-photos"><legend>Photos ({form.images.length})</legend>
-        <p className="field-hint">Uploads are saved as WebP. Each photo is placed in the text with its own line, for example [[image:file.webp]]; move that line to where the photo should appear. Use only photos you may reuse, and credit them.</p>
+        <p className="field-hint">Use the Photo button in the toolbar to place a photo where the cursor is. Uploads are saved as WebP. Use only photos you may reuse, and credit them below. To move a photo, delete it from the text and use "Place in article".</p>
         {form.images.map((photo) => <div key={photo.file} className="article-photo-row">
           <img src={articleImageUrl(photo)} alt="" />
           <div>
             <label>Caption<input value={photo.caption} onChange={(event) => updatePhoto(photo.file, 'caption', event.target.value)} required maxLength={300} placeholder="What the farmer should notice in this photo" /></label>
             <div className="article-editor-row"><label>Credit<input value={photo.credit} onChange={(event) => updatePhoto(photo.file, 'credit', event.target.value)} required maxLength={300} placeholder="Photographer or source" /></label><label>License<input value={photo.license} onChange={(event) => updatePhoto(photo.file, 'license', event.target.value)} required maxLength={100} placeholder="CC0 1.0, CC BY 4.0, own photo" /></label></div>
             <div className="article-editor-row"><label>License link<input type="url" value={photo.license_url} onChange={(event) => updatePhoto(photo.file, 'license_url', event.target.value)} /></label><label>Source page<input type="url" value={photo.source_url} onChange={(event) => updatePhoto(photo.file, 'source_url', event.target.value)} /></label></div>
-            <small>Placed in text as <code>[[image:{photo.file}]]</code>{!form.body.includes(`[[image:${photo.file}]]`) && ' (not placed yet)'}</small>
+            {form.body.includes(`[[image:${photo.file}]]`) ? <small>In the article text.</small> : <small className="article-photo-unplaced">Not in the article text. <button type="button" className="text-button" onClick={() => { setPreview(false); editor.current?.insertPhoto(photo); }}>Place in article</button></small>}
           </div>
           <button type="button" className="danger-link" onClick={() => removePhoto(photo.file)}>Remove</button>
         </div>)}
-        <label className="secondary-button article-photo-upload">{uploading ? 'Uploading...' : 'Add photo'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => { uploadPhoto(event.target.files?.[0]); event.target.value = ''; }} hidden /></label>
       </fieldset>
       <fieldset className="article-sources"><legend>References ({form.source_ids.length} selected){form.status === 'published' && !form.source_ids.length ? ' — required to publish' : ''}</legend><input value={sourceSearch} onChange={(event) => setSourceSearch(event.target.value)} placeholder="Search research sources" aria-label="Search research sources" /><div className="article-source-list">{sourceMatches.map((source) => <label key={source.id} className="check-filter"><input type="checkbox" checked={form.source_ids.includes(source.id)} onChange={() => toggleSource(source.id)} /><span>{form.source_ids.includes(source.id) && <b>{form.source_ids.indexOf(source.id) + 1}. </b>}{source.authors} ({source.year || 'n.d.'}). {source.title}</span></label>)}{!sources.length && <small>Add sources under Research Sources first.</small>}</div></fieldset>
       <footer><button type="button" className="secondary-button" onClick={() => setModalOpen(false)} disabled={busy}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? 'Saving...' : editing ? 'Save Article' : 'Add Article'}</button></footer>
@@ -1408,9 +1434,9 @@ function ArticlesAdmin() {
   </div>;
 }
 
-function ExpertDashboard({ navigate }) {
+function ExpertDashboard({ user, navigate }) {
   const { data, error } = useAdmin('/expert/dashboard'); if (error) return <div className="form-error">{error}</div>; if (!data) return <Loading text="Loading review dashboard..." />;
-  return <div className="role-stack"><Heading title="Review Dashboard" text="Assess uncertain saved images and validate researched disease information without changing original model outputs." /><section className="admin-stat-grid"><Stat label="Needs Review" value={data.needs_review} note="Open image cases" icon={ShieldCheck} /><Stat label="Uncertain AI Results" value={data.uncertain_results} note="Below confidence threshold" icon={AlertTriangle} /><Stat label="Farmer Review Requests" value={data.farmer_review_requests} note="Explicitly requested" icon={Users} /><Stat label="Content Awaiting Verification" value={data.disease_content_awaiting_verification} note="Researched records" icon={BookOpen} /></section><section className="panel expert-case-list"><div className="panel-heading"><div><h2>Newest open cases</h2></div><button className="text-button" onClick={() => navigate('/expert/cases')}>View all<ChevronRight size={17} /></button></div>{data.cases.map((item) => <button key={item.id} className="expert-case-row" onClick={() => navigate(`/expert/cases?case=${item.id}`)}>{item.image_url ? <img src={item.image_url} alt="Banana leaf submitted for review" /> : <span><Leaf size={23} /></span>}<div><strong>{item.disease?.name || titleCase(item.predicted_class)}</strong><small>Farmer: {item.user?.name || 'Unknown'} · {formatDate(item.diagnosed_at, true)}</small></div><b>{Number(item.confidence).toFixed(1)}%</b><em>{item.review_reasons?.join(' · ') || (item.review?.review_status === 'pending' ? 'Farmer requested review' : 'Low confidence')}</em><ChevronRight size={18} /></button>)}{!data.cases.length && <Empty icon={Check} title="No cases need review." text="New uncertain results and farmer requests will appear here." />}</section></div>;
+  return <div className="role-stack"><Welcome user={user} text="Scans waiting for your review are below." /><section className="admin-stat-grid"><Stat label="Needs Review" value={data.needs_review} note="Open image cases" icon={ShieldCheck} /><Stat label="Uncertain AI Results" value={data.uncertain_results} note="Below confidence threshold" icon={AlertTriangle} /><Stat label="Farmer Review Requests" value={data.farmer_review_requests} note="Explicitly requested" icon={Users} /><Stat label="Content Awaiting Verification" value={data.disease_content_awaiting_verification} note="Researched records" icon={BookOpen} /></section><section className="panel expert-case-list"><div className="panel-heading"><div><h2>Newest open cases</h2></div><button className="text-button" onClick={() => navigate('/expert/cases')}>View all<ChevronRight size={17} /></button></div>{data.cases.map((item) => <button key={item.id} className="expert-case-row" onClick={() => navigate(`/expert/cases?case=${item.id}`)}>{item.image_url ? <img src={item.image_url} alt="Banana leaf submitted for review" /> : <span><Leaf size={23} /></span>}<div><strong>{item.disease?.name || titleCase(item.predicted_class)}</strong><small>Farmer: {item.user?.name || 'Unknown'} · {formatDate(item.diagnosed_at, true)}</small></div><b>{Number(item.confidence).toFixed(1)}%</b><em>{item.review_reasons?.join(' · ') || (item.review?.review_status === 'pending' ? 'Farmer requested review' : 'Low confidence')}</em><ChevronRight size={18} /></button>)}{!data.cases.length && <Empty icon={Check} title="No cases need review." text="New uncertain results and farmer requests will appear here." />}</section></div>;
 }
 
 const REVIEW_CLASS_CHOICES = [
@@ -1421,9 +1447,27 @@ const REVIEW_CLASS_CHOICES = [
 ];
 const REVIEW_OTHER_CHOICES = [
   ['cannot_determine', 'Cannot determine from this photo'],
+  ['field_or_laboratory_required', 'Field or laboratory check needed'],
   ['possible_outside_supported_classes', 'Looks like another condition'],
 ];
 const REVIEW_CHOICES = [...REVIEW_CLASS_CHOICES, ...REVIEW_OTHER_CHOICES];
+const EXPERT_MESSAGE_TEMPLATES = [
+  { id: 'blurry', label: 'Photo is blurry', message: 'The photo is blurry. Please take a clearer photo in daylight with the affected leaf in focus.' },
+  { id: 'poor_light', label: 'Photo is too dark', message: 'The photo is too dark to assess. Please take another photo in even daylight.' },
+  { id: 'field', label: 'Ask for a field inspection', message: 'Please ask your local agriculture office to check the plant in person.' },
+  { id: 'monitor', label: 'Monitor the plant', message: 'Please check the plant over the next few days and take a new photo if the symptoms spread.' },
+  { id: 'healthy', label: 'No disease visible', message: 'I do not see a supported disease in this photo. Continue checking the plant for new symptoms.' },
+  { id: 'missing', label: 'Photo did not arrive', message: 'The scan photo did not arrive. Please send a new clear photo so I can assess the leaf.' },
+];
+const expertMessageOptions = (choice, photoAvailable) => !photoAvailable
+  ? EXPERT_MESSAGE_TEMPLATES.filter(({ id }) => id === 'missing' || id === 'field')
+  : choice === 'cannot_determine'
+    ? EXPERT_MESSAGE_TEMPLATES.filter(({ id }) => ['blurry', 'poor_light', 'field'].includes(id))
+    : choice === 'field_or_laboratory_required'
+      ? EXPERT_MESSAGE_TEMPLATES.filter(({ id }) => ['field', 'blurry', 'poor_light'].includes(id))
+    : choice === 'healthy'
+      ? EXPERT_MESSAGE_TEMPLATES.filter(({ id }) => id === 'healthy' || id === 'field')
+      : EXPERT_MESSAGE_TEMPLATES.filter(({ id }) => ['field', 'monitor', 'blurry', 'poor_light'].includes(id));
 
 function reviewChoiceFor(item) {
   const review = item?.review;
@@ -1433,15 +1477,18 @@ function reviewChoiceFor(item) {
   return REVIEW_OTHER_CHOICES.some(([value]) => value === review.review_status) ? review.review_status : '';
 }
 
-function reviewPayload(choice, predictedClass, notes, farmerMessage = '') {
+function reviewPayload(choice, predictedClass, notes, farmerMessage = '', messageChoice = 'none') {
   const isClass = REVIEW_CLASS_CHOICES.some(([value]) => value === choice);
   const reviewStatus = isClass ? (choice === predictedClass ? 'confirmed' : 'alternate_class') : choice;
+  const unclearPhoto = messageChoice === 'blurry' || messageChoice === 'poor_light' || choice === 'cannot_determine';
   return {
     review_status: reviewStatus,
     verified_label: reviewStatus === 'alternate_class' ? choice : null,
-    image_quality: choice === 'cannot_determine' ? 'insufficient_image' : 'good',
-    next_steps: choice === 'cannot_determine' ? ['retake_photo', 'seek_field_inspection']
-      : choice === 'possible_outside_supported_classes' || choice === 'panama-disease' ? ['seek_field_inspection'] : ['monitor_plant'],
+    image_quality: messageChoice === 'blurry' ? 'blurry' : messageChoice === 'poor_light' ? 'poor_lighting' : choice === 'cannot_determine' ? 'insufficient_image' : 'good',
+    next_steps: [
+      ...(unclearPhoto ? ['retake_photo'] : []),
+      ...(choice === 'cannot_determine' || choice === 'field_or_laboratory_required' || choice === 'possible_outside_supported_classes' || choice === 'panama-disease' ? ['seek_field_inspection'] : ['monitor_plant']),
+    ],
     notes: notes.trim() || null,
     farmer_message: farmerMessage.trim() || null,
   };
@@ -1471,6 +1518,7 @@ function ExpertCases({ reviewed = false }) {
   const [choice, setChoice] = useState('');
   const [notes, setNotes] = useState('');
   const [farmerMessage, setFarmerMessage] = useState('');
+  const [messageChoice, setMessageChoice] = useState('none');
   const [photoFailed, setPhotoFailed] = useState(false);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -1484,7 +1532,7 @@ function ExpertCases({ reviewed = false }) {
       const requested = new URLSearchParams(window.location.search).get('case');
       if (requested) {
         const target = mapped.find((item) => item.id === requested);
-        if (target) { setSelected(target); setChoice(reviewChoiceFor(target)); setNotes(target.review?.notes || ''); setFarmerMessage(target.review?.farmer_message || ''); setPhotoFailed(false); }
+        if (target) { const savedMessage = target.review?.farmer_message || ''; setSelected(target); setChoice(reviewChoiceFor(target)); setNotes(target.review?.notes || ''); setFarmerMessage(savedMessage); setMessageChoice(savedMessage ? EXPERT_MESSAGE_TEMPLATES.find(({ message }) => message === savedMessage)?.id || 'other' : 'none'); setPhotoFailed(false); }
       }
       setError('');
     } catch (exception) { setError(exception.message); }
@@ -1498,17 +1546,19 @@ function ExpertCases({ reviewed = false }) {
       setSelected(detail);
       setChoice(reviewChoiceFor(detail));
       setNotes(detail.review?.notes || '');
-      setFarmerMessage(detail.review?.farmer_message || '');
+      const savedMessage = detail.review?.farmer_message || '';
+      setFarmerMessage(savedMessage);
+      setMessageChoice(savedMessage ? EXPERT_MESSAGE_TEMPLATES.find(({ message }) => message === savedMessage)?.id || 'other' : 'none');
     } catch (exception) { setError(exception.message); }
     finally { setBusy(false); }
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (!selected || !choice || busy || ((!selected.image || photoFailed) && choice !== 'cannot_determine')) return;
+    if (!selected || !choice || busy || (messageChoice === 'other' && !farmerMessage.trim()) || ((!selected.image || photoFailed) && choice !== 'cannot_determine')) return;
     setBusy(true); setError('');
     try {
       const payload = await api(`/expert/diagnosis-reviews/${selected.id}`, {
-        method: 'PUT', body: JSON.stringify({ ...reviewPayload(choice, selected.predictedClass, notes, farmerMessage), expected_review_version: selected.review?.version ?? 0 }),
+        method: 'PUT', body: JSON.stringify({ ...reviewPayload(choice, selected.predictedClass, notes, farmerMessage, messageChoice), expected_review_version: selected.review?.version ?? 0 }),
       });
       setSelected(mapDiagnosis(payload.data));
       setMessage('Assessment saved. The original AI result is unchanged.');
@@ -1548,7 +1598,14 @@ function ExpertCases({ reviewed = false }) {
         {selected.farmerNotes && <p className="review-meta"><strong>Farmer's note:</strong> {selected.farmerNotes}</p>}{selected.location && <p className="review-meta"><strong>Scanned near:</strong> <a href={`https://www.openstreetmap.org/?mlat=${selected.location.latitude}&mlon=${selected.location.longitude}#map=14/${selected.location.latitude}/${selected.location.longitude}`} target="_blank" rel="noreferrer">{selected.location.latitude.toFixed(3)}, {selected.location.longitude.toFixed(3)} (map)</a></p>}{selected.review?.review_status === 'pending' && selected.review.revisions?.length > 0 && (() => { const last = selected.review.revisions[0]; return <p className="review-meta reopened-note"><strong>Reopened by the farmer.</strong> Previous assessment: {titleCase(last.review_status)}{last.verified_label ? ` (${titleCase(last.verified_label)})` : ''}{last.reviewer?.name ? ` by ${last.reviewer.name}` : ''}.{last.farmer_message ? ` Message sent: "${last.farmer_message}"` : ''}</p>; })()}{selected.review?.farmer_reply && <p className="review-meta"><strong>Farmer's reply:</strong> {selected.review.farmer_reply}</p>}{selected.farmerHistory?.length > 0 && <details className="farmer-history" open><summary>This farmer's recent scans ({selected.farmerHistory.length})</summary><ul>{selected.farmerHistory.map((past) => <li key={past.id}>{formatDate(past.diagnosed_at)} · {titleCase(past.predicted_class)} {Number(past.confidence).toFixed(0)}%{past.review_status && past.review_status !== 'pending' ? ` · reviewed: ${titleCase(past.verified_label || past.review_status)}` : past.review_status === 'pending' ? ' · review waiting' : ''}</li>)}</ul></details>}
         <div className="expert-reference-section"><h3>Reference leaf photos</h3><p>Examples for comparison; they do not establish a diagnosis.</p><div className="expert-reference-grid">{REVIEW_CLASS_CHOICES.map(([value, label]) => <button type="button" key={value} onClick={() => setPreview({ src: GUIDE_MEDIA[value].images[0], label: `${label} reference` })}><img src={GUIDE_MEDIA[value].images[0]} alt={`${label} reference leaf`} loading="lazy" /><span>{label}</span></button>)}</div></div>
         {reviewedCase ? <section className="review-result"><h3>Assessment: {REVIEW_CHOICES.find(([value]) => value === reviewChoiceFor(selected))?.[1] || titleCase(selected.review.review_status)}</h3><p><strong>Message to farmer:</strong> {selected.review?.farmer_message || 'None'}</p><p><strong>Internal notes:</strong> {selected.review?.notes || 'None'}</p><ReviewRevisions revisions={selected.review?.revisions} />{selected.image && selected.researchConsent && <button type="button" className="secondary-button full" disabled={busy} onClick={nominate}><Database size={17} />Nominate as Dataset Candidate</button>}</section>
-          : <form className="expert-review-form" onSubmit={submit}><h2>What does the photo show?</h2><fieldset><legend>Choose one assessment</legend>{REVIEW_CHOICES.filter(([value]) => photoAvailable || value === 'cannot_determine').map(([value, label]) => <label key={value} className={choice === value ? 'selected' : ''}><input type="radio" name="review-choice" value={value} checked={choice === value} onChange={() => setChoice(value)} />{label}</label>)}</fieldset><label>Message to the farmer (optional)<textarea maxLength={2000} value={farmerMessage} onChange={(event) => setFarmerMessage(event.target.value)} placeholder="Advice in plain words, e.g. what to check on this plant this week" /></label><label>Internal note (agriculturists and admins only)<textarea maxLength={5000} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Visible signs, uncertainty, or advice for field inspection" /></label><p className="review-meta">The farmer sees the assessment, a suggested next step and your message. Internal notes are never shown to the farmer.</p>{claimNote && <p className="form-error" role="alert">{claimNote}</p>}<button className="primary-button" disabled={busy || Boolean(claimNote) || !choice || (!photoAvailable && choice !== 'cannot_determine')}>{busy ? 'Saving…' : 'Save assessment'}</button></form>}
+          : <form className="expert-review-form" onSubmit={submit}><h2>What does the photo show?</h2><fieldset><legend>Choose one assessment</legend>{REVIEW_CHOICES.filter(([value]) => photoAvailable || value === 'cannot_determine').map(([value, label]) => <label key={value} className={choice === value ? 'selected' : ''}><input type="radio" name="review-choice" value={value} checked={choice === value} onChange={() => { if (choice !== value) { setMessageChoice('none'); setFarmerMessage(''); } setChoice(value); }} />{label}</label>)}</fieldset><label>Message to the farmer
+  <select value={messageChoice} onChange={(event) => { const next = event.target.value; setMessageChoice(next); setFarmerMessage(EXPERT_MESSAGE_TEMPLATES.find(({ id }) => id === next)?.message || ''); }}>
+    <option value="none">Choose a suggested response (optional)</option>
+    {expertMessageOptions(choice, photoAvailable).map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+    <option value="other">Other — write your own</option>
+  </select>
+</label>
+{messageChoice === 'other' ? <label>Your message to the farmer<textarea maxLength={2000} required value={farmerMessage} onChange={(event) => setFarmerMessage(event.target.value)} placeholder="What should the farmer check or do next?" /></label> : farmerMessage ? <p className="review-meta"><strong>Message preview:</strong> {farmerMessage}</p> : null}<label>Internal note (agriculturists and admins only)<textarea maxLength={5000} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Visible signs, uncertainty, or advice for field inspection" /></label><p className="review-meta">The farmer sees the assessment, a suggested next step and your message. Internal notes are never shown to the farmer.</p>{claimNote && <p className="form-error" role="alert">{claimNote}</p>}<button className="primary-button" disabled={busy || Boolean(claimNote) || !choice || messageChoice === 'other' && !farmerMessage.trim() || (!photoAvailable && choice !== 'cannot_determine')}>{busy ? 'Saving…' : 'Save assessment'}</button></form>}
       </article>}
     </section>
     <ModalShell open={Boolean(preview)} title={preview?.label || 'Leaf photo'} onClose={() => setPreview(null)} size="large">{preview && <img className="expert-photo-zoom" src={preview.src} alt={preview.label} />}</ModalShell>
@@ -1677,10 +1734,65 @@ function ModelComparisonAdmin() {
   </div>;
 }
 
+const HOME_STEPS = [
+  ['Take a photo', 'Take or upload a clear photo of one banana leaf.'],
+  ['Check the result', 'DahonMD tells you what the leaf most likely has and what to do next.'],
+  ['Ask an agriculturist', 'If the result is unclear, send it to an agriculturist for a second look.'],
+];
+const HOME_CONDITIONS = [
+  ['healthy', 'Healthy leaf', 'Green leaf with no spots or yellowing.'],
+  ['sigatoka', 'Sigatoka', 'Yellow streaks that turn into brown or black spots.'],
+  ['cordana-leaf-spot', 'Cordana Leaf Spot', 'Large pale brown patches with a yellow edge.'],
+  ['panama-disease', 'Panama Disease', 'Yellowing that starts at the leaf edge and spreads.'],
+];
+const HOME_BENEFITS = [
+  ['Scan history', 'Your past scans are saved and can be opened on any device.'],
+  ['Answers from agriculturists', 'An agriculturist can check your photo and reply with advice.'],
+  ['Works offline', 'Scans are kept in your browser and sent when you are back online.'],
+  ['Disease guide', 'Signs, prevention and care for each disease, plus short articles.'],
+];
+
 function PublicLanding({ online, authMode, onAuthMode, onAuthenticated }) {
+  const goToScan = () => document.getElementById('scan')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   return <div className="public-app">
-    <header className="public-header"><a className="public-brand" href="/" onClick={(event) => { event.preventDefault(); onAuthMode(null); }}><span><LogoMark /></span><div><strong>DahonMD</strong></div></a><div className="public-auth-actions"><button className="secondary-button" onClick={() => onAuthMode('login')}><CircleUserRound size={17} />Log in</button><button className="primary-button" onClick={() => onAuthMode('register')}><Plus size={17} />Sign up</button></div></header>
-    <main className="public-main"><FarmerScan onSaved={null} online={online} onAuthRequired={onAuthMode} navigate={() => onAuthMode('login')} /></main>
+    <header className="public-header"><a className="public-brand" href="/" onClick={(event) => { event.preventDefault(); onAuthMode(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><span><LogoMark /></span><div><strong>DahonMD</strong></div></a><div className="public-auth-actions"><select className="public-language" aria-label={tr('Language')} value={getLanguage()} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="fil">Filipino</option></select><button className="secondary-button" onClick={() => onAuthMode('login')}><CircleUserRound size={17} />{tr('Log in')}</button><button className="primary-button" onClick={() => onAuthMode('register')}><Plus size={17} />{tr('Sign up')}</button></div></header>
+    <main>
+      <section className="home-hero">
+        <div className="home-hero-text">
+          <h1>{tr('Check your banana leaves with one photo.')}</h1>
+          <p>{tr('DahonMD helps banana farmers spot common leaf diseases early. Take a photo, see the result in seconds, and ask an agriculturist when you need help.')}</p>
+          <div className="home-hero-actions">
+            <button type="button" className="primary-button" onClick={goToScan}><ScanLine size={18} />{tr('Scan a leaf now')}</button>
+            <button type="button" className="secondary-button" onClick={() => onAuthMode('register')}>{tr('Create a free account')}</button>
+          </div>
+          <small>{tr('Free to use. No account needed to try a scan.')}</small>
+        </div>
+        <img className="home-hero-image" src="/assets/disease-guide/sigatoka-2.webp" alt={tr('Banana leaf with Sigatoka spots')} />
+      </section>
+
+      <section className="home-section">
+        <h2>{tr('How it works')}</h2>
+        <ol className="home-steps">{HOME_STEPS.map(([title, text]) => <li key={title}><h3>{tr(title)}</h3><p>{tr(text)}</p></li>)}</ol>
+      </section>
+
+      <section className="home-section">
+        <h2>{tr('What DahonMD can check')}</h2>
+        <p className="home-section-text">{tr('The scanner looks for these leaf conditions. More diseases are explained in the guide after you sign up.')}</p>
+        <div className="home-conditions">{HOME_CONDITIONS.map(([key, name, text]) => <article key={key}><img src={GUIDE_MEDIA[key].images[0]} alt="" loading="lazy" /><h3>{tr(name)}</h3><p>{tr(text)}</p></article>)}</div>
+      </section>
+
+      <section className="home-section" id="scan">
+        <FarmerScan onSaved={null} online={online} onAuthRequired={onAuthMode} navigate={() => onAuthMode('login')} autoStartCamera={false} />
+      </section>
+
+      <section className="home-section">
+        <h2>{tr('With a free account')}</h2>
+        <dl className="home-benefits">{HOME_BENEFITS.map(([title, text]) => <div key={title}><dt>{tr(title)}</dt><dd>{tr(text)}</dd></div>)}</dl>
+        <button type="button" className="primary-button home-signup-button" onClick={() => onAuthMode('register')}>{tr('Sign up')}</button>
+      </section>
+
+      <footer className="home-footer"><p>{tr('DahonMD gives screening support only. It cannot confirm a disease. Always ask your local agriculturist before spraying or removing plants.')}</p></footer>
+    </main>
     <AuthModal mode={authMode} onClose={() => onAuthMode(null)} onMode={onAuthMode} onAuthenticated={onAuthenticated} />
     <AssistantWidget user={null} online={online} onLogin={() => onAuthMode('login')} />
   </div>;
@@ -1818,6 +1930,6 @@ export default function RoleApp() {
     setRecords((current) => current.map((item) => item.id === updated.id ? updated : item));
     setSelected(updated);
   }; const researchConsent = async (record, granted) => { const payload = await api(`/diagnoses/${record.id}/research-consent`, { method: granted ? 'POST' : 'DELETE' }); const updated = mapDiagnosis(payload.data); updated.image ||= record.image; setRecords((current) => current.map((item) => item.id === updated.id ? updated : item)); setSelected(updated); }; const currentSelected = selected ? records.find((record) => record.id === selected.id) || selected : null; let page = <FarmerHome user={user} records={records} online={online} navigate={navigate} onOpen={openRecord} pendingChanges={pendingChanges} />; if (path === '/farmer/scan') page = <FarmerScan onSaved={save} navigate={navigate} online={online} />; if (path === '/farmer/history') page = <FarmerHistory records={records} navigate={navigate} onOpen={openRecord} />; if (path === '/farmer/diseases') page = <DiseaseGuide key={guideClass || 'all'} initialClass={guideClass} navigate={navigate} onOpenLibrary={openLibrary} />; if (path === '/farmer/library') page = <ArticleLibrary key={libraryClass || 'all'} navigate={navigate} onOpenLibrary={openLibrary} initialDisease={libraryClass || 'all'} />; if (path === '/farmer/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <><FarmerShell user={user} path={path} navigate={navigate} onSignedOut={signedOut} online={online} chatTopic={chatTopic} badges={{ '/farmer/history': records.filter((record) => isNewReview(record.review)).length }}>{page}<DiagnosisDialog record={currentSelected} onClose={() => setSelected(null)} onRequestReview={requestReview} onDelete={removeDiagnosis} onResearchConsent={researchConsent} onReply={replyToReview} onAskAssistant={askAboutScan} onOpenGuide={openGuide} /></FarmerShell>{logoutDialogs}</>; }
-  if (user.role === 'agricultural_expert') { let page = <ExpertDashboard navigate={navigate} />; if (path.startsWith('/expert/cases')) page = <ExpertCases />; if (path === '/expert/diseases') page = <ExpertDiseases />; if (path === '/expert/sources') page = <ExpertSources />; if (path === '/expert/library') page = <ArticleLibrary navigate={navigate} showGuideTabs={false} />; if (path === '/expert/dataset') page = <ExpertDatasetCandidates />; if (path === '/expert/reviewed') page = <ExpertCases reviewed />; if (path === '/expert/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <><Shell role="agricultural_expert" user={user} path={path.split('?')[0]} navigate={navigate} onSignedOut={signedOut} online={online} badges={{ '/expert/cases': reviewQueue }}>{page}</Shell>{logoutDialogs}</>; }
-  let page = <AdminDashboard />; if (path === '/admin/accounts') page = <AccountsAdmin />; if (path === '/admin/farmers') page = <AccountsAdmin initialRole="farmer" />; if (path === '/admin/experts') page = <AccountsAdmin initialRole="agricultural_expert" />; if (path === '/admin/diagnoses') page = <DiagnosesAdmin />; if (path === '/admin/diseases') page = <DiseasesAdmin />; if (path === '/admin/sources') page = <ResearchSourcesAdmin />; if (path === '/admin/articles') page = <ArticlesAdmin />; if (path === '/admin/dataset') page = <ExpertDatasetCandidates base="/admin" />; if (path === '/admin/analytics') page = <AdminAnalytics />; if (path === '/admin/model-comparison') page = <ModelComparisonAdmin />; if (path === '/admin/system') page = <SystemAdmin />; if (path === '/admin/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <><Shell role="admin" user={user} path={path} navigate={navigate} onSignedOut={signedOut} online={online}>{page}</Shell>{logoutDialogs}</>;
+  if (user.role === 'agricultural_expert') { let page = <ExpertDashboard user={user} navigate={navigate} />; if (path.startsWith('/expert/cases')) page = <ExpertCases />; if (path === '/expert/diseases') page = <ExpertDiseases />; if (path === '/expert/sources') page = <ExpertSources />; if (path === '/expert/library') page = <ArticleLibrary navigate={navigate} showGuideTabs={false} />; if (path === '/expert/dataset') page = <ExpertDatasetCandidates />; if (path === '/expert/reviewed') page = <ExpertCases reviewed />; if (path === '/expert/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <><Shell role="agricultural_expert" user={user} path={path.split('?')[0]} navigate={navigate} onSignedOut={signedOut} online={online} badges={{ '/expert/cases': reviewQueue }}>{page}</Shell>{logoutDialogs}</>; }
+  let page = <AdminDashboard user={user} />; if (path === '/admin/accounts') page = <AccountsAdmin />; if (path === '/admin/farmers') page = <AccountsAdmin initialRole="farmer" />; if (path === '/admin/experts') page = <AccountsAdmin initialRole="agricultural_expert" />; if (path === '/admin/diagnoses') page = <DiagnosesAdmin />; if (path === '/admin/diseases') page = <DiseasesAdmin />; if (path === '/admin/sources') page = <ResearchSourcesAdmin />; if (path === '/admin/articles') page = <ArticlesAdmin />; if (path === '/admin/dataset') page = <ExpertDatasetCandidates base="/admin" />; if (path === '/admin/analytics') page = <AdminAnalytics />; if (path === '/admin/model-comparison') page = <ModelComparisonAdmin />; if (path === '/admin/system') page = <SystemAdmin />; if (path === '/admin/profile') page = <ProfilePage user={user} onUser={setUser} onAccountDeleted={accountDeleted} />; return <><Shell role="admin" user={user} path={path} navigate={navigate} onSignedOut={signedOut} online={online}>{page}</Shell>{logoutDialogs}</>;
 }

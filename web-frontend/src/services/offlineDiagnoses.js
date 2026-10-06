@@ -123,7 +123,6 @@ export async function flushWebDiagnosisOutbox(userId) {
           inference_time_ms: item.record.latency,
           model_version: item.record.model || 'simulated-web-adapter',
           farmer_notes: item.record.farmerNotes || null,
-          research_consent: Boolean(item.record.researchConsent),
           source: 'web',
           // Older queued records predate these fields; the server falls back to its AI mode.
           ...(typeof item.record.isSimulated === 'boolean' ? { is_simulated: item.record.isSimulated } : {}),
