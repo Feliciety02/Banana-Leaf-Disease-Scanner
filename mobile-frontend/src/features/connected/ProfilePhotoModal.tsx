@@ -8,8 +8,8 @@ import { removeAvatar, uploadAvatar, type SessionUser } from '../../services/api
 import { ActionButton, ModalCard, Notice, palette } from './ui';
 import { useT } from '../../i18n';
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : 'The change could not be saved.';
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 /** Floating card to view, change or remove the profile photo. */
@@ -34,7 +34,7 @@ export function ProfilePhotoModal({ visible, user, onUser, onClose }: { visible:
       const photo = await (await context.renderAsync()).saveAsync({ format: SaveFormat.JPEG, compress: 0.85 });
       onUser(await uploadAvatar(photo.uri, 'image/jpeg'));
       setNotice(t('photo.updated'));
-    } catch (e) { setError(messageOf(e)); } finally { setBusy(false); }
+    } catch (e) { setError(messageOf(e, t('photo.changeFailed'))); } finally { setBusy(false); }
   };
 
   const deletePhoto = async () => {
@@ -43,7 +43,7 @@ export function ProfilePhotoModal({ visible, user, onUser, onClose }: { visible:
       onUser(await removeAvatar());
       setConfirmRemove(false);
       setNotice(t('photo.removed'));
-    } catch (e) { setError(messageOf(e)); } finally { setBusy(false); }
+    } catch (e) { setError(messageOf(e, t('photo.changeFailed'))); } finally { setBusy(false); }
   };
 
   return <ModalCard visible={visible} title={t('photo.title')} description={t('photo.description')} onClose={close}>

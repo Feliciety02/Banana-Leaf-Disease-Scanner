@@ -19,8 +19,8 @@ type Candidate = {
 
 function messageOf(error: unknown) { return error instanceof Error ? error.message : 'The request could not be completed.'; }
 
-/** Reviewer tools beyond the case queue: disease-content verification and dataset-candidate decisions. */
-export function ReviewerContentWorkspace() {
+/** Agriculturist tools beyond the case queue: disease-content verification and dataset-candidate decisions. */
+export function AgriculturistContentWorkspace() {
   const [tab, setTab] = useState<'diseases' | 'dataset'>('diseases');
   return <View style={uiStyles.stack}>
     <Text style={styles.title}>Content review</Text>
@@ -112,7 +112,7 @@ function DatasetCandidates() {
     finally { setBusyId(null); }
   };
   return <View style={uiStyles.stack}>
-    <Text style={uiStyles.cardMeta}>Approval marks research eligibility only. You cannot decide on an image you nominated; another reviewer or an administrator does.</Text>
+    <Text style={uiStyles.cardMeta}>Approval marks research eligibility only. You cannot decide on an image you nominated; another agriculturist or an administrator does.</Text>
     <ActionButton variant="secondary" icon="refresh" disabled={loading} onPress={load}>{loading ? 'Loading...' : 'Refresh candidates'}</ActionButton>
     {error && <Notice>{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     {!loading && !items.length && !error && <Text style={uiStyles.cardMeta}>No research candidates yet. Nominate reviewed, consented images from a completed assessment in Reviewed.</Text>}
@@ -122,7 +122,7 @@ function DatasetCandidates() {
         <View style={uiStyles.flex}>
           <Text style={uiStyles.cardTitle}>{titleCase(item.diagnosis?.predicted_class)} · {Number(item.diagnosis?.confidence ?? 0).toFixed(1)}%</Text>
           <Text style={uiStyles.cardMeta}>Review: {titleCase(item.diagnosis?.review?.review_status ?? 'pending')}{item.diagnosis?.review?.verified_label ? ` · ${titleCase(item.diagnosis.review.verified_label)}` : ''}</Text>
-          <Text style={uiStyles.cardMeta}>Nominated by {item.proposer?.name ?? 'a former reviewer'}</Text>
+          <Text style={uiStyles.cardMeta}>Nominated by {item.proposer?.name ?? 'a former agriculturist'}</Text>
           <Text style={styles.status}>{titleCase(item.status)}</Text>
         </View>
       </View>

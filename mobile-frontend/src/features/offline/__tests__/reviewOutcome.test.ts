@@ -34,7 +34,7 @@ describe('farmerReviewOutcome', () => {
 describe('reviewStage', () => {
   const now = Date.parse('2026-10-04T10:00:00Z');
 
-  it('is waiting until a reviewer holds the case, then in progress while the hold lasts', () => {
+  it('is waiting until an agriculturist holds the case, then in progress while the hold lasts', () => {
     expect(reviewStage(review({ review_status: 'pending' }), now)).toBe('waiting');
     expect(reviewStage(review({ review_status: 'pending', in_progress_until: '2026-10-04T10:20:00Z' }), now)).toBe('in_progress');
     // An expired hold means nobody is working on it any more.

@@ -9,7 +9,7 @@ export type TabBadges = Partial<Record<TabKey, number>>;
 
 /**
  * Counts shown on the tab bar so nobody has to check by hand: farmers see new
- * expert reviews on History, reviewers see waiting farmer requests on Home.
+ * expert reviews on History, agriculturists see waiting farmer requests on Home.
  */
 export function useTabBadges(user: SessionUser | null | undefined): TabBadges {
   const [badges, setBadges] = useState<TabBadges>({});

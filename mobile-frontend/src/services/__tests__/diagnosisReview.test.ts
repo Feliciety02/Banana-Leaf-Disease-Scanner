@@ -7,6 +7,8 @@ jest.mock('../../storage/localDiagnoses', () => ({
   isNewReview: (review: { review_status: string; farmer_seen_at?: string | null } | null) => Boolean(review && review.review_status !== 'pending' && !review.farmer_seen_at),
   getLocalDiagnosis: jest.fn(),
   parseDiagnosisReview: jest.fn(),
+  queueReviewSeen: jest.fn(),
+  clearQueuedReviewSeen: jest.fn(),
   replaceLocalDiagnosisImage: jest.fn(),
   saveDiagnosisReview: jest.fn(),
 }));
@@ -15,6 +17,8 @@ import { api, uploadFile } from '../api';
 import { markReviewSeen, requestAgriculturalReview, sendReviewFollowUp, uploadReviewImage } from '../diagnosisReview';
 import {
   getLocalDiagnosis,
+  queueReviewSeen,
+  clearQueuedReviewSeen,
   parseDiagnosisReview,
   replaceLocalDiagnosisImage,
   saveDiagnosisReview,
@@ -50,7 +54,7 @@ beforeEach(() => {
   mockedParse.mockReturnValue(null);
 });
 
-test('requests a review, uploads the scan image, and saves the pending review locally', async () => {
+test('uploads the scan photo first, then requests the review and saves it locally', async () => {
   mockedGet.mockResolvedValue(record());
   mockedApi.mockImplementation(async (path, options) => {
     expect(path).toBe('/diagnoses/31/review-request');
@@ -63,6 +67,7 @@ test('requests a review, uploads the scan image, and saves the pending review lo
   await expect(requestAgriculturalReview('local-1')).resolves.toEqual({ review: pendingReview, imageUploaded: true });
   expect(mockedSave).toHaveBeenCalledWith('local-1', pendingReview);
   expect(mockedUpload).toHaveBeenCalledWith('/sync/62e92d82-9204-483f-ad75-68eb2c40c537/image', 'file:///storage/diagnosis-images/local-1.jpg', { fieldName: 'image', mimeType: 'image/jpeg', parameters: { purpose: 'review' } });
+  expect(mockedUpload.mock.invocationCallOrder[0]).toBeLessThan(mockedApi.mock.invocationCallOrder[0]);
 });
 
 test('refuses a review request until the scan has synchronized', async () => {
@@ -74,17 +79,17 @@ test('refuses a review request until the scan has synchronized', async () => {
 test('refuses a second review once the assessment is complete', async () => {
   mockedGet.mockResolvedValue(record());
   mockedParse.mockReturnValue({ ...pendingReview, review_status: 'confirmed' } as never);
-  await expect(requestAgriculturalReview('local-1')).rejects.toThrow('already has an agricultural reviewer assessment');
+  await expect(requestAgriculturalReview('local-1')).rejects.toThrow('already has an agriculturist assessment');
   expect(mockedApi).not.toHaveBeenCalled();
 });
 
-test('keeps the pending review saved when the image upload fails and reports the error', async () => {
+test('does not request a review when the scan photo cannot be uploaded', async () => {
   mockedGet.mockResolvedValue(record());
-  mockedApi.mockResolvedValue({ success: true, message: '', data: { review: pendingReview } } as never);
   mockedUpload.mockRejectedValue(new Error('upload exploded'));
 
-  await expect(requestAgriculturalReview('local-1')).rejects.toThrow('could not be uploaded');
-  expect(mockedSave).toHaveBeenCalledWith('local-1', pendingReview);
+  await expect(requestAgriculturalReview('local-1')).rejects.toThrow('no review was requested');
+  expect(mockedApi).not.toHaveBeenCalled();
+  expect(mockedSave).not.toHaveBeenCalled();
 });
 
 test('resends the scan image for a pending review only', async () => {
@@ -112,8 +117,22 @@ test('marks a new expert review as read locally first, then on the server', asyn
   await markReviewSeen('local-1');
 
   expect(mockedSave).toHaveBeenNthCalledWith(1, 'local-1', expect.objectContaining({ farmer_seen_at: expect.any(String) }));
-  expect(mockedApi).toHaveBeenCalledWith('/diagnoses/31/review-seen', { method: 'POST' });
+  expect(queueReviewSeen).toHaveBeenCalledWith('local-1', 0);
+  expect(mockedApi).toHaveBeenCalledWith('/diagnoses/31/review-seen', { method: 'POST', body: JSON.stringify({ expected_review_version: 0 }) });
   expect(mockedSave).toHaveBeenNthCalledWith(2, 'local-1', expect.objectContaining({ farmer_seen_at: '2026-09-12T00:00:00Z' }));
+  expect(clearQueuedReviewSeen).toHaveBeenCalledWith('local-1', 0);
+});
+
+test('keeps an offline seen acknowledgement queued for synchronization', async () => {
+  const completed = { ...pendingReview, version: 3, review_status: 'confirmed', farmer_seen_at: null };
+  mockedGet.mockResolvedValue(record({ review_json: JSON.stringify(completed) }));
+  mockedParse.mockReturnValue(completed as never);
+  mockedApi.mockRejectedValue(new Error('Offline'));
+
+  await markReviewSeen('local-1');
+
+  expect(queueReviewSeen).toHaveBeenCalledWith('local-1', 3);
+  expect(clearQueuedReviewSeen).not.toHaveBeenCalled();
 });
 
 test('does not mark a pending or already-read review', async () => {

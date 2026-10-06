@@ -4,9 +4,11 @@ import { uploadSyncedScanImage } from './diagnosisReview';
 import { notifyNewReviews } from './reviewNotifications';
 import {
   applyRemoteDeletion,
+  clearQueuedReviewSeen,
   completeLocalDeletion,
   getPendingDeletions,
   getPendingDiagnoses,
+  queuedReviewSeen,
   getSyncCursor,
   markBatchFailed,
   markDeletionFailed,
@@ -152,6 +154,15 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
     }
   }
 
+  for (const item of await queuedReviewSeen(ownerUserId)) {
+    if (item.pending_seen_version == null || item.server_id == null) continue;
+    try {
+      await api(`/diagnoses/${item.server_id}/review-seen`, { method: 'POST', body: JSON.stringify({ expected_review_version: item.pending_seen_version }) });
+      await clearQueuedReviewSeen(item.local_id, item.pending_seen_version);
+    } catch {
+      // Keep the acknowledgement for the next sync. A newer verdict clears stale ones on pull.
+    }
+  }
   const pulled = await pullServerChanges(ownerUserId);
   await reconcileMissingPhotos(ownerUserId);
   // Also runs in the background task, so an answer can reach a farmer who is not in the app.

@@ -91,7 +91,11 @@ if (existsSync(environmentExamplePath)) {
 const farmerWorkspacePath = resolve(root, 'src/features/connected/FarmerWorkspace.tsx');
 if (existsSync(farmerWorkspacePath)) {
   const farmerWorkspace = readFileSync(farmerWorkspacePath, 'utf8').toLowerCase();
-  if (!farmerWorkspace.includes('delete my account')) problems.push('Farmer workspace has no discoverable in-app account deletion control.');
+  const stringsPath = resolve(root, 'src/i18n/strings.ts');
+  const strings = existsSync(stringsPath) ? readFileSync(stringsPath, 'utf8').toLowerCase() : '';
+  if (!farmerWorkspace.includes("t('account.delete')") || !strings.includes("'account.delete': 'delete my account'")) {
+    problems.push('Farmer workspace has no discoverable in-app account deletion control.');
+  }
   if (!farmerWorkspace.includes('privacypolicyurl')) problems.push('Farmer workspace has no in-app privacy policy link.');
 }
 

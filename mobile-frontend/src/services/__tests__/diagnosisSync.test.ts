@@ -10,9 +10,11 @@ jest.mock('../diagnosisReview', () => ({
 
 jest.mock('../../storage/localDiagnoses', () => ({
   applyRemoteDeletion: jest.fn(),
+  clearQueuedReviewSeen: jest.fn(),
   completeLocalDeletion: jest.fn(),
   getPendingDeletions: jest.fn(),
   getPendingDiagnoses: jest.fn(),
+  queuedReviewSeen: jest.fn(),
   getSyncCursor: jest.fn(),
   markBatchFailed: jest.fn(),
   markDeletionFailed: jest.fn(),
@@ -32,9 +34,11 @@ import { synchronizeDiagnoses, uploadUnsentPhotos } from '../diagnosisSync';
 import { uploadSyncedScanImage } from '../diagnosisReview';
 import {
   applyRemoteDeletion,
+  clearQueuedReviewSeen,
   completeLocalDeletion,
   getPendingDeletions,
   getPendingDiagnoses,
+  queuedReviewSeen,
   getSyncCursor,
   markDeletionFailed,
   markDiagnosesSyncing,
@@ -58,6 +62,7 @@ beforeEach(() => {
   mockedPending.mockResolvedValue([]);
   mockedDeletions.mockResolvedValue([]);
   mockedCursor.mockResolvedValue(null);
+  (queuedReviewSeen as jest.Mock).mockResolvedValue([]);
   (serverDiagnosisIdsMissingPhoto as jest.Mock).mockResolvedValue([]);
   (syncedDiagnosesWithLocalPhoto as jest.Mock).mockResolvedValue([]);
 });
@@ -144,6 +149,21 @@ test('keeps a scan whose deletion the server refused instead of retrying it', as
   expect(restoreRefusedDeletion).toHaveBeenCalledWith('local-approved', 'This image is already part of an approved research dataset.');
   expect(markDeletionFailed).not.toHaveBeenCalled();
   expect(completeLocalDeletion).not.toHaveBeenCalled();
+});
+
+test('retries queued review acknowledgements before pulling updated cases', async () => {
+  (queuedReviewSeen as jest.Mock).mockResolvedValue([{ local_id: 'scan-1', server_id: 31, pending_seen_version: 3 }]);
+  mockedApi.mockImplementation(async (path, options) => {
+    if (path === '/diagnoses/31/review-seen') {
+      expect(options?.body).toBe(JSON.stringify({ expected_review_version: 3 }));
+      return { success: true, data: {} } as never;
+    }
+    expect(clearQueuedReviewSeen).toHaveBeenCalledWith('scan-1', 3);
+    return { success: true, data: { changes: [], next_cursor: null, has_more: false } } as never;
+  });
+
+  await synchronizeDiagnoses(7);
+  expect(mockedApi).toHaveBeenCalledWith('/diagnoses/31/review-seen', expect.objectContaining({ method: 'POST' }));
 });
 
 test('uploads the photo of every synced scan and retries when the upload fails', async () => {

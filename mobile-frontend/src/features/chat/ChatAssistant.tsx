@@ -112,7 +112,7 @@ export function ChatAssistant({ user, onSignIn, resumeKey = 0, scanTopic = null 
         <View style={[styles.sheet, user ? styles.chatSheet : styles.compactSheet]}>
           <View style={styles.handle} />
           <View style={styles.header}>
-            <View style={styles.avatar}><Image source={require('../../../assets/dahonmd-logo-green.png')} style={styles.avatarLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /></View>
+            <View style={styles.avatar}><Image source={require('../../../assets/dahonmd-logo-green.webp')} style={styles.avatarLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /></View>
             <Text style={styles.title}>Ask Dahon</Text>
             {user && messages.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear conversation" disabled={busy} onPress={clear} style={styles.headerButton}><Ionicons name="refresh" size={19} color={palette.green} /></Pressable> : null}
             <Pressable accessibilityRole="button" accessibilityLabel="Close assistant" onPress={() => setOpen(false)} style={styles.headerButton}><Ionicons name="close" size={22} color={palette.ink} /></Pressable>

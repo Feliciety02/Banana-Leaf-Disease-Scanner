@@ -162,7 +162,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
     setBusyId(item.local_id);
     setError('');
     try {
-      if (item.research_consent) await withdrawScanResearchConsent(item.local_id);
+      if (item.research_consent && item.research_consent_current) await withdrawScanResearchConsent(item.local_id);
       else await shareScanForResearch(item.local_id);
       onChanged?.();
     } catch (requestError) {
@@ -278,6 +278,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
       const confidence = enhanced ? enhanced.confidence * 100 : item.confidence;
       const level = confidenceLevel(confidence);
       const name = className(item.predicted_class, language);
+      const reviewedOutcome = review && review.review_status !== 'pending' ? farmerReviewOutcome(review, item.predicted_class, language) : null;
       const syncText = t(`sync.${item.sync_status}` as StringKey);
       const busy = busyId === item.local_id;
       // Review progress matters most; otherwise show where the scan is saved.
@@ -295,18 +296,19 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
         .filter(({ classKey, probability }) => classKey !== item.predicted_class && probability >= 0.01)
         .sort((left, right) => right.probability - left.probability)
         .slice(0, 2);
-      const canShare = Boolean(ownerUserId && item.server_id && item.sync_status === 'synced' && (item.research_consent || hasLocalScanImage(item)));
+      const canShare = Boolean(ownerUserId && item.server_id && item.sync_status === 'synced' && (item.research_consent || item.image_uri));
       const beforeUpload = !review && !canRequestReview && item.sync_status !== 'pending_delete' && item.sync_status !== 'delete_failed' && Boolean(ownerUserId || onSignIn);
       return <View key={item.local_id} style={[styles.card, expanded && styles.cardOpen]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${name}, ${t(level.key)}. ${expanded ? t('history.hideDetails') : t('history.showDetails')}`} accessibilityState={{ expanded }} onPress={() => { smoothLayout(); setExpandedId(expanded ? null : item.local_id); }} style={({ pressed }) => [styles.cardRow, pressed && styles.cardPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${reviewedOutcome?.title ?? name}, ${reviewedOutcome ? t('history.aiResult', { name }) : t(level.key)}. ${expanded ? t('history.hideDetails') : t('history.showDetails')}`} accessibilityState={{ expanded }} onPress={() => { smoothLayout(); setExpandedId(expanded ? null : item.local_id); }} style={({ pressed }) => [styles.cardRow, pressed && styles.cardPressed]}>
           <ViewableScanImage uri={item.image_uri} title={name} style={styles.thumb} compact />
           <View style={styles.cardCopy}>
-            <Text style={styles.cardName} numberOfLines={1}>{name}</Text>
+            <Text style={styles.cardName} numberOfLines={2}>{reviewedOutcome?.title ?? name}</Text>
+            {reviewedOutcome && <Text style={styles.cardMeta} numberOfLines={1}>{t('history.aiResult', { name })}</Text>}
             <Text style={styles.cardMeta} numberOfLines={1}>{formatShortDate(item.diagnosed_at)}</Text>
-            <View style={[styles.chip, { backgroundColor: level.background }]}>
+            {!reviewedOutcome && <View style={[styles.chip, { backgroundColor: level.background }]}>
               <Ionicons name={level.icon} size={18} color={level.color} />
               <Text style={[styles.chipText, { color: level.color }]}>{t(level.key)}</Text>
-            </View>
+            </View>}
             {showNote && <View style={styles.cardStatusRow}>
               <Ionicons name={note.icon} size={17} color={note.color} />
               <Text style={[styles.cardStatus, { color: note.color }]} numberOfLines={1}>{note.text}</Text>
@@ -322,7 +324,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
           <View style={styles.details}>
             <View style={styles.panel}>
               <View style={styles.meterHead}>
-                <Text style={styles.panelLabel}>{t('history.howSure')}</Text>
+                <Text style={styles.panelLabel}>{reviewedOutcome ? t('history.modelConfidence') : t('history.howSure')}</Text>
                 <Text style={[styles.meterLabel, { color: level.color }]}>{wholePercent(confidence)}</Text>
               </View>
               <View style={styles.meter}><View style={[styles.meterFill, { width: `${Math.min(100, Math.max(0, confidence))}%`, backgroundColor: level.color }]} /></View>
@@ -381,7 +383,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
               {onAskAssistant && item.server_id && item.sync_status === 'synced' && <LinkChip icon="chatbubbles-outline" onPress={() => onAskAssistant(item.server_id as number, name)}>{t('history.askDahon')}</LinkChip>}
               {needsRetry && <LinkChip icon="refresh" disabled={busy} onPress={() => retry(item)}>{t('history.tryAgain')}</LinkChip>}
               {review?.review_status === 'pending' && hasLocalScanImage(item) && <LinkChip icon="cloud-upload-outline" disabled={busy} onPress={() => resendImage(item)}>{t('history.resendPhoto')}</LinkChip>}
-              {canShare && Boolean(item.research_consent) && <LinkChip icon={item.research_consent ? 'close-circle-outline' : 'flask-outline'} disabled={busy} onPress={() => setResearchCandidate(item)}>{t('history.stopSharing')}</LinkChip>}
+              {canShare && <LinkChip icon={item.research_consent && item.research_consent_current ? 'close-circle-outline' : 'flask-outline'} disabled={busy} onPress={() => setResearchCandidate(item)}>{item.research_consent && item.research_consent_current ? t('history.stopSharing') : item.research_consent ? t('history.renewSharing') : t('history.shareResearch')}</LinkChip>}
               <LinkChip icon="trash-outline" danger disabled={busy || item.sync_status === 'pending_delete'} onPress={() => remove(item)}>{item.sync_status === 'pending_delete' ? t('history.deleting') : t('history.delete')}</LinkChip>
             </View>
           </View>
@@ -390,7 +392,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
     }) : <View style={styles.empty}><Ionicons name="leaf-outline" size={28} color={palette.green} /><Text style={styles.emptyTitle}>{items.length ? t('history.nothing') : t('history.noScans')}</Text></View>}
     <ImageViewer uri={viewerImage} visible={viewerImage !== null} onClose={() => setViewerImage(null)} />
     <ConfirmSheet visible={Boolean(appealCandidate)} title={t('confirm.askTitle')} text={t('confirm.askText')} confirmLabel={t('history.send')} danger={false} busy={Boolean(busyId)} onCancel={() => setAppealCandidate(null)} onConfirm={() => { if (appealCandidate) { const item = appealCandidate; setAppealCandidate(null); void requestReview(item); } }} />
-    <ConfirmSheet visible={Boolean(researchCandidate)} title={t('confirm.stopTitle')} text={t('confirm.stopText')} confirmLabel={t('history.stopSharing')} danger={Boolean(researchCandidate?.research_consent)} busy={Boolean(busyId)} onCancel={() => setResearchCandidate(null)} onConfirm={() => { if (researchCandidate) { const item = researchCandidate; setResearchCandidate(null); void changeResearchConsent(item); } }} />
+    <ConfirmSheet visible={Boolean(researchCandidate)} title={researchCandidate?.research_consent && researchCandidate?.research_consent_current ? t('confirm.stopTitle') : t('confirm.shareTitle')} text={researchCandidate?.research_consent && researchCandidate?.research_consent_current ? t('confirm.stopText') : t('confirm.shareText')} confirmLabel={researchCandidate?.research_consent && researchCandidate?.research_consent_current ? t('history.stopSharing') : t('history.shareResearch')} danger={Boolean(researchCandidate?.research_consent && researchCandidate?.research_consent_current)} busy={Boolean(busyId)} onCancel={() => setResearchCandidate(null)} onConfirm={() => { if (researchCandidate) { const item = researchCandidate; setResearchCandidate(null); void changeResearchConsent(item); } }} />
     <ConfirmSheet visible={Boolean(claimCandidate)} title={t('confirm.addTitle')} text={t('confirm.addText')} confirmLabel={t('confirm.add')} danger={false} busy={Boolean(busyId)} onCancel={() => setClaimCandidate(null)} onConfirm={() => { if (claimCandidate) void prepareReview(claimCandidate); }} />
     <ConfirmSheet visible={Boolean(deleteCandidate)} title={t('confirm.deleteTitle')} text={t('confirm.deleteText')} confirmLabel={t('history.delete')} busy={Boolean(busyId)} onCancel={() => setDeleteCandidate(null)} onConfirm={confirmRemove} />
   </View>;
@@ -456,7 +458,7 @@ function formatShortDate(value: string) {
   return `${day} · ${time}`;
 }
 
-/** Lets the farmer answer a completed review, optionally with a new photo; the case returns to the reviewers. */
+/** Lets the farmer answer a completed review, optionally with a new photo; the case returns to the agriculturists. */
 function ReviewReply({ localId, onSent }: { localId: string; onSent: () => void }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);

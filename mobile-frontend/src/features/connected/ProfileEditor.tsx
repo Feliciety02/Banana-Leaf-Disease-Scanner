@@ -6,8 +6,8 @@ import { ListGroup, ListRow } from './AccountUI';
 import { ActionButton, Field, ModalSheet, Notice, uiStyles } from './ui';
 import { useT } from '../../i18n';
 
-function messageOf(error: unknown) {
-  return error instanceof Error ? error.message : 'The change could not be saved.';
+function messageOf(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 /** Account details and password, matching the website's Profile page. */
@@ -37,7 +37,7 @@ export function ProfileEditor({ user, onUser }: { user: SessionUser; onUser: (us
       onUser(updated);
       setOpen(null);
       setNotice(emailChanged ? t('profile.updatedEmail') : t('profile.updated'));
-    } catch (e) { setError(messageOf(e)); } finally { setBusy(false); }
+    } catch (e) { setError(messageOf(e, t('profile.changeFailed'))); } finally { setBusy(false); }
   };
 
   const savePassword = async () => {
@@ -46,14 +46,14 @@ export function ProfileEditor({ user, onUser }: { user: SessionUser; onUser: (us
       await updatePassword(currentPassword, password, confirmation);
       setOpen(null);
       setNotice(t('profile.passwordUpdated'));
-    } catch (e) { setError(messageOf(e)); } finally { setBusy(false); }
+    } catch (e) { setError(messageOf(e, t('profile.changeFailed'))); } finally { setBusy(false); }
   };
 
   return <View style={uiStyles.stack}>
     {notice ? <Notice tone="success">{notice}</Notice> : null}
     {error && !open ? <Notice>{error}</Notice> : null}
     <ListGroup title={t('profile.title')}>
-      <ListRow first icon="person-outline" title={t('profile.edit')} subtitle={`${user.name} · ${user.email}`} onPress={() => show('profile')} />
+      <ListRow first icon="person-outline" title={t('profile.edit')} onPress={() => show('profile')} />
       <ListRow icon="key-outline" title={t('profile.changePassword')} onPress={() => show('password')} />
     </ListGroup>
     <ModalSheet visible={open === 'profile'} title={t('profile.editTitle')} description={t('profile.editDescription')} onClose={close}>

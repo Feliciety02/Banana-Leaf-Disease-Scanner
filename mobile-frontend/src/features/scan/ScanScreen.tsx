@@ -89,6 +89,7 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenG
   const chooseImage = async () => {
     const selection = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false, quality: 0.9 });
     if (selection.canceled) return;
+    setCameraOpen(false);
     reset();
     setImageUri(selection.assets[0].uri);
     setPhase('ready');
@@ -304,7 +305,7 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenG
         </View>
       )}
 
-      <CameraCapture visible={cameraOpen} onClose={() => setCameraOpen(false)} onCapture={handleCapture} />
+      <CameraCapture visible={cameraOpen} onClose={() => setCameraOpen(false)} onCapture={handleCapture} onChooseGallery={chooseImage} />
     </View>
   );
 }

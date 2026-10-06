@@ -7,7 +7,7 @@ import { countLocalOnlyDiagnoses } from '../../storage/localDiagnoses';
 import { AuthMode } from './AuthModal';
 import { FarmerWorkspace } from './FarmerWorkspace';
 import { ServerAddress } from './ServerAddress';
-import { Benefit, EmailVerificationNotice, LanguagePicker, ListGroup, ListRow, ProfileHeader } from './AccountUI';
+import { Benefit, EmailVerificationNotice, ListGroup, ListRow, ProfileHeader } from './AccountUI';
 import { ProfileEditor } from './ProfileEditor';
 import { ProfilePhotoModal } from './ProfilePhotoModal';
 import { useT } from '../../i18n';
@@ -31,7 +31,7 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
     refreshSession().then((fresh) => { if (mounted) onUser(fresh); }).catch(async (requestError) => {
       if (!mounted) return;
       if (requestError instanceof Error && 'status' in requestError && requestError.status === 401) { await clearSession(); onUser(null); }
-      else setError("You're offline. Some account details may be out of date.");
+      else setError(t('account.offlineDetails'));
     });
     return () => { mounted = false; };
   }, [user?.id]);
@@ -41,33 +41,32 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
     onUser(null);
   };
   const openPage = async (url: string | null, label: string) => {
-    if (!url) { setError(`${label} is not configured for this build.`); return; }
-    try { await Linking.openURL(url); } catch { setError(`${label} could not be opened.`); }
+    if (!url) { setError(t('account.linkUnavailable', { name: label })); return; }
+    try { await Linking.openURL(url); } catch { setError(t('account.linkOpenFailed', { name: label })); }
   };
 
-  if (restoring) return <View style={styles.center}><ActivityIndicator color={palette.green} /><Text style={styles.muted}>Restoring secure session…</Text></View>;
-  if (user?.role === 'farmer') return <FarmerWorkspace onOpenHistory={onOpenHistory} user={user} onUser={onUser} onSignOut={signOut} onAccountDeleted={(message) => { onUser(null); onInfo('Account deleted', message); }} onChanged={onDataChanged} />;
+  if (restoring) return <View style={styles.center}><ActivityIndicator color={palette.green} /><Text style={styles.muted}>{t('account.restoring')}</Text></View>;
+  if (user?.role === 'farmer') return <FarmerWorkspace onOpenHistory={onOpenHistory} user={user} onUser={onUser} onSignOut={signOut} onAccountDeleted={(message) => { onUser(null); onInfo(t('account.deletedTitle'), message); }} onChanged={onDataChanged} />;
   if (user) return <View style={uiStyles.stack}>
     <ProfileHeader name={user.name} email={user.email} role={user.role} avatarUrl={user.avatar_url} onPressAvatar={() => setPhotoOpen(true)} />
     <EmailVerificationNotice user={user} />
     {error && <Notice tone="warning">{error}</Notice>}
-    <ListGroup title="Your workspace">
-      <ListRow first icon="globe-outline" title="Open website" external onPress={() => openPage(currentServerUrl()?.replace(/\/api$/, '') ?? null, 'The website')} />
+    <ListGroup title={t('account.workspace')}>
+      <ListRow first icon="globe-outline" title={t('account.openWebsite')} external onPress={() => openPage(currentServerUrl()?.replace(/\/api$/, '') ?? null, t('account.openWebsite'))} />
     </ListGroup>
     <ProfileEditor user={user} onUser={onUser} />
     <ProfilePhotoModal visible={photoOpen} user={user} onUser={onUser} onClose={() => setPhotoOpen(false)} />
     <ServerAddress onChanged={() => { setServerVersion((value) => value + 1); void refreshSession().then(onUser).catch(() => onUser(null)); }} />
-    <LanguagePicker />
-    <ListGroup title="Account">
-      <ListRow first icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
-      <ListRow icon="log-out-outline" title="Sign out" onPress={signOut} />
+    <ListGroup title={t('account.account')}>
+      <ListRow first icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), t('account.privacyPolicy'))} />
+      <ListRow icon="log-out-outline" title={t('account.signOut')} onPress={signOut} />
     </ListGroup>
   </View>;
 
   const connected = hasConnectedConfiguration();
   return <View style={uiStyles.stack}>
     <View style={styles.welcome}>
-      <Image source={require('../../../assets/dahonmd-logo-green.png')} style={styles.logo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
+      <Image source={require('../../../assets/dahonmd-logo-green.webp')} style={styles.logo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
       <Text style={styles.welcomeTitle}>{t('guest.title')}</Text>
       <Text style={styles.intro}>{t('guest.intro')}</Text>
       <View style={styles.welcomeActions}>
@@ -88,10 +87,9 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
     </View>
     <View style={styles.boundary}><Ionicons name="cloud-offline-outline" size={22} color={palette.green} /><Text style={styles.boundaryText}>{t('guest.offline')}</Text></View>
     <ServerAddress onChanged={() => setServerVersion((value) => value + 1)} />
-    <LanguagePicker />
     <ListGroup title={t('account.privacy')}>
-      <ListRow first icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
-      <ListRow icon="globe-outline" title={t('guest.deleteAccount')} subtitle={t('guest.deleteAccountText')} external onPress={() => openPage(accountDeletionUrl(), 'The account deletion page')} />
+      <ListRow first icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), t('account.privacyPolicy'))} />
+      <ListRow icon="trash-outline" title={t('guest.deleteAccount')} external onPress={() => openPage(accountDeletionUrl(), t('guest.deleteAccount'))} />
     </ListGroup>
   </View>;
 }

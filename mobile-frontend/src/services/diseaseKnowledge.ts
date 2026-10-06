@@ -19,7 +19,7 @@ export type VerifiedDisease = {
 let cached: Partial<Record<ClassKey, VerifiedDisease>> | null = null;
 
 /**
- * Loads the reviewer-verified knowledge records, the same content the website
+ * Loads the agriculturist-verified knowledge records, the same content the website
  * shows. Returns null when no server is configured or it cannot be reached, so
  * callers fall back to the guidance bundled with the app.
  */

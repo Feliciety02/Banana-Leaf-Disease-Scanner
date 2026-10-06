@@ -3,8 +3,8 @@ import { ClassKey } from './types';
 export type TreatmentProduct = {
   name: string;
   description: string;
-  price: string;
-  image: number;
+  sourceUrl: string;
+  image?: number;
 };
 
 export type TreatmentGuideContent = {
@@ -16,35 +16,23 @@ export type TreatmentGuideContent = {
 
 // Higher-resolution educational leaf examples shared with the web disease guide.
 // Attribution: web-frontend/public/assets/disease-guide/README.md.
-const blackSigatokaLeaf = require('../../../assets/figure19_extracted_images/sigatoka_reference.jpg');
-const cordanaLeaf = require('../../../assets/figure19_extracted_images/cordana_reference.jpg');
-const healthyLeaf = require('../../../assets/figure19_extracted_images/healthy_reference.jpg');
-const panamaLeaf = require('../../../assets/figure19_extracted_images/panama_leaf_example.jpg');
+const blackSigatokaLeaf = require('../../../assets/figure19_extracted_images/sigatoka_reference.webp');
+const cordanaLeaf = require('../../../assets/figure19_extracted_images/cordana_reference.webp');
+const healthyLeaf = require('../../../assets/figure19_extracted_images/healthy_reference.webp');
+const panamaLeaf = require('../../../assets/figure19_extracted_images/panama_leaf_example.webp');
 
-const timorexGold = require('../../../assets/figure19_extracted_images/timorex_gold.jpg');
-const blindax = require('../../../assets/figure19_extracted_images/blindax.jpg');
-const sonata = require('../../../assets/figure19_extracted_images/sonata.jpg');
-const bordeauxMix = require('../../../assets/figure19_extracted_images/bordeaux_mix_1_percent.jpg');
-const kupper500 = require('../../../assets/figure19_extracted_images/kupper_500.jpg');
-const topCop = require('../../../assets/figure19_extracted_images/topcop.jpg');
-
-/**
- * The listed products come from the source study (Ecuador) and have no
- * recorded Philippine FPA registration check in DahonMD, so they are shown as
- * examples to verify, not as prescriptions.
- */
-export const PRODUCT_SECTION_TITLE = 'Products used in research';
+// The FPA lists the crop and target disease for this product. Recheck its
+// current registration and the exact label before any application.
+export const PRODUCT_SECTION_TITLE = 'Products used';
 export const PRODUCT_SAFETY_NOTICE =
-  'These are examples from research, not verified for use in the Philippines. Before buying or spraying, check that the product is registered with the Fertilizer and Pesticide Authority (FPA) for bananas, follow its label, and ask your agriculturist.';
+  'The Fertilizer and Pesticide Authority (FPA) lists this product for banana and the named disease. Registration and labels can change. Ask your agriculturist to confirm the diagnosis and current label before buying or spraying.';
 
 export const treatmentGuides: Record<ClassKey, TreatmentGuideContent> = {
   sigatoka: {
     heading: 'Treatment for Black Sigatoka',
     leafImage: blackSigatokaLeaf,
     products: [
-      { name: 'Timorex Gold', description: 'A natural fungicide with the active ingredient from the Melaleuca alternifolia plant extract.', price: '₱941', image: timorexGold },
-      { name: 'Blindax', description: 'A liquid fungicide made with organic products.', price: '₱627', image: blindax },
-      { name: 'Sonata', description: 'A biological fungicide with multi-site protective action.', price: '₱1,540', image: sonata },
+      { name: 'Leader 500 SC', description: 'Chlorothalonil fungicide. The Philippine FPA lists banana Sigatoka among its label targets; it helps protect new growth, not heal dead tissue.', sourceUrl: 'https://mirrored.fpa-gov.ph/wp-content/uploads/2026/09/UPDATED-LIST-OF-REGISTERED-PRODUCTS-As-of-August-31-2026-PMID.pdf#page=243' },
     ],
     tips: [
       'Avoid sprinkler irrigation: Use drip irrigation to keep the leaves dry and prevent spore proliferation.',
@@ -55,15 +43,11 @@ export const treatmentGuides: Record<ClassKey, TreatmentGuideContent> = {
   'cordana-leaf-spot': {
     heading: 'Treatment for Cordana',
     leafImage: cordanaLeaf,
-    products: [
-      { name: 'Bordeaux Mix 1%', description: 'Inorganic fungicide with protective contact action.', price: '₱260', image: bordeauxMix },
-      { name: 'Kupper 500', description: 'Broad-spectrum bactericidal fungicide that combats diseases.', price: '₱340', image: kupper500 },
-      { name: 'TopCop', description: 'Sulfur-based fungicide that maintains the green color of the tissues.', price: '₱460', image: topCop },
-    ],
+    products: [],
     tips: [
-      'Regular monitoring: Periodically inspect the plant for early signs of the disease.',
-      'Avoid leaf contact with the soil: This can reduce the probability of contamination and disease spread.',
-      'Balanced fertilization: Use fertilizers with micronutrients, especially potassium, to strengthen the plant.',
+      'Confirm the cause: Cordana can resemble other banana leaf spots. Ask an agriculturist to examine spreading lesions before choosing a fungicide.',
+      'Sanitation: Monitor nearby leaves and remove badly damaged material according to local farm guidance.',
+      'No matched product yet: We did not find a current Philippine FPA label that specifically names Cordana on banana; do not substitute a Sigatoka product.',
     ],
   },
   healthy: {

@@ -2,12 +2,13 @@ import { useSyncExternalStore } from 'react';
 import * as SecureStore from 'expo-secure-store';
 
 import { EN, FIL, type StringKey } from './strings';
+import { CEB } from './bisaya';
 
-export type Language = 'en' | 'fil';
+export type Language = 'en' | 'fil' | 'ceb';
 export type { StringKey };
 
 const STORAGE_KEY = 'dahonmd-language';
-const DICTIONARIES: Record<Language, Record<StringKey, string>> = { en: EN, fil: FIL };
+const DICTIONARIES: Record<Language, Record<StringKey, string>> = { en: EN, fil: FIL, ceb: CEB };
 
 let current: Language = 'en';
 const listeners = new Set<() => void>();
@@ -16,7 +17,7 @@ const listeners = new Set<() => void>();
 export async function loadLanguage() {
   try {
     const saved = await SecureStore.getItemAsync(STORAGE_KEY);
-    if (saved === 'en' || saved === 'fil') setCurrent(saved);
+    if (saved === 'en' || saved === 'fil' || saved === 'ceb') setCurrent(saved);
   } catch {
     // English stays the default when the choice cannot be read.
   }

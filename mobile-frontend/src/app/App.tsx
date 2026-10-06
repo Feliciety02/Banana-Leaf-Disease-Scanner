@@ -9,19 +9,21 @@ import { LoadingScreen } from '../components/LoadingScreen';
 import { FadeIn } from '../components/motion';
 import { ChatAssistant, type ScanTopic } from '../features/chat/ChatAssistant';
 import { AdminWorkspace } from '../features/connected/AdminWorkspace';
-import { ReviewerWorkspace } from '../features/connected/ReviewerWorkspace';
-import { ReviewerContentWorkspace } from '../features/connected/ReviewerContentWorkspace';
+import { AgriculturistWorkspace } from '../features/connected/AgriculturistWorkspace';
+import { AgriculturistContentWorkspace } from '../features/connected/AgriculturistContentWorkspace';
 import { RoleHome } from '../features/connected/RoleHome';
 import { landingTab, navigationForRole, TabKey, validTab } from './navigation';
 import { useTabBadges } from './useTabBadges';
 import { loadLanguage, useT, type StringKey } from '../i18n';
 import type { ClassKey } from '../features/classification/types';
 import { ConnectedWorkspace } from '../features/connected/ConnectedWorkspace';
+import { HeaderLanguagePicker } from '../features/connected/AccountUI';
 import { AuthModal, AuthMode } from '../features/connected/AuthModal';
 import { ServerAddress } from '../features/connected/ServerAddress';
 import { ActionButton, ModalCard, palette } from '../features/connected/ui';
 import { FarmerHome } from '../features/farmer/FarmerHome';
 import { GuideScreen } from '../features/guide/GuideScreen';
+import { refreshLibrary } from '../services/articleLibrary';
 import { LocalHistory } from '../features/offline/LocalHistory';
 import { ScanScreen } from '../features/scan/ScanScreen';
 import { useModelStatus } from '../features/status/modelStatus';
@@ -200,6 +202,18 @@ export default function App() {
     const timer = setInterval(attempt, 60000);
     return () => { active = false; unsubscribe(); foreground.remove(); clearInterval(timer); };
   }, [sessionUser?.id, sessionUser?.role]);
+  // Keep the article library on the phone up to date for offline reading,
+  // for every visitor, whenever a connection appears (at most once an hour).
+  useEffect(() => {
+    let lastRefresh = 0;
+    const onNetwork = (state: { isConnected: boolean | null; isInternetReachable: boolean | null }) => {
+      if (!state.isConnected || state.isInternetReachable === false || Date.now() - lastRefresh < 3600000) return;
+      lastRefresh = Date.now();
+      refreshLibrary().catch(() => undefined);
+    };
+    const unsubscribe = NetInfo.addEventListener(onNetwork);
+    return unsubscribe;
+  }, []);
   const stored = () => {
     setHistoryRefresh((value) => value + 1);
     if (sessionUser?.role === 'farmer') saveToAccount(sessionUser.id).then(() => setHistoryRefresh((value) => value + 1)).catch(() => undefined);
@@ -211,12 +225,15 @@ export default function App() {
       <View style={styles.app}>
         <View style={styles.topHeader}>
           <View style={styles.brand}>
-            <Image source={require('../../assets/dahonmd-logo-green.png')} style={styles.logo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
+            <Image source={require('../../assets/dahonmd-logo-green.webp')} style={styles.logo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
             <Text style={styles.appName}>DahonMD</Text>
           </View>
+          <View style={styles.headerActions}>
           {serverUnavailable && <Pressable accessibilityRole="button" accessibilityLabel={t('connection.offlineTitle')} accessibilityState={{ expanded: showConnectionNotice }} onPress={() => setConnectionNoticeOpen(true)} style={styles.connectionIcon}>
             <Ionicons name="cloud-offline-outline" size={22} color="#8b5d13" />
           </Pressable>}
+          {tab === 'account' && <HeaderLanguagePicker onOpen={() => setConnectionNoticeOpen(false)} />}
+          </View>
           {showConnectionNotice && <Animated.View style={[styles.connectionNotice, { opacity: connectionNoticeOpacity }]}>
             <View style={styles.connectionNoticeHeading}>
               <Ionicons name="cloud-offline-outline" size={20} color="#8b5d13" />
@@ -238,9 +255,9 @@ export default function App() {
           {tab === 'home' && sessionUser && (sessionUser.role === 'admin' || sessionUser.role === 'agricultural_expert') && <RoleHome user={sessionUser} role={sessionUser.role} onNavigate={navigate} />}
           {tab === 'scan' && <ScanScreen onDirtyChange={onDirtyChange} onOpenHistory={openHistory} onOpenGuide={openGuide} user={sessionUser ?? null} onStored={stored} modelStatus={modelStatus} />}
           {tab === 'history' && <LocalHistory onDirtyChange={onDirtyChange} focusId={historyTarget} onSignIn={!sessionUser ? () => openAuth('login') : undefined} ownerUserId={sessionUser?.role === 'farmer' ? sessionUser.id : null} refreshKey={historyRefresh} onChanged={stored} onOpenGuide={openGuide} onAskAssistant={sessionUser?.role === 'farmer' ? (diagnosisId, label) => setChatScan((current) => ({ key: (current?.key ?? 0) + 1, diagnosisId, label })) : undefined} />}
-          {tab === 'guide' && <GuideScreen key={guideTarget?.key ?? 0} initialClass={guideTarget?.classKey ?? null} />}
-          {sessionUser?.role === 'agricultural_expert' && tab === 'reviewed' && <ReviewerWorkspace scope="reviewed" />}
-          {sessionUser?.role === 'agricultural_expert' && tab === 'content' && <ReviewerContentWorkspace />}
+          {tab === 'guide' && <GuideScreen key={guideTarget?.key ?? 0} initialClass={guideTarget?.classKey ?? null} onScrollTop={() => pageScroll.current?.scrollTo({ y: 0, animated: false })} />}
+          {sessionUser?.role === 'agricultural_expert' && tab === 'reviewed' && <AgriculturistWorkspace scope="reviewed" />}
+          {sessionUser?.role === 'agricultural_expert' && tab === 'content' && <AgriculturistContentWorkspace />}
           {sessionUser?.role === 'admin' && (tab === 'accounts' || tab === 'diagnoses' || tab === 'knowledge') && <AdminWorkspace key={tab} section={tab} />}
           {tab === 'account' && <ConnectedWorkspace onOpenHistory={() => openHistory()} user={sessionUser ?? null} restoring={sessionUser === undefined} onUser={(user) => { setSessionUser(user); if (!user) setTab('scan'); }} onOpenAuth={openAuth} onDataChanged={() => setHistoryRefresh((value) => value + 1)} onInfo={(title, message) => { setTab('scan'); setInfo({ title, message }); }} />}
           </FadeIn>
@@ -281,6 +298,7 @@ const styles = StyleSheet.create({
   page: { alignSelf: 'center', width: '100%', maxWidth: 600, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 96, gap: 14 },
   topHeader: { minHeight: 60, paddingTop: (Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 24 : 0) + 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.border, zIndex: 10, elevation: 10 },
   brand: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   logo: { width: 34, height: 34 },
   appName: { color: '#173c2a', fontSize: 18, fontWeight: '800' },
   bottomNav: { flexDirection: 'row', minHeight: 64, paddingHorizontal: 12, paddingTop: 6, paddingBottom: 6, gap: 4, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#dde5e0' },

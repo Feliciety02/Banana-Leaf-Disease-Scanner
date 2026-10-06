@@ -3,11 +3,12 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { CLASS_DISPLAY_NAMES } from '../classification/disease-data';
+import { farmerReviewOutcome } from '../offline/reviewOutcome';
 import { formatDate, palette } from '../connected/ui';
 import { type SessionUser } from '../../services/api';
 import { ViewableScanImage } from '../../components/ViewableImage';
 import { smoothLayout } from '../../components/motion';
-import { useT } from '../../i18n';
+import { useT, type Language } from '../../i18n';
 import {
   isNewReview,
   listLocalDiagnoses,
@@ -33,7 +34,14 @@ const clampPercent = (value: number) => `${Math.min(99.99, Math.max(0, value)).t
 
 const confidenceText = (value: number) => (value < LOW_CONFIDENCE ? 'Uncertain result' : value >= 85 ? 'High confidence' : 'Moderate confidence');
 
-function recentTitle(item: LocalDiagnosis) {
+function reviewIsComplete(item: LocalDiagnosis) {
+  const review = parseDiagnosisReview(item.review_json);
+  return Boolean(review && review.review_status !== 'pending');
+}
+
+function recentTitle(item: LocalDiagnosis, language: Language) {
+  const review = parseDiagnosisReview(item.review_json);
+  if (review && review.review_status !== 'pending') return farmerReviewOutcome(review, item.predicted_class, language).title;
   if (item.confidence < LOW_CONFIDENCE) return 'Uncertain result';
   return CLASS_DISPLAY_NAMES[item.predicted_class];
 }
@@ -82,11 +90,11 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
   }, [load]);
 
   const pending = items.filter((item) => item.sync_status !== 'synced' && item.sync_status !== 'local_only').length;
-  const uncertain = items.filter((item) => item.confidence < LOW_CONFIDENCE).length;
+  const uncertain = items.filter((item) => item.confidence < LOW_CONFIDENCE && !reviewIsComplete(item)).length;
   const newReviews = items.filter((item) => isNewReview(parseDiagnosisReview(item.review_json))).length;
   const firstName = user?.name?.trim().split(/\s+/)[0];
   const signedInFarmer = user?.role === 'farmer';
-  const { t } = useT();
+  const { t, language } = useT();
 
   return (
     <View style={styles.screen}>
@@ -97,7 +105,7 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
 
       <View style={styles.scanCard}>
         <View style={styles.heroDecoration} />
-        <Image source={require('../../../assets/dahonmd-logo-white.png')} style={styles.heroLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
+        <Image source={require('../../../assets/dahonmd-logo-white.webp')} style={styles.heroLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
         <Text style={styles.scanTitle}>{t('home.scanTitle')}</Text>
         <Text style={styles.scanText}>{t('home.scanText')}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={t('home.startScan')} onPress={() => onNavigate('scan')} style={({ pressed }) => [styles.scanButton, pressed && styles.scanButtonPressed]}>
@@ -181,10 +189,10 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
             const meta = syncMeta[item.sync_status];
             return (
               <Pressable key={item.local_id} accessibilityRole="button" accessibilityLabel="Open scan history" onPress={() => onNavigate('history')} style={styles.recentRow}>
-                <ViewableScanImage uri={item.image_uri} title={recentTitle(item)} style={styles.thumb} compact />
+                <ViewableScanImage uri={item.image_uri} title={recentTitle(item, language)} style={styles.thumb} compact />
                 <View style={styles.recentCopy}>
-                  <Text style={styles.recentTitle} numberOfLines={1}>{recentTitle(item)}</Text>
-                  <Text style={styles.recentMeta}>{confidenceText(item.confidence)} · {clampPercent(item.confidence)}</Text>
+                  <Text style={styles.recentTitle} numberOfLines={1}>{recentTitle(item, language)}</Text>
+                  <Text style={styles.recentMeta}>{reviewIsComplete(item) ? `Agriculturist reviewed · AI: ${clampPercent(item.confidence)}` : `${confidenceText(item.confidence)} · ${clampPercent(item.confidence)}`}</Text>
                   <Text style={styles.recentDate}>{formatDate(item.diagnosed_at, true)}</Text>
                 </View>
                 <View style={styles.recentStatus}>

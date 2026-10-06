@@ -1,5 +1,5 @@
 import { PropsWithChildren, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { resendVerificationEmail, type SessionUser } from '../../services/api';
@@ -12,7 +12,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 
 /**
- * Sharing features (review requests, photo sharing, reviewer and admin tools)
+ * Sharing features (review requests, photo sharing, agriculturist and admin tools)
  * need a verified email. Shown only when the server reports it unverified.
  */
 export function EmailVerificationNotice({ user }: { user: SessionUser }) {
@@ -23,7 +23,7 @@ export function EmailVerificationNotice({ user }: { user: SessionUser }) {
   const resend = async () => {
     setBusy(true);
     try { setResult({ tone: 'success', text: await resendVerificationEmail() }); }
-    catch (error) { setResult({ tone: 'error', text: error instanceof Error ? error.message : 'The verification email could not be sent.' }); }
+    catch (error) { setResult({ tone: 'error', text: error instanceof Error ? error.message : t('verify.resendFailed') }); }
     finally { setBusy(false); }
   };
   return <View style={styles.verification}>
@@ -40,7 +40,7 @@ export function ProfileHeader({ name, email, role, avatarUrl, status, onPressAva
   return (
     <View style={styles.profile}>
       {onPressAvatar ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="View or change profile photo" hitSlop={6} onPress={onPressAvatar} style={({ pressed }) => pressed && styles.rowDim}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('photo.open')} hitSlop={6} onPress={onPressAvatar} style={({ pressed }) => pressed && styles.rowDim}>
           {avatar}
           <View style={styles.avatarBadge}><Ionicons name="camera" size={13} color="#fff" /></View>
         </Pressable>
@@ -77,13 +77,36 @@ export function StatRow({ items }: { items: { value: number | string; label: str
   );
 }
 
-/** English / Filipino choice; applies straight away and is remembered on this phone. */
-export function LanguagePicker() {
+/** Compact language menu shown in the Account tab's top bar. */
+export function HeaderLanguagePicker({ onOpen }: { onOpen?: () => void }) {
+  const [open, setOpen] = useState(false);
   const { t, language } = useT();
-  const options: { value: Language; label: string }[] = [{ value: 'en', label: t('language.english') }, { value: 'fil', label: t('language.filipino') }];
-  return <ListGroup title={`${t('language.title')} / ${language === 'fil' ? 'Language' : 'Wika'}`}>
-    {options.map((option, index) => <ListRow key={option.value} first={index === 0} icon={language === option.value ? 'radio-button-on' : 'radio-button-off'} title={option.label} onPress={() => { void setLanguage(option.value); }} />)}
-  </ListGroup>;
+  const options: { value: Language; label: string; short: string; flag: string }[] = [
+    { value: 'en', label: t('language.english'), short: 'EN', flag: '🇺🇸' },
+    { value: 'fil', label: t('language.tagalog'), short: 'TL', flag: '🇵🇭' },
+    { value: 'ceb', label: t('language.bisaya'), short: 'CEB', flag: '🇵🇭' },
+  ];
+  const selected = options.find((option) => option.value === language) ?? options[0];
+  return <View style={styles.languageAnchor}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${t('language.title')}: ${selected.label}`} accessibilityState={{ expanded: open }} onPress={() => { if (!open) onOpen?.(); setOpen((value) => !value); }} style={styles.languageButton}>
+      <Text style={styles.languageFlag}>{selected.flag}</Text>
+      <Text style={styles.languageShort}>{selected.short}</Text>
+      <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color={palette.green} />
+    </Pressable>
+    <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <View style={styles.languageOverlay}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t('common.cancel')} style={styles.languageBackdrop} onPress={() => setOpen(false)} />
+        <View style={styles.languageSheet}>
+          <Text accessibilityRole="header" style={styles.languageTitle}>{t('language.title')}</Text>
+          {options.map((option) => <Pressable key={option.value} accessibilityRole="button" accessibilityLabel={`${t('language.title')}: ${option.label}`} accessibilityState={{ selected: language === option.value }} onPress={() => { setOpen(false); void setLanguage(option.value); }} style={[styles.languageOption, language === option.value && styles.languageOptionSelected]}>
+            <Text style={styles.languageFlag}>{option.flag}</Text>
+            <Text style={styles.languageOptionLabel}>{option.label}</Text>
+            {language === option.value && <Ionicons name="checkmark" size={18} color={palette.green} />}
+          </Pressable>)}
+        </View>
+      </View>
+    </Modal>
+  </View>;
 }
 
 /** Titled group of settings-style rows. */
@@ -130,8 +153,19 @@ export function Benefit({ icon, title, text }: { icon: IconName; title: string; 
 }
 
 const styles = StyleSheet.create({
+  languageAnchor: {},
+  languageButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: '#f5f9f6' },
+  languageFlag: { fontSize: 24, lineHeight: 30 },
+  languageShort: { color: palette.green, fontSize: 12, fontWeight: '800' },
+  languageOverlay: { flex: 1, justifyContent: 'flex-end' },
+  languageBackdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(19, 37, 27, 0.45)' },
+  languageSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 34, gap: 5 },
+  languageTitle: { color: palette.ink, fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  languageOption: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, borderRadius: 12 },
+  languageOptionSelected: { backgroundColor: palette.greenSoft },
+  languageOptionLabel: { flex: 1, color: palette.ink, fontSize: 14, fontWeight: '700' },
   verification: { gap: 10 },
-  profile: { flexDirection: 'row', alignItems: 'center', gap: 16, padding: 24, borderRadius: 28, backgroundColor: '#edf5ef', flexWrap: 'wrap' },
+  profile: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20, borderRadius: 24, backgroundColor: '#edf5ef', flexWrap: 'wrap' },
   avatarBadge: { position: 'absolute', right: -2, bottom: -2, width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#edf5ef', backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
   profileCopy: { flex: 1, minWidth: 150, gap: 2 },
   profileName: { color: palette.ink, fontSize: 25, fontWeight: '800' },
@@ -150,7 +184,7 @@ const styles = StyleSheet.create({
   group: { gap: 8 },
   groupTitle: { color: palette.muted, fontSize: 13, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 6 },
   groupCard: { borderRadius: 20, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff', overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 76, paddingHorizontal: 16, paddingVertical: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 66, paddingHorizontal: 16, paddingVertical: 12 },
   rowDivider: { borderTopWidth: 1, borderTopColor: palette.border },
   rowDim: { opacity: 0.6 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: palette.greenSoft, alignItems: 'center', justifyContent: 'center' },

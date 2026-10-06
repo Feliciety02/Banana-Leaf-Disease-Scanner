@@ -1,6 +1,8 @@
 import { api, uploadFile } from './api';
 import {
   getLocalDiagnosis,
+  queueReviewSeen,
+  clearQueuedReviewSeen,
   isNewReview,
   parseDiagnosisReview,
   replaceLocalDiagnosisImage,
@@ -30,7 +32,18 @@ export async function requestAgriculturalReview(localId: string, farmerNotes?: s
   }
   const existing = parseDiagnosisReview(record.review_json);
   if (existing && existing.review_status !== 'pending') {
-    throw new Error('This scan already has an agricultural reviewer assessment.');
+    throw new Error('This scan already has an agriculturist assessment.');
+  }
+
+  // The agriculturist checks the leaf from its photo, so the photo is saved on
+  // the server before the request; the server ignores a photo it already has.
+  const image = localImageFile(record);
+  if (image) {
+    try {
+      await uploadImage(record.sync_uuid, image, 'review');
+    } catch (error) {
+      throw new Error(`The scan photo could not be uploaded, so no review was requested: ${messageOf(error)} Try again when the connection is better.`);
+    }
   }
 
   const notes = (farmerNotes ?? record.farmer_notes ?? '').trim();
@@ -41,16 +54,7 @@ export async function requestAgriculturalReview(localId: string, farmerNotes?: s
   const review = payload.data.review;
   if (!review) throw new Error('The server did not return the review request.');
   await saveDiagnosisReview(localId, review);
-
-  const image = localImageFile(record);
-  if (!image) return { review, imageUploaded: true };
-
-  try {
-    await uploadImage(record.sync_uuid, image, 'review');
-    return { review, imageUploaded: true };
-  } catch (error) {
-    throw new Error(`Review requested, but the scan image could not be uploaded: ${messageOf(error)} Retry sending the image from the scan details.`);
-  }
+  return { review, imageUploaded: true };
 }
 
 export async function uploadReviewImage(localId: string): Promise<void> {
@@ -71,13 +75,13 @@ export async function uploadReviewImage(localId: string): Promise<void> {
 
 /**
  * Answers a completed review: sends the farmer's reply and, optionally, a new
- * photo. The case goes back to the reviewers as a pending request.
+ * photo. The case goes back to the agriculturists as a pending request.
  */
 export async function sendReviewFollowUp(localId: string, reply: string, photoUri?: string | null): Promise<DiagnosticReview> {
   const record = await getLocalDiagnosis(localId);
   if (!record?.server_id) throw new Error('This scan must be synchronized before you can reply.');
   const text = reply.trim();
-  if (!text) throw new Error('Write a short reply for the reviewer.');
+  if (!text) throw new Error('Write a short reply for the agriculturist.');
   const path = `/diagnoses/${record.server_id}/follow-up`;
   const payload = photoUri
     ? await uploadFile<{ review: DiagnosticReview | null }>(path, photoUri, { fieldName: 'image', mimeType: imageType(photoUri), parameters: { farmer_reply: text } })
@@ -102,18 +106,21 @@ export async function markReviewSeen(localId: string): Promise<void> {
   const record = await getLocalDiagnosis(localId);
   const review = parseDiagnosisReview(record?.review_json ?? null);
   if (!record?.server_id || !isNewReview(review) || !review) return;
+  const version = review.version ?? 0;
   await saveDiagnosisReview(localId, { ...review, farmer_seen_at: new Date().toISOString() });
+  await queueReviewSeen(localId, version);
   try {
-    const payload = await api<{ review: DiagnosticReview | null }>(`/diagnoses/${record.server_id}/review-seen`, { method: 'POST' });
+    const payload = await api<{ review: DiagnosticReview | null }>(`/diagnoses/${record.server_id}/review-seen`, { method: 'POST', body: JSON.stringify({ expected_review_version: version }) });
     if (payload.data.review) await saveDiagnosisReview(localId, payload.data.review);
+    await clearQueuedReviewSeen(localId, version);
   } catch {
-    // Offline: the review stays read here and is marked on the server next time it is opened.
+    // The sync loop retries this acknowledgement before pulling server changes.
   }
 }
 
 /**
  * Records research consent for a synchronized scan, then uploads the device
- * photo so reviewers can consider it for a research dataset.
+ * photo so agriculturists can consider it for a research dataset.
  */
 export async function shareScanForResearch(localId: string): Promise<{ imageUploaded: boolean }> {
   const record = await syncedRecord(localId);
@@ -154,7 +161,7 @@ export async function setScanResearchConsent(localId: string, granted: boolean):
 
 /**
  * Uploads the device photo of a synchronized scan so the farmer's other
- * devices, the web app and reviewers see it. Research use still needs consent.
+ * devices, the web app and agriculturists see it. Research use still needs consent.
  */
 export async function uploadSyncedScanImage(record: LocalDiagnosis): Promise<void> {
   const image = localImageFile(record);
