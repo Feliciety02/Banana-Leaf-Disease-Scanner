@@ -20,6 +20,7 @@ class MobileSyncService
         private readonly DiseaseRepositoryInterface $diseases,
         private readonly DiagnosisService $diagnosisRecords,
         private readonly PrivateDiagnosisImageStorage $images,
+        private readonly InferenceReceiptService $receipts,
     ) {}
 
     public function process(User $user, array $items): array
@@ -45,6 +46,12 @@ class MobileSyncService
 
             $data = $validator->validated();
             $researchConsent = (bool) ($data['research_consent'] ?? false);
+            try {
+                $this->diagnosisRecords->ensureConsentAllowed($user, $researchConsent);
+            } catch (ValidationException $exception) {
+                $results[] = ['sync_uuid' => $data['sync_uuid'], 'status' => 'rejected', 'errors' => $exception->errors()];
+                continue;
+            }
             unset($data['research_consent']);
             $existing = $this->diagnoses->findBySyncUuid($data['sync_uuid']);
             if ($existing) {
@@ -79,6 +86,7 @@ class MobileSyncService
                 'disease_id' => $disease?->id,
                 'source' => $source,
                 'is_simulated' => Diagnosis::isSimulatedFor($source, $reportedSimulated),
+                'prediction_verified' => false,
                 'sync_status' => 'synced',
                 'research_consented_at' => $researchConsent ? now() : null,
                 'research_consent_version' => $researchConsent ? config('banana.research_consent_version') : null,
@@ -247,14 +255,14 @@ class MobileSyncService
      * Stores the scan photo of a synchronized record, as web scans keep theirs.
      * Research dataset use is still gated by consent when an image is nominated.
      */
-    public function storeImage(User $user, string $syncUuid, UploadedFile $image): bool
+    public function storeImage(User $user, string $syncUuid, UploadedFile $image, ?string $receipt = null): bool
     {
         $diagnosis = $this->diagnoses->findOwnedBySyncUuid($syncUuid, $user->id);
         if ($diagnosis->image_path) {
             return false;
         }
-
-        $this->diagnoses->update($diagnosis, ['image_path' => $this->images->store($image)]);
+        $verified = $this->receipts->matches($receipt, $image, $diagnosis->only(['predicted_class', 'confidence', 'model_version']));
+        $this->diagnoses->update($diagnosis, ['image_path' => $this->images->store($image), 'prediction_verified' => $verified]);
 
         return true;
     }

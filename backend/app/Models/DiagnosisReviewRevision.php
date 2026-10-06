@@ -9,7 +9,7 @@ class DiagnosisReviewRevision extends Model
 {
     protected $fillable = [
         'diagnosis_review_id', 'expert_id', 'review_status', 'verified_label', 'image_quality', 'next_steps', 'notes', 'farmer_message', 'farmer_reply',
-        'requires_field_inspection', 'reviewed_at', 'replaced_by',
+        'requires_field_inspection', 'reviewed_at', 'replaced_by', 'revision_reason',
     ];
 
     protected function casts(): array

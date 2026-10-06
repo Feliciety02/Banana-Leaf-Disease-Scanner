@@ -6,8 +6,11 @@ use App\Models\Diagnosis;
 use App\Models\Disease;
 use App\Models\User;
 use App\Support\ClassLabelRegistry;
+use App\Services\InferenceReceiptService;
 use Database\Seeders\ScientificKnowledgeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -34,7 +37,7 @@ class DiagnosisRecordCompletenessTest extends TestCase
         ];
     }
 
-    public function test_mobile_scans_are_real_predictions_whatever_the_server_ai_mode(): void
+    public function test_mobile_scans_keep_the_model_mode_but_remain_client_reported_without_a_receipt(): void
     {
         config(['banana.ai_mode' => 'SIMULATED / DEVELOPMENT']);
         Sanctum::actingAs(User::factory()->farmer()->create());
@@ -43,6 +46,26 @@ class DiagnosisRecordCompletenessTest extends TestCase
             ->assertOk()->assertJsonPath('data.results.0.status', 'created');
 
         $this->assertFalse(Diagnosis::query()->sole()->is_simulated);
+        $this->assertFalse(Diagnosis::query()->sole()->prediction_verified);
+    }
+
+    public function test_server_receipt_attests_the_exact_uploaded_image_and_prediction(): void
+    {
+        Storage::fake('local');
+        Sanctum::actingAs(User::factory()->farmer()->create());
+        $scan = $this->mobileScan();
+        $this->postJson('/api/sync', ['diagnoses' => [$scan]])
+            ->assertOk()->assertJsonPath('data.results.0.status', 'created');
+        $photo = UploadedFile::fake()->image('banana.jpg');
+        $receipt = app(InferenceReceiptService::class)->issue($photo, [
+            'diseaseId' => $scan['predicted_class'], 'confidence' => $scan['confidence'],
+            'model' => $scan['model_version'], 'is_simulated' => false,
+        ]);
+
+        $this->post('/api/sync/'.$scan['sync_uuid'].'/image', [
+            'image' => $photo, 'inference_receipt' => $receipt,
+        ], ['Accept' => 'application/json'])->assertOk();
+        $this->assertTrue(Diagnosis::query()->sole()->prediction_verified);
     }
 
     public function test_web_records_still_follow_the_server_ai_mode(): void
@@ -126,7 +149,7 @@ class DiagnosisRecordCompletenessTest extends TestCase
         $this->app['env'] = 'production';
         $existing = Disease::query()->create([
             'slug' => 'healthy', 'model_class_key' => 'healthy', 'name' => 'Expert-edited Healthy Leaf',
-            'description' => 'Edited by a reviewer.', 'symptoms' => [], 'management' => 'Edited.',
+            'description' => 'Edited by an agriculturist.', 'symptoms' => [], 'management' => 'Edited.',
             'verification_status' => 'verified', 'is_verified' => true,
         ]);
 

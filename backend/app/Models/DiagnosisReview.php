@@ -12,7 +12,7 @@ class DiagnosisReview extends Model
 
     protected $fillable = [
         'diagnosis_id', 'expert_id', 'review_status', 'verified_label', 'image_quality', 'next_steps', 'notes', 'farmer_message', 'farmer_reply',
-        'requires_field_inspection', 'requested_at', 'reviewed_at', 'farmer_seen_at',
+        'requires_field_inspection', 'requested_at', 'reviewed_at', 'farmer_seen_at', 'version',
     ];
 
     protected function casts(): array
@@ -23,6 +23,7 @@ class DiagnosisReview extends Model
             'requested_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'farmer_seen_at' => 'datetime',
+            'version' => 'integer',
         ];
     }
 

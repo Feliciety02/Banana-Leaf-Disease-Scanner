@@ -14,7 +14,7 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Cross-role flows (farmer → reviewer → administrator) stay consistent with the
+ * Cross-role flows (farmer → agriculturist → administrator) stay consistent with the
  * database: deletions, consent, review history and dashboard values.
  */
 class RoleFlowIntegrityTest extends TestCase
@@ -52,7 +52,7 @@ class RoleFlowIntegrityTest extends TestCase
         ]);
     }
 
-    public function test_shared_scan_photo_is_viewable_by_owner_reviewer_and_admin_only(): void
+    public function test_shared_scan_photo_is_viewable_by_owner_agriculturist_and_admin_only(): void
     {
         Storage::fake('local');
         $farmer = User::factory()->farmer()->create();
@@ -69,6 +69,57 @@ class RoleFlowIntegrityTest extends TestCase
         }
         Sanctum::actingAs($otherFarmer);
         $this->get($url)->assertForbidden();
+    }
+
+    public function test_signed_scan_photo_urls_load_without_a_session_for_every_role(): void
+    {
+        Storage::fake('local');
+        $farmer = User::factory()->farmer()->create();
+        $agriculturist = User::factory()->agriculturalExpert()->create();
+        $admin = User::factory()->admin()->create();
+        $diagnosis = $this->diagnosis($farmer, ['image_path' => $this->storedImage('diagnoses/signed.jpg')]);
+        DiagnosisReview::query()->create(['diagnosis_id' => $diagnosis->id, 'review_status' => 'pending', 'requested_at' => now()]);
+
+        $urls = [];
+        Sanctum::actingAs($farmer);
+        $urls[] = $this->getJson("/api/diagnoses/{$diagnosis->id}")->assertOk()->json('data.image_url');
+        Sanctum::actingAs($agriculturist);
+        $urls[] = $this->getJson("/api/expert/diagnosis-reviews/{$diagnosis->id}")->assertOk()->json('data.image_url');
+        Sanctum::actingAs($admin);
+        $urls[] = $this->getJson("/api/admin/diagnoses/{$diagnosis->id}")->assertOk()->json('data.image_url');
+
+        // A browser <img> sends neither a token nor, reliably, the Referer that marks a cookie session.
+        $this->app['auth']->forgetGuards();
+        foreach ($urls as $url) {
+            $this->assertStringContainsString('signature=', $url);
+            $this->get($url)->assertOk();
+        }
+        $this->get("/api/diagnosis-media/{$diagnosis->id}/image")->assertUnauthorized();
+        $this->get($urls[0].'x')->assertUnauthorized();
+
+        $this->travel(config('banana.media_url_ttl_minutes') + 1)->minutes();
+        $this->get($urls[0])->assertUnauthorized();
+    }
+
+    public function test_cleanup_deletes_only_scans_without_a_photo_and_tells_phones(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+        $farmer = User::factory()->farmer()->create();
+        $withPhoto = $this->diagnosis($farmer, ['image_path' => $this->storedImage('diagnoses/kept.jpg')]);
+        $neverUploaded = $this->diagnosis($farmer);
+        $fileMissing = $this->diagnosis($farmer, ['image_path' => 'diagnoses/gone.jpg']);
+
+        $this->artisan('dahonmd:delete-scans-without-photo', ['--dry-run' => true])->assertSuccessful();
+        $this->assertSame(3, Diagnosis::query()->count());
+
+        $this->artisan('dahonmd:delete-scans-without-photo')->expectsOutputToContain('Deleted 2 scan(s)')->assertSuccessful();
+        $this->assertNotSoftDeleted($withPhoto);
+        $this->assertSoftDeleted($neverUploaded);
+        $this->assertSoftDeleted($fileMissing);
+        foreach ([$neverUploaded, $fileMissing] as $diagnosis) {
+            $this->assertDatabaseHas('diagnosis_sync_changes', ['diagnosis_id' => $diagnosis->id, 'change_type' => 'delete']);
+        }
     }
 
     public function test_self_service_account_deletion_removes_private_scan_images(): void
@@ -108,7 +159,7 @@ class RoleFlowIntegrityTest extends TestCase
         $farmer = User::factory()->farmer()->create();
         $nominator = User::factory()->agriculturalExpert()->create();
         $decider = User::factory()->agriculturalExpert()->create();
-        $diagnosis = $this->diagnosis($farmer, ['image_path' => $this->storedImage('diagnoses/nominated.jpg'), 'research_consented_at' => now()]);
+        $diagnosis = $this->diagnosis($farmer, ['image_path' => $this->storedImage('diagnoses/nominated.jpg'), 'research_consented_at' => now(), 'research_consent_version' => config('banana.research_consent_version')]);
         $this->reviewed($diagnosis, $nominator);
         $candidate = DatasetCandidate::query()->create(['diagnosis_id' => $diagnosis->id, 'proposed_by' => $nominator->id, 'status' => 'pending']);
 
@@ -117,7 +168,7 @@ class RoleFlowIntegrityTest extends TestCase
         $this->assertDatabaseMissing('dataset_candidates', ['id' => $candidate->id]);
 
         // A candidate left behind by an older soft delete must fail cleanly.
-        $orphanSource = $this->diagnosis($farmer, ['image_path' => 'diagnoses/orphan.jpg', 'research_consented_at' => now()]);
+        $orphanSource = $this->diagnosis($farmer, ['image_path' => 'diagnoses/orphan.jpg', 'research_consented_at' => now(), 'research_consent_version' => config('banana.research_consent_version')]);
         $orphan = DatasetCandidate::query()->create(['diagnosis_id' => $orphanSource->id, 'proposed_by' => $nominator->id, 'status' => 'pending']);
         $orphanSource->delete();
 
@@ -127,7 +178,7 @@ class RoleFlowIntegrityTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('status');
     }
 
-    public function test_farmer_cannot_delete_an_image_in_an_approved_dataset(): void
+    public function test_approved_research_copy_survives_scan_deletion_and_farmer_can_remove_it(): void
     {
         Storage::fake('local');
         $farmer = User::factory()->farmer()->create();
@@ -136,18 +187,27 @@ class RoleFlowIntegrityTest extends TestCase
         $diagnosis = $this->diagnosis($farmer, [
             'image_path' => $path,
             'research_consented_at' => now(),
+            'research_consent_version' => config('banana.research_consent_version'),
             'sync_uuid' => '4b0f7a52-9a39-4c4f-8d2e-2d61f8f0b1aa',
         ]);
         $this->reviewed($diagnosis, $expert);
-        DatasetCandidate::query()->create(['diagnosis_id' => $diagnosis->id, 'proposed_by' => $expert->id, 'status' => 'approved']);
+        $candidate = DatasetCandidate::query()->create(['diagnosis_id' => $diagnosis->id, 'proposed_by' => $expert->id, 'status' => 'pending']);
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->putJson("/api/admin/dataset-candidates/{$candidate->id}", ['status' => 'approved'])->assertOk();
+        $copy = \App\Models\ResearchImage::query()->where('source_candidate_id', $candidate->id)->firstOrFail();
+        Storage::disk('local')->assertExists($copy->image_path);
 
         Sanctum::actingAs($farmer);
-        $this->deleteJson("/api/diagnoses/{$diagnosis->id}")->assertUnprocessable()->assertJsonValidationErrors('diagnosis');
+        $this->deleteJson("/api/diagnoses/{$diagnosis->id}")->assertNoContent();
         $this->postJson('/api/sync', ['deletions' => [['server_id' => $diagnosis->id, 'sync_uuid' => $diagnosis->sync_uuid]]])
-            ->assertOk()->assertJsonPath('data.deletion_results.0.status', 'rejected');
+            ->assertOk();
 
-        $this->assertNotSoftDeleted('diagnoses', ['id' => $diagnosis->id]);
-        Storage::disk('local')->assertExists($path);
+        $this->assertSoftDeleted('diagnoses', ['id' => $diagnosis->id]);
+        Storage::disk('local')->assertMissing($path);
+        Storage::disk('local')->assertExists($copy->image_path);
+        $this->getJson('/api/research-images')->assertOk()->assertJsonCount(1, 'data');
+        $this->deleteJson('/api/research-images/'.$copy->id)->assertOk()->assertJsonPath('data.revoked_at', fn ($value) => $value !== null);
+        Storage::disk('local')->assertMissing($copy->image_path);
     }
 
     public function test_dashboard_counts_shared_scans_awaiting_photos_and_ignores_deleted_reviews(): void
@@ -195,6 +255,7 @@ class RoleFlowIntegrityTest extends TestCase
 
         Sanctum::actingAs(User::factory()->farmer()->create());
         $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
+
         $this->deleteJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
     }
 
@@ -209,12 +270,24 @@ class RoleFlowIntegrityTest extends TestCase
         ]]])->assertOk()->assertJsonPath('data.results.0.status', 'created');
         $diagnosis = Diagnosis::query()->where('sync_uuid', $syncUuid)->firstOrFail();
 
-        // Asking an expert does not depend on having email access.
-        $this->postJson("/api/diagnoses/{$diagnosis->id}/review-request")->assertOk();
-        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
         // Keeping the scan photo is part of offline sync, not a sharing action.
         Storage::fake('local');
         $this->post("/api/sync/{$syncUuid}/image", ['image' => UploadedFile::fake()->image('leaf.jpg')], ['Accept' => 'application/json'])->assertOk();
+        // Asking an expert does not depend on having email access.
+        $this->postJson("/api/diagnoses/{$diagnosis->id}/review-request")->assertOk();
+        $this->postJson("/api/diagnoses/{$diagnosis->id}/research-consent")->assertForbidden();
+
+        $this->postJson('/api/sync', ['diagnoses' => [[
+            'sync_uuid' => '6a0e1c0c-7d7c-4c8f-9d0a-7f1f9a8f2c23',
+            'predicted_class' => 'sigatoka', 'confidence' => 72,
+            'diagnosed_at' => now()->toIso8601String(), 'research_consent' => true,
+        ]]])->assertOk()->assertJsonPath('data.results.0.status', 'rejected');
+        $this->assertDatabaseMissing('diagnoses', ['sync_uuid' => '6a0e1c0c-7d7c-4c8f-9d0a-7f1f9a8f2c23']);
+        $this->post('/api/diagnoses', [
+            'predicted_class' => 'sigatoka', 'confidence' => 72,
+            'source' => 'web', 'diagnosed_at' => now()->toIso8601String(),
+            'research_consent' => true, 'image' => UploadedFile::fake()->image('unverified.jpg'),
+        ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('research_consent');
 
         Sanctum::actingAs(User::factory()->admin()->unverified()->create());
         $this->getJson('/api/admin/dashboard')->assertForbidden();
@@ -229,6 +302,7 @@ class RoleFlowIntegrityTest extends TestCase
         for ($attempt = 1; $attempt <= 10; $attempt++) {
             $diagnosis = Diagnosis::query()->create([
                 'user_id' => $farmer->id, 'predicted_class' => 'sigatoka', 'confidence' => 60, 'source' => 'mobile', 'diagnosed_at' => now(),
+                'image_path' => "diagnoses/flood-{$attempt}.jpg",
             ]);
             $this->postJson("/api/diagnoses/{$diagnosis->id}/review-request")->assertOk();
         }
@@ -244,10 +318,12 @@ class RoleFlowIntegrityTest extends TestCase
         $farmer = User::factory()->farmer()->create();
         Sanctum::actingAs($farmer);
 
-        $this->postJson('/api/diagnoses', [
+        Storage::fake('local');
+        $this->post('/api/diagnoses', [
             'disease_id' => $other->id, 'predicted_class' => 'panama-disease', 'confidence' => 90,
             'source' => 'web', 'diagnosed_at' => now()->toIso8601String(),
-        ])->assertCreated()->assertJsonPath('data.disease.id', $panama->id);
+            'image' => UploadedFile::fake()->image('leaf.jpg'),
+        ], ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('data.disease.id', $panama->id);
 
         $this->postJson('/api/sync', ['diagnoses' => [[
             'sync_uuid' => '2f6b2d7e-9d59-4a53-9a1e-0f8e2c1b3d44', 'predicted_class' => 'panama-disease', 'confidence' => 90,
@@ -289,7 +365,7 @@ class RoleFlowIntegrityTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('verified_label');
 
         Sanctum::actingAs($second);
-        $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", ['review_status' => 'alternate_class', 'verified_label' => 'sigatoka', ...$assessment])
+        $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", ['review_status' => 'alternate_class', 'verified_label' => 'sigatoka', 'expected_review_version' => 1, 'revision_reason' => 'Second agriculturist corrected the earlier label.', ...$assessment])
             ->assertOk()
             ->assertJsonPath('data.review.verified_label', 'sigatoka')
             ->assertJsonPath('data.review.revisions.0.review_status', 'confirmed')
@@ -297,7 +373,7 @@ class RoleFlowIntegrityTest extends TestCase
         $this->assertDatabaseCount('diagnosis_review_revisions', 1);
 
         DatasetCandidate::query()->create(['diagnosis_id' => $diagnosis->id, 'proposed_by' => $first->id, 'status' => 'approved']);
-        $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", ['review_status' => 'confirmed', ...$assessment])
+        $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", ['review_status' => 'confirmed', 'expected_review_version' => 2, ...$assessment])
             ->assertUnprocessable()->assertJsonValidationErrors('review_status');
         $this->assertSame('sigatoka', DiagnosisReview::query()->where('diagnosis_id', $diagnosis->id)->value('verified_label'));
 
@@ -335,11 +411,11 @@ class RoleFlowIntegrityTest extends TestCase
         $this->assertTrue(Diagnosis::query()->where('sync_uuid', '9d1f7a10-6b8e-4c1d-9a55-3e2f1b0c7a02')->sole()->is_simulated);
     }
 
-    public function test_administrator_decides_on_a_reviewer_nomination(): void
+    public function test_administrator_decides_on_a_agriculturist_nomination(): void
     {
         $farmer = User::factory()->farmer()->create();
         $expert = User::factory()->agriculturalExpert()->create();
-        $diagnosis = $this->diagnosis($farmer, ['image_path' => 'diagnoses/admin-decision.jpg', 'research_consented_at' => now()]);
+        $diagnosis = $this->diagnosis($farmer, ['image_path' => $this->storedImage('diagnoses/admin-decision.jpg'), 'research_consented_at' => now(), 'research_consent_version' => config('banana.research_consent_version')]);
         $this->reviewed($diagnosis, $expert);
 
         Sanctum::actingAs($expert);

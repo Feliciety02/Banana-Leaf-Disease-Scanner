@@ -19,6 +19,7 @@ class DiseaseKnowledgeService
     public function __construct(
         private readonly DiseaseRepositoryInterface $diseases,
         private readonly ResearchSourceRepositoryInterface $sources,
+        private readonly PrivateDiagnosisImageStorage $images,
     ) {}
 
     public function create(array $attributes, ?UploadedFile $image): Disease
@@ -147,7 +148,8 @@ class DiseaseKnowledgeService
             if ($disease?->image_path) {
                 Storage::disk('public')->delete($disease->image_path);
             }
-            $attributes['image_path'] = $image->store('diseases', 'public');
+            // Guide photos are re-encoded as WebP (at most 1600 px) like every non-scan image.
+            $attributes['image_path'] = $this->images->store($image, 'diseases', 1600, 'webp', 'public');
         }
 
         return $attributes;

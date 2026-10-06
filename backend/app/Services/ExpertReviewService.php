@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class ExpertReviewService
 {
-    /** How long a reviewer holds a case without activity before others may take it. */
+    /** How long an agriculturist holds a case without activity before others may take it. */
     public const CLAIM_MINUTES = 30;
 
     public function __construct(
@@ -45,7 +45,7 @@ class ExpertReviewService
     }
 
     /**
-     * The farmer's most recent other scans, so a reviewer can see patterns
+     * The farmer's most recent other scans, so an agriculturist can see patterns
      * (for example the same disease reported repeatedly) before deciding.
      */
     public function farmerHistory(Diagnosis $diagnosis, int $limit = 10): Collection
@@ -65,12 +65,16 @@ class ExpertReviewService
     }
 
     /**
-     * Marks the case as being worked on by this reviewer, or renews their claim.
-     * Refused while another reviewer holds an active claim.
+     * Marks the case as being worked on by this agriculturist, or renews their claim.
+     * Refused while another agriculturist holds an active claim.
      */
     public function claim(User $expert, Diagnosis $diagnosis): ReviewClaim
     {
         return DB::transaction(function () use ($expert, $diagnosis) {
+            $locked = Diagnosis::query()->whereKey($diagnosis->id)->lockForUpdate()->firstOrFail();
+            if ($locked->review()->where('review_status', '!=', 'pending')->exists()) {
+                throw ValidationException::withMessages(['review_status' => 'This case already has an assessment. Reload it to view the completed review.']);
+            }
             $claim = ReviewClaim::query()->where('diagnosis_id', $diagnosis->id)->lockForUpdate()->first();
             $this->ensureNotHeldByAnother($expert, $claim);
             // Only a newly started review is news for the farmer; renewals are not.
@@ -95,7 +99,7 @@ class ExpertReviewService
     private function ensureNotHeldByAnother(User $expert, ?ReviewClaim $claim): void
     {
         if ($claim && $claim->user_id !== $expert->id && $claim->isActive()) {
-            $name = $claim->user?->name ?? 'another reviewer';
+            $name = $claim->user?->name ?? 'another agriculturist';
             throw ValidationException::withMessages([
                 'review_status' => "{$name} is reviewing this case right now. Choose another case, or try again after {$claim->expires_at->format('H:i')}.",
             ]);
@@ -104,30 +108,38 @@ class ExpertReviewService
 
     public function save(User $expert, Diagnosis $diagnosis, array $attributes): Diagnosis
     {
-        $this->ensureNotHeldByAnother($expert, ReviewClaim::query()->with('user:id,name')->where('diagnosis_id', $diagnosis->id)->first());
-        $diagnosis->loadMissing(['review', 'datasetCandidate']);
-        if ($diagnosis->datasetCandidate?->status === 'approved') {
-            throw ValidationException::withMessages([
-                'review_status' => 'This image is in an approved research dataset, so its agricultural assessment is locked.',
-            ]);
-        }
-        if ($attributes['review_status'] !== 'alternate_class') {
-            $attributes['verified_label'] = $attributes['review_status'] === 'confirmed' ? $diagnosis->predicted_class : null;
-        }
-
         return DB::transaction(function () use ($expert, $diagnosis, $attributes) {
-            // The case is finished, so it is free for anyone again.
-            ReviewClaim::query()->where('diagnosis_id', $diagnosis->id)->delete();
-            $previous = $diagnosis->review;
+            // All changes to a case lock the diagnosis first, then inspect fresh state.
+            $locked = Diagnosis::query()->whereKey($diagnosis->id)->lockForUpdate()->firstOrFail();
+            $claim = ReviewClaim::query()->with('user:id,name')->where('diagnosis_id', $locked->id)->lockForUpdate()->first();
+            $this->ensureNotHeldByAnother($expert, $claim);
+            $previous = $locked->review()->lockForUpdate()->first();
+            if ((int) ($attributes['expected_review_version'] ?? 0) !== (int) ($previous?->version ?? 0)) {
+                throw ValidationException::withMessages(['expected_review_version' => 'This case changed while it was open. Reload it before saving your assessment.']);
+            }
+            if ($locked->datasetCandidate()->where('status', 'approved')->exists()) {
+                throw ValidationException::withMessages(['review_status' => 'This image is in an approved research dataset, so its agricultural assessment is locked.']);
+            }
+            if ($attributes['review_status'] !== 'alternate_class') {
+                $attributes['verified_label'] = $attributes['review_status'] === 'confirmed' ? $locked->predicted_class : null;
+            }
+            unset($attributes['expected_review_version']);
             if ($previous && $previous->review_status !== 'pending') {
+                $reason = trim((string) ($attributes['revision_reason'] ?? ''));
+                if ($reason === '') {
+                    throw ValidationException::withMessages(['revision_reason' => 'Explain why this completed assessment is being revised.']);
+                }
                 $previous->revisions()->create([
                     ...$previous->only(['expert_id', 'review_status', 'verified_label', 'image_quality', 'next_steps', 'notes', 'farmer_message', 'farmer_reply', 'requires_field_inspection', 'reviewed_at']),
                     'replaced_by' => $expert->id,
+                    'revision_reason' => $reason,
                 ]);
             }
-
-            return $this->diagnoses->saveReview($diagnosis, [
+            unset($attributes['revision_reason']);
+            ReviewClaim::query()->where('diagnosis_id', $locked->id)->delete();
+            return $this->diagnoses->saveReview($locked, [
                 ...$attributes,
+                'version' => ($previous?->version ?? 0) + 1,
                 'expert_id' => $expert->id,
                 'requires_field_inspection' => $attributes['review_status'] === 'field_or_laboratory_required'
                     || in_array('seek_field_inspection', $attributes['next_steps'], true),

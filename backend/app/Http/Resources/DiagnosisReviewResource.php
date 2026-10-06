@@ -11,12 +11,13 @@ class DiagnosisReviewResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'version' => $this->version,
             'review_status' => $this->review_status,
             'verified_label' => $this->verified_label,
             'image_quality' => $this->image_quality,
             'next_steps' => $this->next_steps ?? [],
             'notes' => $this->when($request->user()?->isAdmin() || $request->user()?->isAgriculturalExpert(), $this->notes),
-            // Written by the reviewer for the farmer, so every viewer of the scan sees it.
+            // Written by the agriculturist for the farmer, so every viewer of the scan sees it.
             'farmer_message' => $this->farmer_message,
             'farmer_reply' => $this->farmer_reply,
             'requires_field_inspection' => $this->requires_field_inspection,
@@ -36,6 +37,7 @@ class DiagnosisReviewResource extends JsonResource
                     'farmer_message' => $revision->farmer_message,
                     'farmer_reply' => $revision->farmer_reply,
                     'reviewed_at' => $revision->reviewed_at,
+                    'revision_reason' => $revision->revision_reason,
                     'reviewer' => $revision->expert?->only(['id', 'name']),
                 ])->values(),
             ),

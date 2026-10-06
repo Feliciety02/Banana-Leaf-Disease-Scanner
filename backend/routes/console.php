@@ -1,10 +1,14 @@
 <?php
 
+use App\Models\Diagnosis;
+use App\Services\DiagnosisService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -54,5 +58,41 @@ Artisan::command('dahonmd:backup {--keep=7 : Number of recent backups to retain}
 
     return self::SUCCESS;
 })->purpose('Create a retained local backup of the SQLite database');
+
+Artisan::command('dahonmd:delete-scans-without-photo {--dry-run : List the scans without deleting them}', function (DiagnosisService $diagnoses) {
+    // A scan is only useful to an agriculturist with its photo; these records have none on the server.
+    $missing = Diagnosis::query()->with('user:id,name')->orderBy('id')->get()->filter(
+        fn (Diagnosis $diagnosis) => ! $diagnosis->image_path
+            || (! Storage::disk('local')->exists($diagnosis->image_path) && ! Storage::disk('public')->exists($diagnosis->image_path)),
+    );
+    if ($missing->isEmpty()) {
+        $this->info('Every scan has its photo. Nothing to delete.');
+
+        return self::SUCCESS;
+    }
+
+    $this->table(['ID', 'Farmer', 'Result', 'Scanned'], $missing->map(fn (Diagnosis $diagnosis) => [
+        $diagnosis->id, $diagnosis->user?->name ?? '—', $diagnosis->predicted_class, $diagnosis->diagnosed_at?->toDateTimeString(),
+    ]));
+    if ($this->option('dry-run')) {
+        $this->info("{$missing->count()} scan(s) without a photo would be deleted.");
+
+        return self::SUCCESS;
+    }
+
+    $deleted = 0;
+    foreach ($missing as $diagnosis) {
+        try {
+            // The service soft-deletes and records a sync tombstone, so phones remove the scan too.
+            $diagnoses->delete($diagnosis);
+            $deleted++;
+        } catch (ValidationException $exception) {
+            $this->warn("Scan {$diagnosis->id} kept: ".collect($exception->errors())->flatten()->first());
+        }
+    }
+    $this->info("Deleted {$deleted} scan(s) without a photo.");
+
+    return self::SUCCESS;
+})->purpose('Delete saved scans whose photo never reached the server');
 
 Schedule::command('dahonmd:backup --keep=7')->dailyAt('02:00')->withoutOverlapping();

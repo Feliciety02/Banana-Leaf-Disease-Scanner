@@ -25,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // generated links (signed image URLs, reset links) keep the https scheme.
         $middleware->trustProxies(at: ['127.0.0.1', '::1']);
         $middleware->statefulApi();
+        // API callers get a JSON 401; there is no login page to redirect them to.
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : '/');
         $middleware->api(prepend: [NormalizeApiInput::class, AssignRequestContext::class]);
         $middleware->alias(['role' => EnsureRole::class, 'verified.required' => EnsureVerifiedEmailWhenRequired::class]);
     })
