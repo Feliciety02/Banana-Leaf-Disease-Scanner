@@ -19,9 +19,14 @@ class DevelopmentUserSeeder extends Seeder
         $password = env('DEV_USER_PASSWORD', 'DahonMD@2026');
         $users = [
             ['name' => 'DahonMD Administrator', 'email' => 'admin@dahonmd.test', 'role' => 'admin'],
-            ['name' => 'Dr. Ana Reyes', 'email' => 'reviewer@dahonmd.test', 'role' => 'agricultural_expert'],
+            ['name' => 'Dr. Ana Reyes', 'email' => 'agriculturist@dahonmd.test', 'role' => 'agricultural_expert'],
             ['name' => 'Maria Santos', 'email' => 'maria.santos@dahonmd.test', 'role' => 'farmer'],
         ];
+
+        // The demo agriculturist used to sign in as reviewer@; keep that account and its review history.
+        User::query()->where('email', 'reviewer@dahonmd.test')
+            ->whereNotExists(fn ($query) => $query->from('users', 'existing')->where('existing.email', 'agriculturist@dahonmd.test'))
+            ->update(['email' => 'agriculturist@dahonmd.test']);
 
         User::query()->whereIn('email', [
             'admin@bananacare.test',
