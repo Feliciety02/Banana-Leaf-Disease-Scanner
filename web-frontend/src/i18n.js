@@ -4,14 +4,20 @@ import { useSyncExternalStore } from 'react';
 // missing entry simply shows English. Keep the wording in step with the phone
 // app (mobile-frontend/src/i18n) and have a native speaker review it.
 const FIL = {
+  'I agree to the': 'Sumasang-ayon ako sa',
+  'Terms of Use': 'Mga Tuntunin ng Paggamit',
+  'and have read the': 'at nabasa ko ang',
+  'Privacy Policy': 'Patakaran sa Privacy',
+  'Please agree to the Terms of Use to create an account.': 'Sumang-ayon muna sa Mga Tuntunin ng Paggamit para makagawa ng account.',
+  'Optional: Automatically share my future account scan photos for research consideration after expert review. An approved private copy may remain after I delete a scan. I can turn this off in Profile.': 'Opsyonal: Awtomatikong ibahagi ang mga susunod kong larawan ng scan para sa posibleng pananaliksik matapos suriin ng eksperto. Maaaring manatili ang isang pribadong kopya kahit burahin ko ang scan. Maaari ko itong patayin sa Profile.',
   // Navigation and shell
   Home: 'Home', Scan: 'I-scan', History: 'Kasaysayan', Guide: 'Gabay', Profile: 'Profile',
   'Log out': 'Mag-log out', 'Open profile': 'Buksan ang profile',
   Language: 'Wika', English: 'English', Filipino: 'Filipino',
 
   // Home
-  'Good to see you, {name}.': 'Magandang araw, {name}.',
-  'A clearer picture of your banana leaves starts here.': 'Dito nagsisimula ang mas malinaw na pagtingin sa inyong mga dahon ng saging.',
+  'Welcome, {name}': 'Maligayang pagdating, {name}', Welcome: 'Maligayang pagdating',
+  'Scan a leaf or check your saved results below.': 'Mag-scan ng dahon o tingnan ang inyong mga naka-save na resulta sa ibaba.',
   'Scan a banana leaf': 'I-scan ang dahon ng saging',
   'Take a photo to see a screening result and practical next steps.': 'Kumuha ng litrato para makita ang resulta at ang mga susunod na hakbang.',
   'Start a scan': 'Magsimulang mag-scan',
@@ -205,7 +211,7 @@ const FIL = {
   'This deletes your account and scans. Approved private research copies remain unless you choose to remove them below.': 'Mabubura ang account at mga scan. Mananatili ang aprubadong mga pribadong kopya para sa pananaliksik maliban kung piliin ninyong alisin ang mga ito sa ibaba.',
   'Also remove my approved research photos': 'Alisin din ang aprubado kong mga litrato para sa pananaliksik',
   'Optional. Use a clear photo of your face. JPG, PNG, or WebP up to 5 MB.': 'Opsyonal. Gumamit ng malinaw na litrato ng inyong mukha. JPG, PNG, o WebP hanggang 5 MB.',
-  'Remove photo': 'Alisin ang litrato',
+  'Remove photo': 'Alisin ang litrato', 'Choose a photo': 'Pumili ng litrato',
   'Change photo': 'Palitan ang litrato',
   'Upload photo': 'Mag-upload ng litrato',
   'Verify your email address': 'I-verify ang inyong email address',
@@ -261,7 +267,29 @@ const FIL = {
   'Back to library': 'Bumalik sa aklatan', 'Articles are in English for now.': 'Nasa Ingles pa ang mga artikulo sa ngayon.',
   References: 'Mga sanggunian', 'Peer-reviewed': 'Peer-reviewed', Philippines: 'Pilipinas', 'Open source': 'Buksan ang sanggunian',
   'Photo: {credit} ({license})': 'Larawan: {credit} ({license})',
-  'Articles summarise the listed references. Ask your agriculturist before acting on them.': 'Buod ang mga artikulo ng mga nakalistang sanggunian. Magtanong muna sa inyong agriculturist bago kumilos.',
+
+  // Public homepage
+  'Check your banana leaves with one photo.': 'Suriin ang dahon ng saging gamit ang isang litrato.',
+  'DahonMD helps banana farmers spot common leaf diseases early. Take a photo, see the result in seconds, and ask an agriculturist when you need help.': 'Tinutulungan ng DahonMD ang mga magsasaka ng saging na makita agad ang karaniwang sakit ng dahon. Kumuha ng litrato, tingnan ang resulta sa ilang segundo, at magtanong sa agriculturist kapag kailangan ninyo ng tulong.',
+  'Scan a leaf now': 'Mag-scan ngayon', 'Create a free account': 'Gumawa ng libreng account',
+  'Free to use. No account needed to try a scan.': 'Libre. Hindi kailangan ng account para subukang mag-scan.',
+  'Banana leaf with Sigatoka spots': 'Dahon ng saging na may batik ng Sigatoka',
+  'How it works': 'Paano ito gumagana',
+  'Take a photo': 'Kumuha ng litrato', 'Take or upload a clear photo of one banana leaf.': 'Kumuha o mag-upload ng malinaw na litrato ng isang dahon ng saging.',
+  'Check the result': 'Tingnan ang resulta', 'DahonMD tells you what the leaf most likely has and what to do next.': 'Sinasabi ng DahonMD kung ano ang malamang na sakit ng dahon at ang susunod na gagawin.',
+  'Ask an agriculturist': 'Magtanong sa agriculturist', 'If the result is unclear, send it to an agriculturist for a second look.': 'Kung hindi malinaw ang resulta, ipadala ito sa agriculturist para masuri ulit.',
+  'What DahonMD can check': 'Ano ang kayang suriin ng DahonMD',
+  'The scanner looks for these leaf conditions. More diseases are explained in the guide after you sign up.': 'Hinahanap ng scanner ang mga kondisyong ito. Mas maraming sakit ang ipinapaliwanag sa Gabay pagkatapos ninyong mag-sign up.',
+  'Healthy leaf': 'Malusog na dahon', 'Green leaf with no spots or yellowing.': 'Berdeng dahon na walang batik o paninilaw.',
+  'Yellow streaks that turn into brown or black spots.': 'Dilaw na guhit na nagiging kayumanggi o itim na batik.',
+  'Large pale brown patches with a yellow edge.': 'Malalaking mapusyaw na kayumangging batik na may dilaw na gilid.',
+  'Yellowing that starts at the leaf edge and spreads.': 'Paninilaw na nagsisimula sa gilid ng dahon at kumakalat.',
+  'With a free account': 'Kapag may libreng account',
+  'Scan history': 'Kasaysayan ng scan', 'Your past scans are saved and can be opened on any device.': 'Naka-save ang mga dati ninyong scan at mabubuksan sa kahit anong device.',
+  'Answers from agriculturists': 'Sagot mula sa mga agriculturist', 'An agriculturist can check your photo and reply with advice.': 'Masusuri ng agriculturist ang inyong litrato at sasagot nang may payo.',
+  'Works offline': 'Gumagana kahit offline', 'Scans are kept in your browser and sent when you are back online.': 'Naka-save ang mga scan sa inyong browser at maipapadala kapag may internet na.',
+  'Signs, prevention and care for each disease, plus short articles.': 'Mga palatandaan, pag-iwas at pag-aalaga para sa bawat sakit, at maiikling artikulo.',
+  'DahonMD gives screening support only. It cannot confirm a disease. Always ask your local agriculturist before spraying or removing plants.': 'Gabay lamang ang ibinibigay ng DahonMD. Hindi nito makukumpirma ang sakit. Magtanong muna sa inyong lokal na agriculturist bago mag-spray o magtanggal ng halaman.',
 };
 
 const STORAGE_KEY = 'dahonmd-language';
