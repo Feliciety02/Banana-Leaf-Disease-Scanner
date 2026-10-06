@@ -6,6 +6,8 @@ use App\Http\Requests\Profile\UpdatePasswordRequest;
 use App\Http\Requests\Profile\UpdateProfileRequest;
 use App\Http\Resources\UserResource;
 use App\Services\AccountService;
+use App\Services\DiagnosisService;
+use App\Models\Diagnosis;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,6 +25,28 @@ class ProfileController extends Controller
         $user = $this->accounts->updateProfile($request->user(), $request->safe()->except('current_password'));
 
         return response()->json(['success' => true, 'message' => 'Profile updated.', 'data' => ['user' => new UserResource($user)]]);
+    }
+
+    public function researchConsent(Request $request, DiagnosisService $diagnoses): JsonResponse
+    {
+        abort_unless($request->user()->isFarmer(), 403);
+        $data = $request->validate(['research_photo_consent' => ['required', 'boolean']]);
+        $user = $request->user();
+        if ($data['research_photo_consent']) {
+            $user->forceFill([
+                'research_photo_consent_at' => now(),
+                'research_photo_consent_version' => config('banana.research_consent_version'),
+            ])->save();
+        } else {
+            $user->forceFill([
+                'research_photo_consent_at' => null,
+                'research_photo_consent_version' => null,
+            ])->save();
+            Diagnosis::withTrashed()->where('user_id', $user->id)->whereNotNull('research_consented_at')
+                ->whereNull('research_consent_withdrawn_at')->get()
+                ->each(fn (Diagnosis $diagnosis) => $diagnoses->withdrawResearchConsent($diagnosis));
+        }
+        return response()->json(['success' => true, 'message' => 'Research preference updated.', 'data' => ['user' => new UserResource($user->fresh())]]);
     }
 
     public function avatar(Request $request): JsonResponse

@@ -16,10 +16,16 @@ class AuthenticationService
 
     public function register(array $attributes, string $deviceName, bool $remember = false, bool $issueToken = true): array
     {
+        $researchConsent = (bool) ($attributes['research_photo_consent'] ?? false);
+        unset($attributes['terms_accepted'], $attributes['research_photo_consent'], $attributes['password_confirmation']);
         $user = $this->users->create([
             ...$attributes,
             'password' => Hash::make($attributes['password']),
             'role' => User::ROLE_FARMER,
+            'terms_accepted_at' => now(),
+            'terms_version' => 'account-terms-v1',
+            'research_photo_consent_at' => $researchConsent ? now() : null,
+            'research_photo_consent_version' => $researchConsent ? config('banana.research_consent_version') : null,
         ]);
         $user->sendEmailVerificationNotification();
 

@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -33,6 +34,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'password',
         'role',
+        'terms_accepted_at',
+        'terms_version',
+        'research_photo_consent_at',
+        'research_photo_consent_version',
     ];
 
     /**
@@ -55,6 +60,8 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
+            'research_photo_consent_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -62,6 +69,25 @@ class User extends Authenticatable implements MustVerifyEmail
     public function diagnoses(): HasMany
     {
         return $this->hasMany(Diagnosis::class);
+    }
+
+    public function hasResearchPhotoConsent(): bool
+    {
+        return $this->isFarmer()
+            && $this->research_photo_consent_at !== null
+            && $this->research_photo_consent_version === config('banana.research_consent_version');
+    }
+
+    /**
+     * Whether a scan made at the given time is shared for research
+     * automatically: only scans made after the farmer opted in, and only once
+     * the email is verified when the deployment requires it.
+     */
+    public function sharesScanForResearch(mixed $diagnosedAt): bool
+    {
+        return $this->hasResearchPhotoConsent()
+            && (! config('banana.require_verified_email') || $this->hasVerifiedEmail())
+            && Carbon::parse($diagnosedAt ?? now())->startOfSecond()->gte($this->research_photo_consent_at->copy()->startOfSecond());
     }
 
     public function diagnosisReviews(): HasMany

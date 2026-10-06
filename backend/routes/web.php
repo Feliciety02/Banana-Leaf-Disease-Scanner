@@ -8,6 +8,7 @@ Route::get('/', function () {
 });
 
 Route::get('/privacy', [PublicAccountController::class, 'privacy'])->name('privacy');
+Route::get('/terms', [PublicAccountController::class, 'terms'])->name('terms');
 Route::get('/account-deletion', [PublicAccountController::class, 'deletionForm'])->name('account-deletion');
 Route::post('/account-deletion', [PublicAccountController::class, 'destroy'])->middleware('throttle:auth');
 Route::get('/reset-password', [PublicAccountController::class, 'resetForm'])->name('password.reset');

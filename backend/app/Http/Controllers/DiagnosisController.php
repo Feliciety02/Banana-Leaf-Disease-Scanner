@@ -37,7 +37,6 @@ class DiagnosisController extends Controller
             $request->user(),
             $request->safe()->except(['image', 'research_consent']),
             $request->file('image'),
-            $request->boolean('research_consent'),
         );
 
         return response()->json(['success' => true, 'message' => 'Diagnosis created.', 'data' => new DiagnosisResource($diagnosis)], 201);

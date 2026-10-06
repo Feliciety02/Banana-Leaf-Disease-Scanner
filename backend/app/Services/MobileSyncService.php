@@ -32,7 +32,7 @@ class MobileSyncService
                 'sync_uuid' => ['required', 'uuid'], 'predicted_class' => ['required', 'string', 'max:100', Rule::in(config('banana.class_labels', []))],
                 'confidence' => ['required', 'numeric', 'between:0,100'], 'model_version' => ['nullable', 'string', 'max:100'],
                 'inference_time_ms' => ['nullable', 'integer', 'min:0'], 'farmer_notes' => ['nullable', 'string', 'max:1000'], 'diagnosed_at' => ['required', 'date'],
-                'research_consent' => ['sometimes', 'boolean'],
+                'research_consent' => ['sometimes', 'boolean'], // Accepted from older apps but ignored; the account preference decides.
                 'source' => ['sometimes', Rule::in(['mobile', 'web'])],
                 'is_simulated' => ['sometimes', 'boolean'],
                 ...self::locationRules(),
@@ -45,13 +45,7 @@ class MobileSyncService
             }
 
             $data = $validator->validated();
-            $researchConsent = (bool) ($data['research_consent'] ?? false);
-            try {
-                $this->diagnosisRecords->ensureConsentAllowed($user, $researchConsent);
-            } catch (ValidationException $exception) {
-                $results[] = ['sync_uuid' => $data['sync_uuid'], 'status' => 'rejected', 'errors' => $exception->errors()];
-                continue;
-            }
+            $researchConsent = $user->sharesScanForResearch($data['diagnosed_at']);
             unset($data['research_consent']);
             $existing = $this->diagnoses->findBySyncUuid($data['sync_uuid']);
             if ($existing) {
