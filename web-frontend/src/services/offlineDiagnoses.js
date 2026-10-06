@@ -148,17 +148,19 @@ export async function flushWebDiagnosisOutbox(userId) {
         continue;
       }
       try {
+        // The photo goes first: the server refuses a review request for a scan without one.
+        if (item.image_file) {
+          const body = new FormData();
+          body.append('image', item.image_file);
+          body.append('purpose', 'sync');
+          if (item.record.inferenceReceipt) body.append('inference_receipt', item.record.inferenceReceipt);
+          await api(`/sync/${item.sync_uuid}/image`, { method: 'POST', body });
+        }
         if (item.request_review && result.diagnosis_id) {
           await api(`/diagnoses/${result.diagnosis_id}/review-request`, {
             method: 'POST',
             body: JSON.stringify({ farmer_notes: item.record.farmerNotes || null }),
           });
-        }
-        if (item.image_file) {
-          const body = new FormData();
-          body.append('image', item.image_file);
-          body.append('purpose', 'sync');
-          await api(`/sync/${item.sync_uuid}/image`, { method: 'POST', body });
         }
         const writeStore = await store('readwrite', OUTBOX_STORE);
         await requestResult(writeStore.delete(item.sync_uuid));

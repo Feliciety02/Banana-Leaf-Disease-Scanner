@@ -1,4 +1,7 @@
 const API_URL = import.meta.env.VITE_WEB_API_URL ?? '/api';
+
+/** A public API file (such as a library photo) at the same address the app uses for API calls. */
+export const apiFileUrl = (path) => `${API_URL}${path}`;
 const SESSION_MARKER_KEY = 'dahonmd-web-session';
 const API_TIMEOUT_MS = 15000;
 
