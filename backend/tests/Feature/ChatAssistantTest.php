@@ -78,6 +78,8 @@ class ChatAssistantTest extends TestCase
                 && $payload['model'] === 'openai/gpt-oss-20b'
                 && $payload['max_completion_tokens'] === 280
                 && str_contains($knowledge, 'Sigatoka Leaf Spot')
+                && str_contains($knowledge, 'DAHONMD APP GUIDE')
+                && str_contains($knowledge, 'Ask an expert')
                 && ! str_contains($knowledge, 'Panama disease support is being added');
         });
     }

@@ -37,6 +37,16 @@ describe('mobile API security boundaries', () => {
     }
   });
 
+  it('reads the current launcher QR as a server address without accepting other web pages', () => {
+    const service = require('../api') as typeof import('../api');
+    expect(service.serverUrlFromConnectionQr('https://fresh-link.trycloudflare.com/connect.html'))
+      .toBe('https://fresh-link.trycloudflare.com/api');
+    expect(service.serverUrlFromConnectionQr('dahonmd://server?url=https%3A%2F%2Ffresh-link.trycloudflare.com'))
+      .toBe('https://fresh-link.trycloudflare.com/api');
+    expect(service.serverUrlFromConnectionQr('https://unrelated.example/article')).toBeNull();
+    expect(service.serverUrlFromConnectionQr('http://unrelated.example/connect.html')).toBeNull();
+  });
+
   it('enables account sign-in for the configured USB test bridge in a release build', () => {
     const originalDev = __DEV__;
     try {

@@ -1,4 +1,4 @@
-import { farmerReviewOutcome, reviewStage } from '../reviewOutcome';
+import { farmerReviewOutcome, needsClearerReviewPhoto, reviewStage } from '../reviewOutcome';
 import type { DiagnosticReview } from '../../../storage/localDiagnoses';
 
 const review = (overrides: Partial<DiagnosticReview>): DiagnosticReview => ({
@@ -45,4 +45,10 @@ describe('reviewStage', () => {
     expect(reviewStage(review({ review_status: 'cannot_determine' }), now)).toBe('reviewed');
     expect(reviewStage(null, now)).toBeNull();
   });
+});
+
+it('offers a clearer-photo reply only for a retake request or a photo-quality problem', () => {
+  expect(needsClearerReviewPhoto(review({ next_steps: ['retake_photo'] }))).toBe(true);
+  expect(needsClearerReviewPhoto(review({ image_quality: 'blurry' }))).toBe(true);
+  expect(needsClearerReviewPhoto(review({ image_quality: 'good', next_steps: ['seek_field_inspection'] }))).toBe(false);
 });

@@ -37,7 +37,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { api, fetchPrivateImage, hasConnectedConfiguration } from '../api';
-import { articleImageSource, bundledArticles, imageLineFile, loadSavedLibrary, refreshLibrary, searchArticles } from '../articleLibrary';
+import { articleImageSource, bundledArticles, imageLineFile, loadSavedLibrary, numberedLineText, parseInline, refreshLibrary, searchArticles } from '../articleLibrary';
 import { BUNDLED_LIBRARY_IMAGES } from '../../features/library/libraryImages';
 import { CLASS_KEYS } from '../../features/classification/disease-data';
 
@@ -70,6 +70,29 @@ describe('bundled library', () => {
       }
     }
     for (const key of CLASS_KEYS) expect(articles.some((article) => article.disease_key === key)).toBe(true);
+  });
+});
+
+describe('article text marks', () => {
+  it('splits bold, italic and bold-italic text', () => {
+    expect(parseInline('Cut **old** leaves *now*, ***today***.')).toEqual([
+      { text: 'Cut ', bold: false, italic: false },
+      { text: 'old', bold: true, italic: false },
+      { text: ' leaves ', bold: false, italic: false },
+      { text: 'now', bold: false, italic: true },
+      { text: ', ', bold: false, italic: false },
+      { text: 'today', bold: true, italic: true },
+      { text: '.', bold: false, italic: false },
+    ]);
+  });
+
+  it('leaves lone asterisks as plain text', () => {
+    expect(parseInline('5 * 3 kg')).toEqual([{ text: '5 * 3 kg', bold: false, italic: false }]);
+  });
+
+  it('reads numbered steps', () => {
+    expect(numberedLineText('2. Burn the leaves')).toBe('Burn the leaves');
+    expect(numberedLineText('2024 was dry')).toBeNull();
   });
 });
 

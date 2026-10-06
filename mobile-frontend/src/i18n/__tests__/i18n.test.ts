@@ -17,9 +17,9 @@ describe('farmer language support', () => {
     expect(Object.keys(CEB).sort()).toEqual(Object.keys(EN).sort());
     for (const [key, text] of Object.entries(FIL)) expect(text.trim().length).toBeGreaterThan(0);
     for (const [key, text] of Object.entries(CEB)) expect(text.trim().length).toBeGreaterThan(0);
-    expect(translate('en', 'home.greeting', { name: 'Maria' })).toBe('Good to see you, Maria.');
-    expect(translate('fil', 'home.greeting', { name: 'Maria' })).toBe('Magandang araw, Maria.');
-    expect(translate('ceb', 'home.greeting', { name: 'Maria' })).toBe('Maayong adlaw, Maria.');
+    expect(translate('en', 'home.greeting', { name: 'Maria' })).toBe('Welcome, Maria');
+    expect(translate('fil', 'home.greeting', { name: 'Maria' })).toBe('Maligayang pagdating, Maria');
+    expect(translate('ceb', 'home.greeting', { name: 'Maria' })).toBe('Maayong pag-abot, Maria');
   });
 
   it('keeps the same placeholders in both languages', () => {
