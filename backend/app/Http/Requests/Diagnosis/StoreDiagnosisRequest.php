@@ -13,13 +13,15 @@ class StoreDiagnosisRequest extends ApiRequest
         return [
             'predicted_class' => ['required', 'string', 'max:100', Rule::in(config('banana.class_labels', []))],
             'confidence' => ['required', 'numeric', 'between:0,100'],
-            'image' => [Rule::requiredIf(fn () => $this->boolean('research_consent')), 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240', 'dimensions:max_width=5000,max_height=5000'],
+            // Every saved scan keeps its photo so an agriculturist can review it.
+            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240', 'dimensions:max_width=5000,max_height=5000'],
             'farmer_notes' => ['nullable', 'string', 'max:1000'],
             'research_consent' => ['sometimes', 'boolean'],
             'model_version' => ['nullable', 'string', 'max:100'],
             'inference_time_ms' => ['nullable', 'integer', 'min:0'],
             'source' => ['required', Rule::in(['web', 'mobile'])],
             'is_simulated' => ['sometimes', 'boolean'],
+            'inference_receipt' => ['nullable', 'string', 'max:5000'],
             'sync_uuid' => ['nullable', 'uuid', 'unique:diagnoses,sync_uuid'],
             'diagnosed_at' => ['required', 'date'],
             ...MobileSyncService::predictionDetailRules(),

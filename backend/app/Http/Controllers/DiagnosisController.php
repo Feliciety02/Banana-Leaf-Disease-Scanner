@@ -8,6 +8,7 @@ use App\Models\Diagnosis;
 use App\Services\DiagnosisService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class DiagnosisController extends Controller
 {
@@ -53,11 +54,15 @@ class DiagnosisController extends Controller
     {
         abort_unless($request->user()->isFarmer() && $diagnosis->user_id === $request->user()->id, 403);
         $data = $request->validate(['farmer_notes' => ['nullable', 'string', 'max:1000']]);
+        // The agriculturist assesses the leaf from its photo, so it must be saved first.
+        if (! $diagnosis->image_path) {
+            throw ValidationException::withMessages(['image' => 'Send the scan photo first. An agriculturist needs the photo to check this leaf.']);
+        }
         if (! $this->diagnoses->requestReview($diagnosis, $data['farmer_notes'] ?? null, array_key_exists('farmer_notes', $data))) {
-            return response()->json(['success' => false, 'message' => 'This diagnosis already has an agricultural reviewer assessment.', 'errors' => (object) []], 422);
+            return response()->json(['success' => false, 'message' => 'This diagnosis already has an agriculturist assessment.', 'errors' => (object) []], 422);
         }
 
-        return response()->json(['success' => true, 'message' => 'Review requested. An agricultural reviewer can now assess this saved image.', 'data' => new DiagnosisResource($this->diagnoses->details($diagnosis))]);
+        return response()->json(['success' => true, 'message' => 'Review requested. An agriculturist can now assess this saved image.', 'data' => new DiagnosisResource($this->diagnoses->details($diagnosis->fresh()))]);
     }
 
     public function followUp(Request $request, Diagnosis $diagnosis): JsonResponse
@@ -69,7 +74,7 @@ class DiagnosisController extends Controller
         ]);
         $diagnosis = $this->diagnoses->followUp($diagnosis, trim($data['farmer_reply']), $request->file('image'));
 
-        return response()->json(['success' => true, 'message' => 'Reply sent. The case is back with an agricultural reviewer.', 'data' => new DiagnosisResource($diagnosis)]);
+        return response()->json(['success' => true, 'message' => 'Reply sent. The case is back with an agriculturist.', 'data' => new DiagnosisResource($diagnosis)]);
     }
 
     public function setLocation(Request $request, Diagnosis $diagnosis): JsonResponse
@@ -97,7 +102,8 @@ class DiagnosisController extends Controller
     public function markReviewSeen(Request $request, Diagnosis $diagnosis): JsonResponse
     {
         abort_unless($diagnosis->user_id === $request->user()->id, 403);
-        $this->diagnoses->markReviewSeen($diagnosis);
+        $data = $request->validate(['expected_review_version' => ['sometimes', 'integer', 'min:0']]);
+        $this->diagnoses->markReviewSeen($diagnosis, $data['expected_review_version'] ?? 0);
 
         return response()->json(['success' => true, 'message' => 'Review marked as seen.', 'data' => new DiagnosisResource($this->diagnoses->details($diagnosis->fresh()))]);
     }
@@ -129,13 +135,9 @@ class DiagnosisController extends Controller
         if ($result === DiagnosisService::CONSENT_INACTIVE) {
             return response()->json(['success' => false, 'message' => 'This diagnosis has no active research consent.', 'errors' => (object) []], 422);
         }
-        if ($result === DiagnosisService::CONSENT_DATASET_APPROVED) {
-            return response()->json(['success' => false, 'message' => 'This image is already part of an approved research dataset. Contact the research team to request removal.', 'errors' => (object) []], 422);
-        }
-
         return response()->json([
             'success' => true,
-            'message' => 'Research consent withdrawn. This image can no longer be approved for a research dataset.',
+            'message' => 'Research consent withdrawn. Any approved private research copy has been revoked.',
             'data' => new DiagnosisResource($this->diagnoses->details($diagnosis->fresh())),
         ]);
     }

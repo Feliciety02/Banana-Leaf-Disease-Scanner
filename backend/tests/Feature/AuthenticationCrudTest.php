@@ -171,11 +171,28 @@ class AuthenticationCrudTest extends TestCase
         $user = User::factory()->create();
         $other = User::factory()->create();
         Sanctum::actingAs($user);
-        $this->postJson('/api/diagnoses', [
+        Storage::fake('local');
+        $this->post('/api/diagnoses', [
             'user_id' => $other->id, 'predicted_class' => 'healthy', 'confidence' => 80,
             'model_version' => 'demo', 'inference_time_ms' => 30, 'source' => 'web', 'diagnosed_at' => now()->toIso8601String(),
-        ])->assertCreated();
+            'image' => UploadedFile::fake()->image('leaf.jpg'),
+        ], ['Accept' => 'application/json'])->assertCreated();
         $this->assertDatabaseHas('diagnoses', ['user_id' => $user->id, 'predicted_class' => 'healthy']);
+    }
+
+    public function test_saved_scans_and_review_requests_require_the_photo(): void
+    {
+        $farmer = User::factory()->farmer()->create();
+        Sanctum::actingAs($farmer);
+        $this->postJson('/api/diagnoses', [
+            'predicted_class' => 'healthy', 'confidence' => 80, 'source' => 'web', 'diagnosed_at' => now()->toIso8601String(),
+        ])->assertUnprocessable()->assertJsonValidationErrors('image');
+
+        $diagnosis = Diagnosis::query()->create([
+            'user_id' => $farmer->id, 'predicted_class' => 'sigatoka', 'confidence' => 60, 'source' => 'mobile', 'diagnosed_at' => now(),
+        ]);
+        $this->postJson("/api/diagnoses/{$diagnosis->id}/review-request")->assertUnprocessable()->assertJsonValidationErrors('image');
+        $this->assertDatabaseMissing('diagnosis_reviews', ['diagnosis_id' => $diagnosis->id]);
     }
 
     public function test_research_consent_requires_an_image_and_records_the_current_consent_version(): void
@@ -202,7 +219,7 @@ class AuthenticationCrudTest extends TestCase
 
         $this->assertDatabaseHas('diagnoses', [
             'id' => $response->json('data.id'),
-            'research_consent_version' => 'research-image-consent-v1',
+            'research_consent_version' => config('banana.research_consent_version'),
         ]);
     }
 

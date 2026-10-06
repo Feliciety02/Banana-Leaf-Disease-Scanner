@@ -25,7 +25,7 @@ class DashboardService
         $totalDiagnoses = $snapshot['total_diagnoses'];
         $uncertainPredictions = $snapshot['uncertain_predictions'];
         $reviews = $snapshot['reviews'];
-        $determinate = $reviews->whereIn('review_status', ['confirmed', 'alternate_class']);
+        $determinate = $snapshot['verified_reviews']->whereIn('review_status', ['confirmed', 'alternate_class']);
         $agreements = $determinate->filter(fn ($review) => $review->review_status === 'confirmed' || $review->verified_label === $review->diagnosis?->predicted_class)->count();
         $disagreements = $determinate->filter(fn ($review) => $review->review_status === 'alternate_class' && $review->verified_label !== $review->diagnosis?->predicted_class);
         $agreementByConfidence = collect([
@@ -41,7 +41,9 @@ class DashboardService
             'total_farmers' => $this->users->countByRole('farmer'),
             'total_diagnoses' => $totalDiagnoses,
             'diagnoses_today' => $snapshot['diagnoses_today'],
-            'average_confidence' => round((float) $snapshot['average_confidence'], 2),
+            'average_confidence' => $snapshot['average_confidence'] === null ? null : round((float) $snapshot['average_confidence'], 2),
+            'verified_predictions' => $snapshot['verified_predictions'],
+            'unverified_predictions' => $snapshot['unverified_predictions'],
             'uncertain_predictions' => $uncertainPredictions,
             'uncertain_prediction_rate' => $totalDiagnoses ? round(($uncertainPredictions / $totalDiagnoses) * 100, 2) : 0,
             'simulated_predictions' => $snapshot['simulated_predictions'],
@@ -66,7 +68,7 @@ class DashboardService
                 'most_confused_classes' => $disagreements->groupBy(fn ($review) => $review->diagnosis?->predicted_class.' → '.$review->verified_label)
                     ->map->count()->sortDesc()->take(5),
                 'agreement_by_confidence' => $agreementByConfidence,
-                'reference_standard_note' => 'These are AI–agricultural reviewer agreement statistics, not diagnostic accuracy, unless the study protocol establishes the reviews as a valid reference standard.',
+                'reference_standard_note' => 'Agreement uses only server-verified predictions. On-device and older client-reported results are excluded. These are not diagnostic accuracy statistics without a valid reference standard.',
             ],
             'review_turnaround' => $this->reviewTurnaround(),
             'dataset_candidates' => [

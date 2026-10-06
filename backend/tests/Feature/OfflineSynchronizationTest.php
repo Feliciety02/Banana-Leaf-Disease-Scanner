@@ -179,7 +179,7 @@ class OfflineSynchronizationTest extends TestCase
         ], ['Accept' => 'application/json'])->assertNotFound();
     }
 
-    public function test_optional_scan_location_is_rounded_owner_controlled_and_visible_to_reviewers(): void
+    public function test_optional_scan_location_is_rounded_owner_controlled_and_visible_to_agriculturists(): void
     {
         $farmer = User::factory()->farmer()->create();
         Sanctum::actingAs($farmer);
@@ -224,6 +224,7 @@ class OfflineSynchronizationTest extends TestCase
             'source' => 'mobile',
             'sync_uuid' => '62e92d82-9204-483f-ad75-68eb2c40c537',
             'sync_status' => 'synced',
+            'image_path' => 'diagnoses/incremental-pull.jpg',
             'diagnosed_at' => now(),
         ]);
 

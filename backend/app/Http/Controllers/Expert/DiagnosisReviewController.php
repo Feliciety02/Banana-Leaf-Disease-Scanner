@@ -67,6 +67,8 @@ class DiagnosisReviewController extends Controller
             'next_steps.*' => ['required', 'distinct', Rule::in(['retake_photo', 'monitor_plant', 'isolate_affected_plant', 'seek_field_inspection', 'other'])],
             'notes' => ['nullable', 'string', 'max:5000'],
             'farmer_message' => ['nullable', 'string', 'max:2000'],
+            'expected_review_version' => ['sometimes', 'integer', 'min:0'],
+            'revision_reason' => ['nullable', 'string', 'max:500'],
         ]);
 
         if (! $diagnosis->image_path && $data['review_status'] !== 'cannot_determine') {
@@ -77,6 +79,6 @@ class DiagnosisReviewController extends Controller
 
         $diagnosis = $this->reviews->save($request->user(), $diagnosis, $data);
 
-        return response()->json(['success' => true, 'message' => 'Agricultural reviewer assessment saved without changing the original AI prediction.', 'data' => new DiagnosisResource($diagnosis)]);
+        return response()->json(['success' => true, 'message' => 'Agriculturist assessment saved without changing the original AI prediction.', 'data' => new DiagnosisResource($diagnosis)]);
     }
 }
