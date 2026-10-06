@@ -18,5 +18,8 @@ return [
     // Sharing actions (review requests, image uploads, research consent and
     // staff workspaces) require a verified email address when enabled.
     'require_verified_email' => (bool) env('REQUIRE_VERIFIED_EMAIL', true),
-    'research_consent_version' => env('RESEARCH_CONSENT_VERSION', 'research-image-consent-v1'),
+    // How long a signed scan-photo URL stays valid. Signed-in apps can still
+    // load an older URL with their own session or token.
+    'media_url_ttl_minutes' => (int) env('MEDIA_URL_TTL_MINUTES', 120),
+    'research_consent_version' => env('RESEARCH_CONSENT_VERSION', 'research-image-consent-v2'),
 ];

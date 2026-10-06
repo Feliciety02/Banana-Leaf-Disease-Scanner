@@ -33,7 +33,9 @@ class ApiTest extends TestCase
         $this->assertDatabaseCount('diseases', 4);
         $this->assertDatabaseCount('disease_symptoms', 12);
         $this->assertDatabaseCount('disease_management', 12);
-        $this->assertDatabaseCount('research_sources', 10);
+        // 10 disease-evidence sources plus 4 cited only by library articles.
+        $this->assertDatabaseCount('research_sources', 14);
+        $this->assertDatabaseCount('articles', 12);
         $this->assertDatabaseCount('disease_evidence', 26);
         $this->assertDatabaseCount('pesticide_regulatory_checks', 0);
         $this->assertDatabaseCount('disease_verifications', 4);

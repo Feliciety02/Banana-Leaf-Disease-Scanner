@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\Repositories\UserRepositoryInterface;
 use App\Models\User;
+use App\Models\ResearchImage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +16,7 @@ class AccountService
     public function __construct(
         private readonly UserRepositoryInterface $users,
         private readonly PrivateDiagnosisImageStorage $images,
+        private readonly ResearchImageService $researchImages,
     ) {}
 
     public function updateProfile(User $user, array $attributes): User
@@ -34,7 +36,7 @@ class AccountService
     public function updateAvatar(User $user, UploadedFile $photo): User
     {
         $previous = $user->avatar_path;
-        $user->forceFill(['avatar_path' => $this->images->store($photo, 'avatars', 512)])->save();
+        $user->forceFill(['avatar_path' => $this->images->store($photo, 'avatars', 512, 'webp')])->save();
         $this->images->delete($previous);
 
         return $user->fresh();
@@ -71,26 +73,34 @@ class AccountService
     }
 
     /**
-     * Deletes the account with its server data. Diagnosis rows, reviews and
-     * dataset candidates are removed by the database cascade; stored images
-     * are removed here because the cascade cannot reach the file system.
+     * Deletes account-owned data. Separate consented research copies remain
+     * unless the farmer explicitly asks to remove them too.
      */
-    public function delete(User $user): void
+    public function delete(User $user, bool $removeResearchCopies = false): void
     {
-        $storedPaths = $user->diagnoses()
-            ->withTrashed()
-            ->get(['image_path', 'gradcam_path'])
-            ->flatMap(fn ($diagnosis) => [$diagnosis->image_path, $diagnosis->gradcam_path])
-            ->push($user->avatar_path)
-            ->all();
-
-        DB::transaction(function () use ($user): void {
+        [$storedPaths, $revokedImages] = DB::transaction(function () use ($user, $removeResearchCopies): array {
+            $diagnoses = $user->diagnoses()->withTrashed()->lockForUpdate()->get(['id', 'image_path', 'gradcam_path']);
+            $paths = $diagnoses->flatMap(fn ($diagnosis) => [$diagnosis->image_path, $diagnosis->gradcam_path])
+                ->push($user->avatar_path)->all();
+            $research = ResearchImage::query()->where('source_user_id', $user->id)->lockForUpdate()->get();
+            $revoked = [];
+            foreach ($research as $image) {
+                if ($removeResearchCopies) {
+                    if (! $image->revoked_at) {
+                        $image->update(['revoked_at' => now(), 'revoked_by' => $user->id, 'revocation_reason' => 'Farmer removed research copies during account deletion']);
+                    }
+                    if ($image->image_path) $revoked[] = $image;
+                }
+                $image->update(['source_user_id' => null]);
+            }
             $user->tokens()->delete();
             DB::table('sessions')->where('user_id', $user->getKey())->delete();
             $this->users->delete($user);
+            return [$paths, $revoked];
         });
 
         $this->images->delete(...$storedPaths);
+        foreach ($revokedImages as $image) $this->researchImages->deleteRevokedFile($image);
     }
 
     public function credentialsMatch(string $email, string $password): ?User

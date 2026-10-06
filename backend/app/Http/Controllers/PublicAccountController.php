@@ -33,15 +33,18 @@ class PublicAccountController extends Controller
         $validated = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'remove_research_copies' => ['sometimes', 'boolean'],
         ]);
         $user = $this->accounts->credentialsMatch($validated['email'], $validated['password']);
         if (! $user) {
             return back()->withErrors(['email' => 'The account credentials could not be verified.'])->onlyInput('email');
         }
 
-        $this->accounts->delete($user);
+        $this->accounts->delete($user, (bool) ($validated['remove_research_copies'] ?? false));
 
-        return back()->with('status', 'Your DahonMD account and associated server data were deleted.');
+        return back()->with('status', $validated['remove_research_copies'] ?? false
+            ? 'Your account, scans, and approved research photos were removed.'
+            : 'Your account and scans were removed. Separately approved research photos remain without an account link.');
     }
 
     public function resetForm(Request $request): View
