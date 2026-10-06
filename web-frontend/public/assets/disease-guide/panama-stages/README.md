@@ -12,11 +12,11 @@ Symptoms such as petiole streaking or buckling, leaf-skirt formation, and the fi
 
 | Folder | Visible leaf condition | Local file | Original file |
 | --- | --- | --- | --- |
-| `01-early-margin-yellowing` | Mostly green blade with initial yellowing near the margin | `panama-leaf-stage-1.jpg` | `FW_534.jpg` |
-| `02-expanding-chlorosis` | Yellowing expanding inward from the margin with limited browning | `panama-leaf-stage-2.jpg` | `FW_520.jpg` |
-| `03-widespread-yellowing` | Broad chlorosis across most of the blade | `panama-leaf-stage-3.jpg` | `FW_252.jpg` |
-| `04-advanced-edge-necrosis` | Extensive yellowing with brown, dead tissue along the leaf edge | `panama-leaf-stage-4.jpg` | `FW_246.jpg` |
-| `05-near-total-leaf-death` | Blade is predominantly yellow-brown with little healthy green tissue remaining | `panama-leaf-stage-5.jpg` | `FW_285.jpg` |
+| `01-early-margin-yellowing` | Mostly green blade with initial yellowing near the margin | `panama-leaf-stage-1.webp` | `FW_534.jpg` |
+| `02-expanding-chlorosis` | Yellowing expanding inward from the margin with limited browning | `panama-leaf-stage-2.webp` | `FW_520.jpg` |
+| `03-widespread-yellowing` | Broad chlorosis across most of the blade | `panama-leaf-stage-3.webp` | `FW_252.jpg` |
+| `04-advanced-edge-necrosis` | Extensive yellowing with brown, dead tissue along the leaf edge | `panama-leaf-stage-4.webp` | `FW_246.jpg` |
+| `05-near-total-leaf-death` | Blade is predominantly yellow-brown with little healthy green tissue remaining | `panama-leaf-stage-5.webp` | `FW_285.jpg` |
 
 ## Source and license
 
