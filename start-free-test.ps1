@@ -21,6 +21,8 @@ param(
     [switch]$NoOpen,
     [switch]$UsbOnly,
     [switch]$Cloudflare,
+    [switch]$AutoConnectPhone,
+    [switch]$WatchPhone,
     [switch]$Stop
 )
 
@@ -112,6 +114,16 @@ function Get-PhoneSerial([string]$adb) {
     return $null
 }
 
+function Start-PhoneWatcher([string]$adbPath) {
+    $watcherPath = Join-Path $root 'scripts\watch-test-phone.ps1'
+    $watcherLog = Join-Path $stateDir 'phone-watcher.log'
+    $arguments = @(
+        '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$watcherPath`"",
+        '-StateFile', "`"$stateFile`"", '-AdbPath', "`"$adbPath`"", '-LogFile', "`"$watcherLog`""
+    )
+    return Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -PassThru -WindowStyle Hidden
+}
+
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 $php = Find-Tool 'php.exe' (Join-Path $env:LOCALAPPDATA 'dev-tools\php\php.exe')
 $node = Find-Tool 'node.exe' (Join-Path $env:LOCALAPPDATA 'dev-tools\node-v24.19.0-win-x64\node.exe')
@@ -169,7 +181,8 @@ if ($UsbOnly -and $Cloudflare) { throw 'Choose either -UsbOnly or -Cloudflare.' 
 $connectedSerial = Get-PhoneSerial $adb
 if ($UsbOnly -and -not $connectedSerial) { throw 'USB phone not detected. Unlock the phone, allow USB debugging, then check adb devices.' }
 $useUsb = -not $Stop -and ($UsbOnly -or (-not $Cloudflare -and -not $SkipPhone -and $connectedSerial))
-if ($useUsb -and -not $UsbOnly) { Write-Host "USB phone $connectedSerial detected; using the direct USB connection." -ForegroundColor Cyan }
+if ($AutoConnectPhone -and $useUsb) { throw 'Use -AutoConnectPhone with -Cloudflare or -SkipPhone so the phone receives an HTTPS link.' }
+if ($useUsb -and -not $UsbOnly -and -not $WatchPhone) { Write-Host "USB phone $connectedSerial detected; using the direct USB connection." -ForegroundColor Cyan }
 $env:PATH = (Split-Path -Parent $node) + ';' + $env:PATH
 $vite = Join-Path $webDir 'node_modules\vite\bin\vite.js'
 if (-not (Test-Path -LiteralPath $vite) -and (Test-Path -LiteralPath 'C:\dmd\web\node_modules\vite\bin\vite.js')) {
@@ -191,7 +204,20 @@ $appKey = if ($previous -and $previous.appKey) { $previous.appKey } else {
 }
 $lastFingerprint = if ($previous) { $previous.mobileFingerprint } else { $null }
 
+if ($WatchPhone) {
+    if ($Stop -or $UsbOnly -or $Cloudflare -or $SkipPhone -or $ForceApkBuild) { throw 'Use -WatchPhone by itself to watch an existing HTTPS test link.' }
+    if (-not $previous -or -not $previous.url -or $previous.url -notmatch '^https://') { throw 'Start the Cloudflare test link before using -WatchPhone.' }
+    Stop-OurProcess $previous.phoneWatcherPid 'watch-test-phone.ps1'
+    $watcher = Start-PhoneWatcher $adb
+    $previous | Add-Member -NotePropertyName phoneWatcherPid -NotePropertyValue $watcher.Id -Force
+    $previous | ConvertTo-Json | Set-Content -LiteralPath $stateFile -Encoding UTF8
+    Write-Host 'Phone reconnect watcher started. It will send the current HTTPS link when an ADB phone appears.' -ForegroundColor Green
+    if (-not $connectedSerial) { Write-Warning "No ADB phone is connected now. Open $($previous.url)/connect.html on the phone, or reconnect USB and allow debugging." }
+    return
+}
+
 # Stop only services this script started. Other local backend/web sessions stay untouched.
+Stop-OurProcess $previous.phoneWatcherPid 'watch-test-phone.ps1'
 Stop-OurProcess $previous.tunnelPid "127.0.0.1:$webPort"
 Stop-OurProcess $previous.webPid "--port $webPort"
 Stop-OurProcess $previous.backendPid "127.0.0.1:$backendPort"
@@ -206,7 +232,7 @@ if ($previous.url -eq "http://127.0.0.1:$webPort") {
 Remove-Item -LiteralPath (Join-Path $stateDir 'tunnel-url.txt'), (Join-Path $stateDir 'connect-phone.png') -Force -ErrorAction SilentlyContinue
 [ordered]@{
     appKey = $appKey; url = $null; tunnelPid = $null; backendPid = $null
-    webPid = $null; mobileFingerprint = $lastFingerprint; updatedAt = (Get-Date).ToString('o')
+    webPid = $null; phoneWatcherPid = $null; mobileFingerprint = $lastFingerprint; updatedAt = (Get-Date).ToString('o')
 } | ConvertTo-Json | Set-Content -LiteralPath $stateFile -Encoding UTF8
 if ($Stop) {
     Write-Host 'Stopped the DahonMD free test website, backend, and tunnel.' -ForegroundColor Green
@@ -279,12 +305,20 @@ try {
     $database = Join-Path $testBackend 'database\database.sqlite'
     if (-not (Test-Path -LiteralPath $database)) { New-Item -ItemType File -Path $database | Out-Null }
     $databaseForEnv = if ($phpInWsl) { ConvertTo-WslPath $database } else { $database.Replace('\', '/') }
+    # The AI assistant needs a Groq key: use $env:GROQ_API_KEY, or GROQ_API_KEY= in backend\.env (git-ignored).
+    $groqKey = $env:GROQ_API_KEY
+    $backendEnv = Join-Path $root 'backend\.env'
+    if (-not $groqKey -and (Test-Path -LiteralPath $backendEnv)) {
+        $groqLine = Get-Content -LiteralPath $backendEnv | Where-Object { $_ -match '^\s*GROQ_API_KEY\s*=' } | Select-Object -Last 1
+        if ($groqLine) { $groqKey = ($groqLine -replace '^\s*GROQ_API_KEY\s*=\s*', '').Trim().Trim('"').Trim("'") }
+    }
+    if (-not $groqKey) { Write-Host 'AI assistant is off: add GROQ_API_KEY=... to backend\.env to turn it on.' -ForegroundColor Yellow }
     $settings = @(
         'APP_NAME=DahonMD', 'APP_ENV=production', "APP_KEY=$appKey", 'APP_DEBUG=false', "APP_URL=$url",
         'DB_CONNECTION=sqlite', "DB_DATABASE=$databaseForEnv", 'SESSION_DRIVER=database', 'SESSION_ENCRYPT=true',
         'SESSION_SECURE_COOKIE=true', 'SESSION_SAME_SITE=lax', 'SESSION_DOMAIN=null',
         'CACHE_STORE=database', 'QUEUE_CONNECTION=database', 'FILESYSTEM_DISK=local',
-        'MAIL_MAILER=log', 'LOG_CHANNEL=single', 'LOG_LEVEL=warning', 'GROQ_API_KEY=',
+        'MAIL_MAILER=log', 'LOG_CHANNEL=single', 'LOG_LEVEL=warning', "GROQ_API_KEY=$groqKey",
         # Mail only goes to the log here, so new test sign-ups could never verify.
         'REQUIRE_VERIFIED_EMAIL=false',
         "SANCTUM_STATEFUL_DOMAINS=$hostName,127.0.0.1:$webPort", "WEB_FRONTEND_ORIGINS=$url"
@@ -383,7 +417,7 @@ try {
     if (-not $NoOpen) { Start-Process $url }
 
     $fingerprint = (Get-MobileFingerprint) + $(if ($useUsb) { '-usb' } else { '-cloudflare' })
-    $state = [ordered]@{ appKey = $appKey; url = $url; tunnelPid = $(if ($tunnel) { $tunnel.Id } else { $null }); backendPid = $backend.Id; webPid = $web.Id; mobileFingerprint = $lastFingerprint; phpInWsl = $phpInWsl; updatedAt = (Get-Date).ToString('o') }
+    $state = [ordered]@{ appKey = $appKey; url = $url; tunnelPid = $(if ($tunnel) { $tunnel.Id } else { $null }); backendPid = $backend.Id; webPid = $web.Id; phoneWatcherPid = $null; mobileFingerprint = $lastFingerprint; phpInWsl = $phpInWsl; updatedAt = (Get-Date).ToString('o') }
     $state | ConvertTo-Json | Set-Content -LiteralPath $stateFile -Encoding UTF8
 
     if (-not $SkipPhone) {
@@ -468,6 +502,16 @@ try {
     } else {
         Write-Host "Website and phone server: $url" -ForegroundColor Green
         Write-Host 'The computer must remain on for this temporary link to work.'
+        if ($AutoConnectPhone) {
+            $watcher = Start-PhoneWatcher $adb
+            $state.phoneWatcherPid = $watcher.Id
+            $state | ConvertTo-Json | Set-Content -LiteralPath $stateFile -Encoding UTF8
+            Write-Host 'Phone reconnect watcher started. It will send this link when an ADB phone appears.' -ForegroundColor Green
+            if (-not (Get-PhoneSerial $adb)) {
+                Write-Warning "No ADB phone is connected now. Open $url/connect.html on the phone, or reconnect USB and allow debugging."
+                if ($qrPath -and -not $NoOpen) { Start-Process $qrPath }
+            }
+        }
     }
 } catch {
     if ($web) { Stop-OurProcess $web.Id "--port $webPort" }
@@ -478,7 +522,7 @@ try {
     $savedFingerprint = if ($state) { $state.mobileFingerprint } else { $lastFingerprint }
     [ordered]@{
         appKey = $appKey; url = $null; tunnelPid = $null; backendPid = $null
-        webPid = $null; mobileFingerprint = $savedFingerprint; updatedAt = (Get-Date).ToString('o')
+        webPid = $null; phoneWatcherPid = $null; mobileFingerprint = $savedFingerprint; updatedAt = (Get-Date).ToString('o')
     } | ConvertTo-Json | Set-Content -LiteralPath $stateFile -Encoding UTF8
     throw
 }
