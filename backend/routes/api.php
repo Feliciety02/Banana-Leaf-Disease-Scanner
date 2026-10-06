@@ -4,6 +4,9 @@ use App\Http\Controllers\Admin\DiagnosisController as AdminDiagnosisController;
 use App\Http\Controllers\Admin\DiseaseController as AdminDiseaseController;
 use App\Http\Controllers\Admin\ModelComparisonController;
 use App\Http\Controllers\Admin\ResearchSourceController;
+use App\Http\Controllers\Admin\ArticleController as AdminArticleController;
+use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\ArticleImageController;
 use App\Http\Controllers\Admin\SystemController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\AuthController;
@@ -33,14 +36,21 @@ Route::middleware('throttle:auth')->group(function () {
     Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 });
 Route::apiResource('diseases', DiseaseController::class)->only(['index', 'show'])->middleware('throttle:public-api');
+// The article library is public so the app can download it for offline reading before sign-in.
+Route::get('/articles', [ArticleController::class, 'index'])->middleware('throttle:public-api');
+Route::get('/article-images/{file}', ArticleImageController::class)->middleware('throttle:media')->name('article-images.show');
 // Screening is available before sign-in, as it is on the mobile app; saving a
 // result still requires a farmer account.
 Route::post('/inference', InferenceController::class)->middleware('throttle:inference');
 
+// Scan photos accept a signed-in request or a signed URL from DiagnosisResource,
+// because browsers cannot attach a token to an <img>; the controller checks access.
+Route::get('/diagnosis-media/{diagnosis}/{kind}', DiagnosisMediaController::class)
+    ->where('kind', 'image|gradcam')
+    ->middleware('throttle:media')
+    ->name('diagnosis-media.show');
+
 Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(function () {
-    Route::get('/diagnosis-media/{diagnosis}/{kind}', DiagnosisMediaController::class)
-        ->where('kind', 'image|gradcam')
-        ->name('diagnosis-media.show');
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/verification-notification', [AuthController::class, 'resendVerification'])->middleware('throttle:6,1');
@@ -64,6 +74,8 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
         Route::post('/diagnoses/{diagnosis}/follow-up', [DiagnosisController::class, 'followUp'])->middleware('throttle:review-requests');
         Route::post('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'grantResearchConsent'])->middleware('verified.required');
         Route::delete('/diagnoses/{diagnosis}/research-consent', [DiagnosisController::class, 'withdrawResearchConsent']);
+        Route::get('/research-images', [\App\Http\Controllers\FarmerResearchImageController::class, 'index']);
+        Route::delete('/research-images/{researchImage}', [\App\Http\Controllers\FarmerResearchImageController::class, 'destroy']);
         Route::post('/mobile/sync', MobileSyncController::class)->middleware('throttle:sync');
         Route::get('/mobile/sync', [MobileSyncController::class, 'pull'])->middleware('throttle:sync');
         Route::post('/mobile/sync/{syncUuid}/image', [MobileSyncController::class, 'image'])->middleware('throttle:sync');
@@ -103,11 +115,16 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
         Route::post('/diseases/{disease}/evidence', [AdminDiseaseController::class, 'storeEvidence']);
         Route::delete('/diseases/{disease}/evidence/{evidence}', [AdminDiseaseController::class, 'destroyEvidence']);
         Route::apiResource('research-sources', ResearchSourceController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::apiResource('articles', AdminArticleController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::post('/article-images', [AdminArticleController::class, 'uploadImage'])->middleware('throttle:20,1');
         Route::apiResource('diagnoses', AdminDiagnosisController::class)->only(['index', 'show', 'destroy']);
-        // Administrators can decide on reviewer nominations, so a single
-        // reviewer never has to approve their own nomination.
+        // Administrators can decide on agriculturist nominations, so a single
+        // agriculturist never has to approve their own nomination.
         Route::get('/dataset-candidates', [DatasetCandidateController::class, 'index']);
         Route::put('/dataset-candidates/{candidate}', [DatasetCandidateController::class, 'update']);
+        Route::get('/research-images', [\App\Http\Controllers\Admin\ResearchImageController::class, 'index']);
+        Route::get('/research-images/{researchImage}/photo', [\App\Http\Controllers\Admin\ResearchImageController::class, 'photo']);
+        Route::delete('/research-images/{researchImage}', [\App\Http\Controllers\Admin\ResearchImageController::class, 'destroy']);
     });
 
     Route::prefix('expert')->middleware(['role:'.User::ROLE_AGRICULTURAL_EXPERT, 'verified.required'])->group(function () {

@@ -128,7 +128,8 @@ function Invoke-Php {
     else { & $php @args }
 }
 if (-not $Stop) {
-    $extensionCheck = "echo (extension_loaded('openssl') && extension_loaded('curl') && extension_loaded('pdo_sqlite')) ? 'ok' : 'missing';"
+    # gd and fileinfo save scan photos; without them every photo upload fails.
+    $extensionCheck = "echo (extension_loaded('openssl') && extension_loaded('curl') && extension_loaded('pdo_sqlite') && extension_loaded('gd') && extension_loaded('fileinfo')) ? 'ok' : 'missing';"
     $phpCheck = 'missing'
     try { $phpCheck = (& $php -d display_startup_errors=0 -r $extensionCheck 2>$null | Select-Object -Last 1) } catch { }
     if ($phpCheck -ne 'ok') {
@@ -154,7 +155,7 @@ if (-not $Stop) {
             try { $wslCheck = (& wsl.exe -e php -r $extensionCheck 2>$null | Select-Object -Last 1) } catch { }
         }
         if ($wslCheck -ne 'ok') {
-            throw "PHP cannot load its openssl/curl extensions on Windows (Smart App Control blocks them), and PHP is not ready in WSL. Install WSL as administrator: wsl --install -d Ubuntu-24.04, restart, then in Ubuntu run: sudo apt update && sudo apt install -y php8.3-cli php8.3-sqlite3 php8.3-curl php8.3-mbstring php8.3-xml php8.3-intl php8.3-gd php8.3-zip php8.3-bcmath"
+            throw "PHP cannot load its openssl/curl/gd/fileinfo extensions on Windows (Smart App Control blocks them), and PHP is not ready in WSL. Install WSL as administrator: wsl --install -d Ubuntu-24.04, restart, then in Ubuntu run: sudo apt update && sudo apt install -y php8.3-cli php8.3-sqlite3 php8.3-curl php8.3-mbstring php8.3-xml php8.3-intl php8.3-gd php8.3-zip php8.3-bcmath"
         }
         $phpInWsl = $true
         Write-Host 'Windows is blocking its PHP extensions; running the backend in WSL (Ubuntu) instead.' -ForegroundColor Cyan
@@ -305,6 +306,19 @@ try {
             if ([int]$sourceCount -eq 0) {
                 Invoke-Php artisan db:seed --class=ScientificKnowledgeSeeder --force --no-interaction
                 if ($LASTEXITCODE -ne 0) { throw 'Disease knowledge setup failed.' }
+            }
+            # The article library is seeded again only when its data or photos
+            # change. The seeder keeps articles an admin has edited.
+            $articleCount = Invoke-Php -r '$db = new PDO(''sqlite:'' . $argv[1]); echo $db->query(''SELECT COUNT(*) FROM articles'')->fetchColumn();' $databaseForEnv | Select-Object -Last 1
+            if ($LASTEXITCODE -ne 0) { throw 'Could not read the article library.' }
+            $libraryFiles = @(Get-Item -LiteralPath (Join-Path $testBackend 'database\data\library-articles.json')) + @(Get-ChildItem -LiteralPath (Join-Path $testBackend 'database\data\library-images') -File -ErrorAction SilentlyContinue | Sort-Object Name)
+            $libraryHash = ($libraryFiles | ForEach-Object { "$($_.Name):$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)" }) -join ';'
+            $libraryMarker = Join-Path $stateDir 'library-seed.txt'
+            $seededHash = if (Test-Path -LiteralPath $libraryMarker) { (Get-Content -LiteralPath $libraryMarker -Raw).Trim() } else { '' }
+            if ([int]$articleCount -eq 0 -or $seededHash -ne $libraryHash) {
+                Invoke-Php artisan db:seed --class=ArticleLibrarySeeder --force --no-interaction
+                if ($LASTEXITCODE -ne 0) { throw 'Article library setup failed.' }
+                Set-Content -LiteralPath $libraryMarker -Value $libraryHash -Encoding UTF8
             }
         } finally { $env:APP_ENV = $oldSeedEnv }
     } finally { Pop-Location }

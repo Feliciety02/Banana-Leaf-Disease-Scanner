@@ -55,8 +55,11 @@ class ProfileController extends Controller
 
     public function destroy(Request $request): JsonResponse
     {
-        $request->validate(['current_password' => ['required', 'current_password']]);
-        $this->accounts->delete($request->user());
+        $data = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'remove_research_copies' => ['sometimes', 'boolean'],
+        ]);
+        $this->accounts->delete($request->user(), (bool) ($data['remove_research_copies'] ?? false));
 
         return response()->json(status: 204);
     }

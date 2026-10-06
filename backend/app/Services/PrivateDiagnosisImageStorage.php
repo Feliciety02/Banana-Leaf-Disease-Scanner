@@ -15,9 +15,11 @@ class PrivateDiagnosisImageStorage
 
     /**
      * Re-encodes an upload to strip metadata and hidden payloads. Profile
-     * photos reuse this with their own folder and a smaller size limit.
+     * photos and article photos reuse this with their own folder, a smaller
+     * size limit and $outputFormat 'webp'. Scan photos keep their original
+     * format (null) so they stay usable as future training data.
      */
-    public function store(UploadedFile $image, string $directory = 'diagnoses', int $maxDimension = self::MAX_OUTPUT_DIMENSION): string
+    public function store(UploadedFile $image, string $directory = 'diagnoses', int $maxDimension = self::MAX_OUTPUT_DIMENSION, ?string $outputFormat = null, string $disk = 'local'): string
     {
         $dimensions = @getimagesize($image->getRealPath());
         if (! $dimensions || ($dimensions[0] * $dimensions[1]) > self::MAX_INPUT_PIXELS) {
@@ -47,6 +49,7 @@ class PrivateDiagnosisImageStorage
         $outputWidth = max(1, (int) round($width * $scale));
         $outputHeight = max(1, (int) round($height * $scale));
         $output = imagecreatetruecolor($outputWidth, $outputHeight);
+        $format = $outputFormat === 'webp' ? 'image/webp' : $mime;
         if (in_array($mime, ['image/png', 'image/webp'], true)) {
             imagealphablending($output, false);
             imagesavealpha($output, true);
@@ -54,10 +57,10 @@ class PrivateDiagnosisImageStorage
         imagecopyresampled($output, $source, 0, 0, 0, 0, $outputWidth, $outputHeight, $width, $height);
 
         ob_start();
-        $encoded = match ($mime) {
+        $encoded = match ($format) {
             'image/jpeg' => imagejpeg($output, null, 90),
             'image/png' => imagepng($output, null, 6),
-            'image/webp' => imagewebp($output, null, 88),
+            'image/webp' => imagewebp($output, null, $outputFormat === 'webp' ? 82 : 88),
         };
         $contents = ob_get_clean();
         imagedestroy($source);
@@ -67,13 +70,13 @@ class PrivateDiagnosisImageStorage
             throw ValidationException::withMessages(['image' => 'The uploaded image could not be sanitized.']);
         }
 
-        $extension = match ($mime) {
+        $extension = match ($format) {
             'image/jpeg' => 'jpg',
             'image/png' => 'png',
             'image/webp' => 'webp',
         };
         $path = $directory.'/'.Str::uuid().'.'.$extension;
-        if (! Storage::disk('local')->put($path, $contents)) {
+        if (! Storage::disk($disk)->put($path, $contents)) {
             throw ValidationException::withMessages(['image' => 'The sanitized image could not be stored.']);
         }
 

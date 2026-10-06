@@ -15,15 +15,14 @@ class Diagnosis extends Model
     protected $fillable = [
         'user_id', 'disease_id', 'predicted_class', 'confidence', 'image_path', 'gradcam_path', 'farmer_notes', 'latitude', 'longitude',
         'research_consented_at', 'research_consent_version', 'research_consent_withdrawn_at',
-        'model_version', 'inference_time_ms', 'source', 'is_simulated', 'sync_uuid', 'sync_status', 'diagnosed_at',
+        'model_version', 'inference_time_ms', 'source', 'is_simulated', 'prediction_verified', 'sync_uuid', 'sync_status', 'diagnosed_at',
         'class_probabilities', 'model_comparison',
     ];
 
     /**
-     * Mobile records always come from the bundled on-device model, so they are
-     * real predictions regardless of the server's AI mode. Web records carry
-     * the flag returned by the inference service that produced them; older
-     * clients that do not report it fall back to the server's AI mode.
+     * This flag describes the client's model mode, not proof that inference
+     * happened. prediction_verified tracks server-attested results separately.
+     * Older web clients fall back to the server's configured AI mode.
      */
     public static function isSimulatedFor(string $source, ?bool $reported = null): bool
     {
@@ -42,6 +41,7 @@ class Diagnosis extends Model
             'longitude' => 'float',
             'inference_time_ms' => 'integer',
             'is_simulated' => 'boolean',
+            'prediction_verified' => 'boolean',
             'class_probabilities' => 'array',
             'model_comparison' => 'array',
             'diagnosed_at' => 'datetime',
@@ -91,9 +91,20 @@ class Diagnosis extends Model
         return $this->hasOne(DatasetCandidate::class);
     }
 
+    public function researchImages(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ResearchImage::class, 'source_diagnosis_id');
+    }
+
     public function hasActiveResearchConsent(): bool
     {
         return $this->research_consented_at !== null && $this->research_consent_withdrawn_at === null;
+    }
+
+    public function hasCurrentResearchConsent(): bool
+    {
+        return $this->hasActiveResearchConsent()
+            && $this->research_consent_version === config('banana.research_consent_version');
     }
 
     public function recordSyncChange(string $changeType): void
