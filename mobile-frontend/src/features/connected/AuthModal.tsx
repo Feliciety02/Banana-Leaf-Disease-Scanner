@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-import { subscribeConnection, checkConnection, hasConnectedConfiguration, login, register, requestPasswordReset, SessionUser } from '../../services/api';
+import { subscribeConnection, checkConnection, hasConnectedConfiguration, login, register, requestPasswordReset, privacyPolicyUrl, termsOfUseUrl, SessionUser } from '../../services/api';
 import { ActionButton, Field, ModalCard, Notice, palette } from './ui';
 import { useT } from '../../i18n';
 
@@ -19,17 +19,18 @@ function messageOf(error: unknown) { return error instanceof Error ? error.messa
 
 export function AuthModal({ mode, onClose, onMode, onAuthenticated, onConnection }: { onConnection: () => void; mode: AuthMode | null; onClose: () => void; onMode: (mode: AuthMode) => void; onAuthenticated: (user: SessionUser) => void }) {
   const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [showPassword, setShowPassword] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false); const [researchPhotoConsent, setResearchPhotoConsent] = useState(false);
   const signup = mode === 'register';
   const { t } = useT();
   const [connectionFailed, setConnectionFailed] = useState(false);
   useEffect(() => subscribeConnection(setConnectionFailed), []);
   useEffect(() => {
     setShowPassword(false); setError(''); setNotice('');
-    if (!mode) { setName(''); setEmail(''); setPassword(''); setConfirmation(''); }
+    if (!mode) { setName(''); setEmail(''); setPassword(''); setConfirmation(''); setTermsAccepted(false); setResearchPhotoConsent(false); }
   }, [mode]);
   const requestClose = () => {
     if (busy) return;
-    if (name.trim() || email.trim() || password || confirmation) {
+    if (name.trim() || email.trim() || password || confirmation || termsAccepted || researchPhotoConsent) {
       Alert.alert('Discard entered details?', 'Your form has not been submitted.', [
         { text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: onClose },
       ]);
@@ -42,8 +43,9 @@ export function AuthModal({ mode, onClose, onMode, onAuthenticated, onConnection
   };
   const submit = async () => {
     if (!email.trim() || !password || (signup && (!name.trim() || !confirmation))) { setError(t('auth.required')); return; }
+    if (signup && !termsAccepted) { setError(t('auth.termsRequired')); return; }
     setBusy(true); setError(''); setNotice('');
-    try { const user = signup ? await register(name, email, password, confirmation) : await login(email, password); onAuthenticated(user); }
+    try { const user = signup ? await register(name, email, password, confirmation, researchPhotoConsent) : await login(email, password); onAuthenticated(user); }
     catch (authError) { setError(messageOf(authError)); }
     finally { setBusy(false); }
   };
@@ -74,6 +76,11 @@ export function AuthModal({ mode, onClose, onMode, onAuthenticated, onConnection
     <Field label={t('auth.email')} placeholder="you@example.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" style={styles.input} />
     <View style={styles.passwordField}><Field label={t('auth.password')} placeholder={t('auth.passwordPlaceholder')} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} autoComplete={signup ? 'new-password' : 'current-password'} returnKeyType={signup ? 'next' : 'done'} onSubmitEditing={() => { if (!signup) submit(); }} style={[styles.input, styles.passwordInput]} /><Pressable accessibilityRole="button" accessibilityLabel={showPassword ? t('auth.hidePassword') : t('auth.showPassword')} onPress={() => setShowPassword((current) => !current)} style={styles.eye}><Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={palette.muted} /></Pressable></View>
     {signup && <Field label={t('auth.confirmPassword')} placeholder={t('auth.confirmPlaceholder')} value={confirmation} onChangeText={setConfirmation} secureTextEntry={!showPassword} autoComplete="new-password" returnKeyType="done" onSubmitEditing={submit} style={styles.input} />}
+    {signup && <View style={styles.consentGroup}>
+      <Pressable accessibilityRole="checkbox" accessibilityLabel={t('auth.termsAgreement')} accessibilityState={{ checked: termsAccepted }} onPress={() => setTermsAccepted(!termsAccepted)} style={styles.consentRow}><Ionicons name={termsAccepted ? 'checkbox' : 'square-outline'} size={23} color={palette.green} /><Text style={styles.consentText}>{t('auth.termsAgreement')}</Text></Pressable>
+      <View style={styles.consentLinks}><Pressable onPress={() => { const url = termsOfUseUrl(); if (url) void Linking.openURL(url); }}><Text style={styles.link}>{t('auth.termsLink')}</Text></Pressable><Pressable onPress={() => { const url = privacyPolicyUrl(); if (url) void Linking.openURL(url); }}><Text style={styles.link}>{t('auth.privacyLink')}</Text></Pressable></View>
+      <Pressable accessibilityRole="checkbox" accessibilityLabel={t('auth.researchConsent')} accessibilityState={{ checked: researchPhotoConsent }} onPress={() => setResearchPhotoConsent(!researchPhotoConsent)} style={styles.consentRow}><Ionicons name={researchPhotoConsent ? 'checkbox' : 'square-outline'} size={23} color={palette.green} /><Text style={styles.consentText}>{t('auth.researchConsent')}</Text></Pressable>
+    </View>}
     {!signup && <Pressable accessibilityRole="button" disabled={busy} onPress={forgot} style={styles.forgot}><Text style={styles.link}>{t('auth.forgot')}</Text></Pressable>}
     {error && <Notice>{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     {(connectionFailed || !hasConnectedConfiguration()) && <View style={styles.profiles}><ActionButton variant="secondary" disabled={busy} onPress={retryConnection}>{t('connection.retry')}</ActionButton><ActionButton variant="secondary" disabled={busy} onPress={onConnection}>{t('connection.settings')}</ActionButton></View>}
@@ -94,4 +101,5 @@ const styles = StyleSheet.create({
   input: { minHeight: 52, backgroundColor: '#f8faf8', borderColor: '#d9e4db' },
   passwordField: { position: 'relative' }, passwordInput: { paddingRight: 54 }, eye: { position: 'absolute', right: 3, bottom: 2, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   forgot: { alignSelf: 'flex-end', minHeight: 48, justifyContent: 'center' }, link: { color: palette.green, fontSize: 14, fontWeight: '800' },
+  consentGroup: { gap: 10, paddingVertical: 8 }, consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, consentText: { flex: 1, color: palette.ink, fontSize: 13, lineHeight: 19 }, consentLinks: { flexDirection: 'row', gap: 20, paddingLeft: 33 },
 });

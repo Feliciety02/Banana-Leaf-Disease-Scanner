@@ -13,6 +13,11 @@ export function reviewStage(review: DiagnosticReview | null, now = Date.now()): 
   return review.in_progress_until && Date.parse(review.in_progress_until) > now ? 'in_progress' : 'waiting';
 }
 
+/** A follow-up photo is offered only when the expert requested one or found a photo-quality problem. */
+export function needsClearerReviewPhoto(review: DiagnosticReview) {
+  return review.next_steps.includes('retake_photo') || ['blurry', 'poor_lighting', 'disease_area_not_visible', 'insufficient_image'].includes(review.image_quality ?? '');
+}
+
 // Plain-language wording for farmers. The server keeps the original status
 // codes and next-step keys; only how they are shown changes here.
 const STEP_KEYS = ['retake_photo', 'monitor_plant', 'isolate_affected_plant', 'seek_field_inspection'] as const;

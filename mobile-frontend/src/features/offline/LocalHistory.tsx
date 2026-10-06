@@ -18,14 +18,15 @@ import {
   type LocalDiagnosis,
 } from '../../storage/localDiagnoses';
 import { synchronizeDiagnoses } from '../../services/diagnosisSync';
-import { hasLocalScanImage, markReviewSeen, sendReviewFollowUp, requestAgriculturalReview, shareScanForResearch, uploadReviewImage, withdrawScanResearchConsent } from '../../services/diagnosisReview';
+import { hasLocalScanImage, markReviewSeen, sendReviewFollowUp, requestAgriculturalReview, uploadReviewImage, withdrawScanResearchConsent } from '../../services/diagnosisReview';
 import { ImageViewer } from '../../components/ImageViewer';
 import { ScanLocationControl } from '../../components/ScanLocationControl';
 import { askToNotifyAboutReviews } from '../../services/reviewNotifications';
 import { ViewableScanImage } from '../../components/ViewableImage';
 import { smoothLayout } from '../../components/motion';
 import { ActionButton, ConfirmSheet, formatDate, palette } from '../connected/ui';
-import { farmerReviewOutcome, reviewStage } from './reviewOutcome';
+import { farmerReviewOutcome, needsClearerReviewPhoto, reviewStage } from './reviewOutcome';
+import { FarmerReviewDetails } from './FarmerReviewDetails';
 import { useT, type StringKey } from '../../i18n';
 import { className } from '../../i18n/content';
 import { certaintyLevel } from '../scan/ScanResult';
@@ -162,8 +163,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
     setBusyId(item.local_id);
     setError('');
     try {
-      if (item.research_consent && item.research_consent_current) await withdrawScanResearchConsent(item.local_id);
-      else await shareScanForResearch(item.local_id);
+      await withdrawScanResearchConsent(item.local_id);
       onChanged?.();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Research sharing could not be updated.');
@@ -240,6 +240,25 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
   // Failed only appears when something needs retrying.
   const shownFilters = filterOptions.filter((option) => option.key !== 'retry' || failedCount > 0 || filter === 'retry');
 
+  const detailItem = items.find((item) => item.local_id === expandedId);
+  const detailReview = parseDiagnosisReview(detailItem?.review_json ?? null);
+  if (detailItem && detailReview && detailReview.review_status !== 'pending') {
+    return <>
+      <FarmerReviewDetails
+        item={detailItem}
+        review={detailReview}
+        onBack={() => { smoothLayout(); setExpandedId(null); }}
+        onOpenPhoto={() => setViewerImage(detailItem.image_uri)}
+        onOpenGuide={onOpenGuide}
+        onLocationChanged={() => { void load(); onChanged?.(); }}
+        reply={detailItem.server_id && detailItem.sync_status === 'synced'
+          ? <ReviewReply localId={detailItem.local_id} photoSuggested={needsClearerReviewPhoto(detailReview)} onSent={() => { void load(); onChanged?.(); }} />
+          : null}
+      />
+      <ImageViewer uri={viewerImage} visible={viewerImage !== null} onClose={() => setViewerImage(null)} />
+    </>;
+  }
+
   return <View style={styles.stack}>
     <View style={styles.header}>
       <View style={styles.headerCopy}>
@@ -296,7 +315,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
         .filter(({ classKey, probability }) => classKey !== item.predicted_class && probability >= 0.01)
         .sort((left, right) => right.probability - left.probability)
         .slice(0, 2);
-      const canShare = Boolean(ownerUserId && item.server_id && item.sync_status === 'synced' && (item.research_consent || item.image_uri));
+      const canWithdraw = Boolean(ownerUserId && item.server_id && item.sync_status === 'synced' && item.research_consent);
       const beforeUpload = !review && !canRequestReview && item.sync_status !== 'pending_delete' && item.sync_status !== 'delete_failed' && Boolean(ownerUserId || onSignIn);
       return <View key={item.local_id} style={[styles.card, expanded && styles.cardOpen]}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${reviewedOutcome?.title ?? name}, ${reviewedOutcome ? t('history.aiResult', { name }) : t(level.key)}. ${expanded ? t('history.hideDetails') : t('history.showDetails')}`} accessibilityState={{ expanded }} onPress={() => { smoothLayout(); setExpandedId(expanded ? null : item.local_id); }} style={({ pressed }) => [styles.cardRow, pressed && styles.cardPressed]}>
@@ -322,25 +341,10 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
         </Pressable>}
         {expanded && (
           <View style={styles.details}>
-            <View style={styles.panel}>
-              <View style={styles.meterHead}>
-                <Text style={styles.panelLabel}>{reviewedOutcome ? t('history.modelConfidence') : t('history.howSure')}</Text>
-                <Text style={[styles.meterLabel, { color: level.color }]}>{wholePercent(confidence)}</Text>
-              </View>
-              <View style={styles.meter}><View style={[styles.meterFill, { width: `${Math.min(100, Math.max(0, confidence))}%`, backgroundColor: level.color }]} /></View>
-              {others.length > 0 && <DetailRow icon="git-compare-outline" label={t('history.alsoPossible')} value={others.map(({ classKey, probability }) => `${className(classKey, language)} ${wholePercent(probability * 100)}`).join(', ')} />}
-              {item.farmer_notes ? <DetailRow icon="create-outline" label={t('history.yourNote')} value={item.farmer_notes} /> : null}
-              <DetailRow icon={note.icon} label={t('history.status')} value={note.text} color={note.color} />
-              {item.research_consent ? <DetailRow icon="flask-outline" label={t('history.research')} value={t('history.photoShared')} /> : null}
-            </View>
-            {item.image_uri ? <Pressable accessibilityRole="button" onPress={() => setViewerImage(item.image_uri)} style={({ pressed }) => [styles.photoButton, pressed && styles.dim]}>
-              <Ionicons name="image-outline" size={18} color={palette.green} />
-              <Text style={styles.photoButtonText}>{t('history.viewPhoto')}</Text>
-            </Pressable> : null}
-
             {item.last_error ? <Text style={styles.error}>{item.last_error}</Text> : null}
 
-            {review && <View style={[styles.note, review.review_status === 'pending' ? styles.noteWaiting : styles.noteDone]}>
+            {/* The expert's answer comes first; the AI score is background. */}
+            {review &&<View style={[styles.note, review.review_status === 'pending' ? styles.noteWaiting : styles.noteDone]}>
               {review.review_status === 'pending'
                 ? <>
                   <Text style={styles.noteTitle}>{reviewStage(review) === 'in_progress' ? t('review.reviewingTitle') : t('review.waitingTitle')}</Text>
@@ -355,21 +359,56 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
                   {review.requested_at ? <Text style={styles.noteMeta}>{t('review.sentAt', { date: formatDate(review.requested_at, true) })}</Text> : null}
                 </>
                 : (() => { const outcome = farmerReviewOutcome(review, item.predicted_class, language); return <>
-                  <Text style={styles.noteTitle}>{outcome.title}</Text>
-                  <Text style={styles.noteText}>{outcome.message}</Text>
-                  {review.farmer_message ? <>
-                    <Text style={[styles.noteText, styles.noteHeading]}>{t('review.messageFrom', { name: review.reviewer?.name ?? t('review.theReviewer') })}</Text>
-                    <Text style={styles.noteText}>{review.farmer_message}</Text>
-                  </> : null}
-                  {outcome.steps.length > 0 ? <>
-                    <Text style={[styles.noteText, styles.noteHeading]}>{t('review.whatToDo')}</Text>
-                    {outcome.steps.map((step, index) => <Text key={step} style={styles.noteText}>{index + 1}. {step}</Text>)}
-                  </> : null}
-                  {(review.reviewer || review.reviewed_at) ? <Text style={styles.noteMeta}>{review.reviewer ? t('review.checkedBy', { name: review.reviewer.name }) : t('review.checked')}{review.reviewed_at ? ` · ${formatDate(review.reviewed_at, true)}` : ''}</Text> : null}
-                  {review.verified_label && onOpenGuide && review.verified_label in CLASS_DISPLAY_NAMES ? <ActionButton variant="secondary" icon="book-outline" onPress={() => onOpenGuide(review.verified_label as ClassKey)}>{t('review.readGuide', { name: className(review.verified_label as ClassKey, language) })}</ActionButton> : null}
-                  {item.server_id && item.sync_status === 'synced' ? <ReviewReply localId={item.local_id} onSent={() => { void load(); onChanged?.(); }} /> : null}
+                  <View style={styles.outcomeHead}>
+                    <View style={styles.outcomeIcon}><Ionicons name="shield-checkmark" size={22} color={palette.success} /></View>
+                    <View style={styles.outcomeCopy}>
+                      <Text style={styles.outcomeTitle}>{outcome.title}</Text>
+                      <Text style={styles.outcomeText}>{outcome.message}</Text>
+                    </View>
+                  </View>
+                  {review.farmer_message ? <View style={styles.reviewBlock}>
+                    <View style={styles.reviewBlockHead}>
+                      <Ionicons name="chatbox-ellipses-outline" size={17} color={palette.green} />
+                      <Text style={styles.reviewBlockTitle}>{t('review.messageFrom', { name: review.reviewer?.name ?? t('review.theReviewer') })}</Text>
+                    </View>
+                    <Text style={styles.reviewBody}>{review.farmer_message}</Text>
+                  </View> : null}
+                  {outcome.steps.length > 0 ? <View style={styles.reviewBlock}>
+                    <View style={styles.reviewBlockHead}>
+                      <Ionicons name="list-outline" size={17} color={palette.green} />
+                      <Text style={styles.reviewBlockTitle}>{t('review.whatToDo')}</Text>
+                    </View>
+                    {outcome.steps.map((step, index) => <View key={step} style={styles.stepRow}>
+                      <View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View>
+                      <Text style={styles.reviewBody}>{step}</Text>
+                    </View>)}
+                  </View> : null}
+                  {(review.reviewer || review.reviewed_at) ? <View style={styles.checkedRow}>
+                    <Ionicons name="checkmark-circle-outline" size={15} color={palette.muted} />
+                    <Text style={styles.checkedText}>{review.reviewer ? t('review.checkedBy', { name: review.reviewer.name }) : t('review.checked')}{review.reviewed_at ? ` · ${formatDate(review.reviewed_at, true)}` : ''}</Text>
+                  </View> : null}
+                  <View style={styles.reviewActions}>
+                    {review.verified_label && onOpenGuide && review.verified_label in CLASS_DISPLAY_NAMES ? <ActionButton variant="secondary" icon="book-outline" onPress={() => onOpenGuide(review.verified_label as ClassKey)}>{t('review.readGuide', { name: className(review.verified_label as ClassKey, language) })}</ActionButton> : null}
+                    {item.server_id && item.sync_status === 'synced' ? <ReviewReply localId={item.local_id} onSent={() => { void load(); onChanged?.(); }} /> : null}
+                  </View>
                 </>; })()}
             </View>}
+
+            <View style={styles.panel}>
+              <View style={styles.meterHead}>
+                <Text style={styles.panelLabel}>{reviewedOutcome ? t('history.modelConfidence') : t('history.howSure')}</Text>
+                <Text style={[styles.meterLabel, { color: level.color }]}>{wholePercent(confidence)}</Text>
+              </View>
+              <View style={styles.meter}><View style={[styles.meterFill, { width: `${Math.min(100, Math.max(0, confidence))}%`, backgroundColor: level.color }]} /></View>
+              {others.length > 0 && <DetailRow icon="git-compare-outline" label={t('history.alsoPossible')} value={others.map(({ classKey, probability }) => `${className(classKey, language)} ${wholePercent(probability * 100)}`).join(', ')} />}
+              {item.farmer_notes ? <DetailRow icon="create-outline" label={t('history.yourNote')} value={item.farmer_notes} /> : null}
+              {!reviewedOutcome && <DetailRow icon={note.icon} label={t('history.status')} value={note.text} color={note.color} />}
+              {item.research_consent ? <DetailRow icon="flask-outline" label={t('history.research')} value={t('history.photoShared')} /> : null}
+            </View>
+            {item.image_uri ? <Pressable accessibilityRole="button" onPress={() => setViewerImage(item.image_uri)} style={({ pressed }) => [styles.photoButton, pressed && styles.dim]}>
+              <Ionicons name="image-outline" size={18} color={palette.green} />
+              <Text style={styles.photoButtonText}>{t('history.viewPhoto')}</Text>
+            </Pressable> : null}
 
             {canRequestReview && <>
               <TextInput style={styles.input} placeholder={t('history.explainPlaceholder')} placeholderTextColor="#8a9892" maxLength={1000} value={reviewDraft[item.local_id] ?? item.farmer_notes ?? ''} onChangeText={(text) => setReviewDraft((current) => ({ ...current, [item.local_id]: text }))} />
@@ -383,7 +422,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
               {onAskAssistant && item.server_id && item.sync_status === 'synced' && <LinkChip icon="chatbubbles-outline" onPress={() => onAskAssistant(item.server_id as number, name)}>{t('history.askDahon')}</LinkChip>}
               {needsRetry && <LinkChip icon="refresh" disabled={busy} onPress={() => retry(item)}>{t('history.tryAgain')}</LinkChip>}
               {review?.review_status === 'pending' && hasLocalScanImage(item) && <LinkChip icon="cloud-upload-outline" disabled={busy} onPress={() => resendImage(item)}>{t('history.resendPhoto')}</LinkChip>}
-              {canShare && <LinkChip icon={item.research_consent && item.research_consent_current ? 'close-circle-outline' : 'flask-outline'} disabled={busy} onPress={() => setResearchCandidate(item)}>{item.research_consent && item.research_consent_current ? t('history.stopSharing') : item.research_consent ? t('history.renewSharing') : t('history.shareResearch')}</LinkChip>}
+              {canWithdraw && <LinkChip icon="close-circle-outline" disabled={busy} onPress={() => setResearchCandidate(item)}>{t('history.stopSharing')}</LinkChip>}
               <LinkChip icon="trash-outline" danger disabled={busy || item.sync_status === 'pending_delete'} onPress={() => remove(item)}>{item.sync_status === 'pending_delete' ? t('history.deleting') : t('history.delete')}</LinkChip>
             </View>
           </View>
@@ -392,7 +431,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
     }) : <View style={styles.empty}><Ionicons name="leaf-outline" size={28} color={palette.green} /><Text style={styles.emptyTitle}>{items.length ? t('history.nothing') : t('history.noScans')}</Text></View>}
     <ImageViewer uri={viewerImage} visible={viewerImage !== null} onClose={() => setViewerImage(null)} />
     <ConfirmSheet visible={Boolean(appealCandidate)} title={t('confirm.askTitle')} text={t('confirm.askText')} confirmLabel={t('history.send')} danger={false} busy={Boolean(busyId)} onCancel={() => setAppealCandidate(null)} onConfirm={() => { if (appealCandidate) { const item = appealCandidate; setAppealCandidate(null); void requestReview(item); } }} />
-    <ConfirmSheet visible={Boolean(researchCandidate)} title={researchCandidate?.research_consent && researchCandidate?.research_consent_current ? t('confirm.stopTitle') : t('confirm.shareTitle')} text={researchCandidate?.research_consent && researchCandidate?.research_consent_current ? t('confirm.stopText') : t('confirm.shareText')} confirmLabel={researchCandidate?.research_consent && researchCandidate?.research_consent_current ? t('history.stopSharing') : t('history.shareResearch')} danger={Boolean(researchCandidate?.research_consent && researchCandidate?.research_consent_current)} busy={Boolean(busyId)} onCancel={() => setResearchCandidate(null)} onConfirm={() => { if (researchCandidate) { const item = researchCandidate; setResearchCandidate(null); void changeResearchConsent(item); } }} />
+    <ConfirmSheet visible={Boolean(researchCandidate)} title={t('confirm.stopTitle')} text={t('confirm.stopText')} confirmLabel={t('history.stopSharing')} danger busy={Boolean(busyId)} onCancel={() => setResearchCandidate(null)} onConfirm={() => { if (researchCandidate) { const item = researchCandidate; setResearchCandidate(null); void changeResearchConsent(item); } }} />
     <ConfirmSheet visible={Boolean(claimCandidate)} title={t('confirm.addTitle')} text={t('confirm.addText')} confirmLabel={t('confirm.add')} danger={false} busy={Boolean(busyId)} onCancel={() => setClaimCandidate(null)} onConfirm={() => { if (claimCandidate) void prepareReview(claimCandidate); }} />
     <ConfirmSheet visible={Boolean(deleteCandidate)} title={t('confirm.deleteTitle')} text={t('confirm.deleteText')} confirmLabel={t('history.delete')} busy={Boolean(busyId)} onCancel={() => setDeleteCandidate(null)} onConfirm={confirmRemove} />
   </View>;
@@ -459,7 +498,7 @@ function formatShortDate(value: string) {
 }
 
 /** Lets the farmer answer a completed review, optionally with a new photo; the case returns to the agriculturists. */
-function ReviewReply({ localId, onSent }: { localId: string; onSent: () => void }) {
+function ReviewReply({ localId, onSent, photoSuggested = false }: { localId: string; onSent: () => void; photoSuggested?: boolean }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -482,7 +521,7 @@ function ReviewReply({ localId, onSent }: { localId: string; onSent: () => void 
     catch (e) { setError(e instanceof Error ? e.message : t('reply.error')); }
     finally { setBusy(false); }
   };
-  if (!open) return <ActionButton variant="secondary" icon="chatbubble-ellipses-outline" onPress={() => setOpen(true)}>{t('reply.open')}</ActionButton>;
+  if (!open) return <ActionButton variant={photoSuggested ? 'primary' : 'secondary'} icon={photoSuggested ? 'camera-outline' : 'chatbubble-ellipses-outline'} onPress={() => { setOpen(true); if (photoSuggested) { setText(t('reply.clearerPhotoMessage')); void pick(true); } }}>{photoSuggested ? t('review.sendClearerPhoto') : t('reply.open')}</ActionButton>;
   return <View style={styles.replyBox}>
     <Text style={[styles.noteText, styles.noteHeading]}>{t('reply.title')}</Text>
     <TextInput style={[styles.input, styles.replyInput]} multiline maxLength={1000} placeholder={t('reply.placeholder')} placeholderTextColor="#8a9892" value={text} onChangeText={setText} />
@@ -555,7 +594,22 @@ const styles = StyleSheet.create({
   photoButtonText: { color: palette.green, fontSize: 14, fontWeight: '800' },
   note: { gap: 4, padding: 12, borderRadius: 10 },
   noteWaiting: { backgroundColor: palette.warningSoft },
-  noteDone: { backgroundColor: palette.successSoft },
+  noteDone: { gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#cfe3d6', backgroundColor: palette.successSoft },
+  outcomeHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  outcomeIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  outcomeCopy: { flex: 1, gap: 4 },
+  outcomeTitle: { color: palette.ink, fontSize: 18, lineHeight: 24, fontWeight: '800' },
+  outcomeText: { color: '#3f5147', fontSize: 15, lineHeight: 22 },
+  reviewBlock: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#fff' },
+  reviewBlockHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  reviewBlockTitle: { flex: 1, color: palette.green, fontSize: 14, fontWeight: '800' },
+  reviewBody: { flex: 1, color: palette.ink, fontSize: 15, lineHeight: 22 },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  stepNumber: { width: 24, height: 24, borderRadius: 12, marginTop: -1, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
+  stepNumberText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  checkedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  checkedText: { flexShrink: 1, color: palette.muted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  reviewActions: { gap: 10 },
   noteTitle: { color: palette.ink, fontSize: 14, fontWeight: '800' },
   noteText: { color: palette.ink, fontSize: 13, lineHeight: 19 },
   progress: { flexDirection: 'row', justifyContent: 'space-between', gap: 6, paddingVertical: 4 },

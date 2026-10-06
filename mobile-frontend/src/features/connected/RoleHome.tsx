@@ -25,13 +25,11 @@ const shortcuts: Record<Role, Shortcut[]> = {
 
 export function RoleHome({ user, role, onNavigate }: { user: SessionUser; role: Role; onNavigate: (tab: TabKey) => void }) {
   const admin = role === 'admin';
-  const firstName = user.name.trim().split(/\s+/)[0];
+  const fullName = user.name.trim().replace(/\s+/g, ' ');
   return <View style={styles.screen}>
     <View style={styles.hero}>
-      <View style={styles.heroIcon}><Ionicons name={admin ? 'grid-outline' : 'shield-checkmark-outline'} size={25} color="#d9f4a5" /></View>
-      <Text style={styles.eyebrow}>{admin ? 'ADMIN WORKSPACE' : 'AGRICULTURAL REVIEW WORKSPACE'}</Text>
-      <Text style={styles.title}>{firstName ? `Welcome, ${firstName}.` : 'Welcome back.'}</Text>
-      <Text style={styles.description}>{admin ? 'Monitor the system and manage the people, scans, and knowledge behind DahonMD.' : 'Start with scans waiting for your assessment, then continue with completed reviews and content checks.'}</Text>
+      <Text style={styles.title}>{fullName ? `Welcome, ${fullName}` : 'Welcome'}</Text>
+      <Text style={styles.description}>{admin ? 'Accounts, scans and disease records are below.' : 'Scans waiting for your review are below.'}</Text>
     </View>
     {admin ? <AdminWorkspace section="overview" /> : <AgriculturistWorkspace scope="pending" />}
     <View style={styles.shortcuts}>
@@ -47,8 +45,6 @@ export function RoleHome({ user, role, onNavigate }: { user: SessionUser; role: 
 const styles = StyleSheet.create({
   screen: { gap: 18, paddingTop: 14, paddingBottom: 30 },
   hero: { gap: 8, padding: 22, borderRadius: 24, backgroundColor: '#174c36' },
-  heroIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: 'rgba(217,244,165,0.13)', marginBottom: 4 },
-  eyebrow: { color: '#d9f4a5', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
   title: { color: '#fff', fontSize: 27, lineHeight: 33, fontWeight: '800' },
   description: { color: '#dceee2', fontSize: 14, lineHeight: 21 },
   shortcuts: { gap: 9 },

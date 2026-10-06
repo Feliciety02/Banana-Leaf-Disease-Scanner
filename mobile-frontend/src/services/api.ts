@@ -8,6 +8,7 @@ export type SessionUser = {
   role: 'admin' | 'farmer' | 'agricultural_expert' | string;
   email_verified_at?: string | null;
   avatar_url?: string | null;
+  research_photo_consent?: boolean;
 };
 
 type ApiEnvelope<T> = {
@@ -197,6 +198,17 @@ export function serverUrlFromLink(link: string | null): string | null {
   return null;
 }
 
+/** Accepts the launcher QR (its /connect.html page) or a server address. */
+export function serverUrlFromConnectionQr(value: string): string | null {
+  const scanned = value.trim();
+  const deepLink = serverUrlFromLink(scanned);
+  if (deepLink) return deepLink;
+  const connectPage = scanned.match(/^(https:\/\/[^/?#]+)\/connect\.html\/?(?:\?[^#]*)?$/i);
+  if (connectPage) return normalizeServerUrl(connectPage[1]);
+  if (/^https:\/\/[^/?#]+(?:\/api\/?|\/?)$/i.test(scanned)) return normalizeServerUrl(scanned);
+  return null;
+}
+
 function publicWebUrl(value?: string) {
   if (!value) return null;
   try {
@@ -324,10 +336,10 @@ export async function refreshSession(): Promise<SessionUser> {
   return payload.data.user;
 }
 
-async function authenticate(mode: 'login' | 'register', fields: Record<string, string>): Promise<SessionUser> {
+async function authenticate(mode: 'login' | 'register', fields: Record<string, string>, consent?: { terms_accepted: boolean; research_photo_consent: boolean }): Promise<SessionUser> {
   const payload = await api<{ token: string; user: SessionUser }>(`/auth/${mode}`, {
     method: 'POST',
-    body: JSON.stringify({ ...fields, email: fields.email.trim().toLowerCase(), device_name: 'mobile', remember: true }),
+    body: JSON.stringify({ ...fields, ...consent, email: fields.email.trim().toLowerCase(), device_name: 'mobile', remember: true }),
   });
   if (!configuredUrl || !payload.data.token || !isSessionUser(payload.data.user)) {
     throw new ApiError('The server returned an incomplete login response.');
@@ -350,8 +362,14 @@ export function login(email: string, password: string) {
   return authenticate('login', { email, password });
 }
 
-export function register(name: string, email: string, password: string, passwordConfirmation: string) {
-  return authenticate('register', { name: name.trim(), email, password, password_confirmation: passwordConfirmation });
+export function register(name: string, email: string, password: string, passwordConfirmation: string, researchPhotoConsent = false) {
+  return authenticate('register', { name: name.trim(), email, password, password_confirmation: passwordConfirmation }, { terms_accepted: true, research_photo_consent: researchPhotoConsent });
+}
+
+export async function updateResearchPreference(enabled: boolean): Promise<SessionUser> {
+  const payload = await api<{ user: SessionUser }>('/profile/research-consent', { method: 'PUT', body: JSON.stringify({ research_photo_consent: enabled }) });
+  await writeSecureItem(USER_KEY, JSON.stringify(payload.data.user));
+  return payload.data.user;
 }
 
 export async function requestPasswordReset(email: string) {
@@ -474,6 +492,10 @@ function serverPageUrl(path: string) {
 
 export function privacyPolicyUrl() {
   return configuredPrivacyUrl ?? serverPageUrl('/privacy');
+}
+
+export function termsOfUseUrl() {
+  return serverPageUrl('/api/terms');
 }
 
 export function accountDeletionUrl() {
