@@ -35,9 +35,11 @@ class DiagnosisService
         return $this->diagnoses->paginateAll($filters, min($perPage, 100));
     }
 
-    public function create(User $user, array $attributes, ?UploadedFile $image, bool $researchConsent): Diagnosis
+    public function create(User $user, array $attributes, ?UploadedFile $image): Diagnosis
     {
-        $this->ensureConsentAllowed($user, $researchConsent);
+        // The account preference is authoritative for new scans. A client cannot
+        // opt itself into research by setting a diagnosis request field.
+        $researchConsent = $user->sharesScanForResearch($attributes['diagnosed_at'] ?? null);
         $attributes['user_id'] = $user->id;
         // The disease link always follows the model's class key so that web,
         // mobile and API records resolve to the same knowledge record.
@@ -190,6 +192,10 @@ class DiagnosisService
 
     public function grantResearchConsent(Diagnosis $diagnosis): Diagnosis
     {
+        if (! $diagnosis->user->hasResearchPhotoConsent()
+            || $diagnosis->diagnosed_at->copy()->startOfSecond()->lt($diagnosis->user->research_photo_consent_at->copy()->startOfSecond())) {
+            throw ValidationException::withMessages(['research_consent' => 'Enable research photo sharing in Account for future scans.']);
+        }
         $this->ensureConsentAllowed($diagnosis->user, true);
         return DB::transaction(function () use ($diagnosis) {
             $locked = Diagnosis::query()->whereKey($diagnosis->id)->lockForUpdate()->firstOrFail();
@@ -215,7 +221,7 @@ class DiagnosisService
     {
         $revokedImages = [];
         $result = DB::transaction(function () use ($diagnosis, &$revokedImages) {
-            $locked = Diagnosis::query()->whereKey($diagnosis->id)->lockForUpdate()->firstOrFail();
+            $locked = Diagnosis::withTrashed()->whereKey($diagnosis->id)->lockForUpdate()->firstOrFail();
             if (! $locked->hasActiveResearchConsent()) return self::CONSENT_INACTIVE;
             $candidate = $locked->datasetCandidate()->lockForUpdate()->first();
             $revokedImages = $this->researchImages->markRevokedForDiagnosis($locked, $locked->user, 'Farmer withdrew research consent');

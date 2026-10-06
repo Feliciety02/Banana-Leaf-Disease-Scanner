@@ -13,6 +13,8 @@ class RegisterRequest extends ApiRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'confirmed', Password::defaults()],
+            'terms_accepted' => ['required', 'accepted'],
+            'research_photo_consent' => ['sometimes', 'boolean'],
         ];
     }
 }

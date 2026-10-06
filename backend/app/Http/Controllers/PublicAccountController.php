@@ -23,6 +23,11 @@ class PublicAccountController extends Controller
         return view('privacy', ['contactEmail' => config('app.privacy_contact_email')]);
     }
 
+    public function terms(): View
+    {
+        return view('terms');
+    }
+
     public function deletionForm(): View
     {
         return view('account-deletion');

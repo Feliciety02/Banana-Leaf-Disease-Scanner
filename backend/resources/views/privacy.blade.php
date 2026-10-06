@@ -1,6 +1,6 @@
 <x-public-layout title="Privacy policy">
     <h1>DahonMD privacy policy</h1>
-    <p>Effective date: October 6, 2026</p>
+    <p>Effective date: October 7, 2026</p>
     <p>DahonMD helps users document and review banana-leaf observations. This policy describes the data handled by the app and its server.</p>
 
     <h2>Data we process</h2>
@@ -12,7 +12,7 @@
 
     <h2>How data is used</h2>
     <p>Data is used to provide classification history, synchronize your devices, support agricultural-expert review when requested, secure the service, and improve reliability. A leaf image is not submitted for expert review unless that workflow is requested.</p>
-    <p>Signed-in scans may store a private photo on the server for synchronized history and requested agricultural review. Research contribution is optional. If you consent and staff approve a reviewed photo, the server saves a separate private research copy with its consent version, approval, and removal history. Approval alone does not add the photo to model training.</p>
+    <p>Signed-in scans may store a private photo on the server for synchronized history and requested agricultural review. Research contribution is optional and chosen separately from the account terms. When enabled in your account, future account scans are automatically marked as research-consented; older scans are not added. Some deployments require email verification before scans can be shared. If staff approve a reviewed photo, the server saves a separate private research copy with its consent version, approval, and removal history. Approval alone does not add the photo to model training. You can turn off future research sharing in your account, which also withdraws consent from existing account scans and removes approved research copies.</p>
 
     <h2>Storage and deletion</h2>
     <p>Mobile history is stored on your device and synchronized records are stored by the DahonMD server. You can delete individual scans or your account in the app, or use the <a href="{{ route('account-deletion') }}">account deletion page</a>. Scan deletion removes its normal server photo, but an approved private research copy remains. While signed in, you can withdraw research consent or remove an approved research copy even after deleting its scan. Account deletion removes the account, synchronized scans, and their normal server photos; you can also choose to remove all approved research copies. If you keep them, their account link is removed. Save the research photo ID shown in your account if you may later request removal through the privacy contact below. Device-only scans remain under your control and can be deleted individually, by clearing app data, or by uninstalling it.</p>

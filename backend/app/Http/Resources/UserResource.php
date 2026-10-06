@@ -19,6 +19,7 @@ class UserResource extends JsonResource
                 ? route('user-avatars.show', ['user' => $this->id, 'v' => pathinfo($this->avatar_path, PATHINFO_FILENAME)], absolute: false)
                 : null,
             'email_verified_at' => $this->email_verified_at?->toIso8601String(),
+            'research_photo_consent' => $this->hasResearchPhotoConsent(),
             'diagnoses_count' => $this->whenCounted('diagnoses'),
             'last_activity_at' => $this->when(isset($this->diagnoses_max_diagnosed_at), $this->diagnoses_max_diagnosed_at),
             'created_at' => $this->created_at,

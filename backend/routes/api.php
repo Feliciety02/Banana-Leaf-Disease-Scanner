@@ -29,6 +29,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthController::class)->middleware('throttle:public-api');
+Route::get('/terms', fn () => view('terms'))->middleware('throttle:public-api');
 Route::middleware('throttle:auth')->group(function () {
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login', [AuthController::class, 'login']);
@@ -56,6 +57,7 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated-api'])->group(functio
     Route::post('/auth/verification-notification', [AuthController::class, 'resendVerification'])->middleware('throttle:6,1');
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::put('/profile', [ProfileController::class, 'update']);
+    Route::put('/profile/research-consent', [ProfileController::class, 'researchConsent']);
     Route::put('/profile/password', [ProfileController::class, 'password']);
     Route::post('/profile/avatar', [ProfileController::class, 'avatar'])->middleware('throttle:6,1');
     Route::delete('/profile/avatar', [ProfileController::class, 'removeAvatar']);
