@@ -8,7 +8,7 @@ import { useT } from '../../i18n';
 
 const TEST_PROFILES = [
   { label: 'Farmer', email: 'maria.santos@dahonmd.test', icon: 'leaf-outline' },
-  { label: 'Reviewer', email: 'reviewer@dahonmd.test', icon: 'shield-checkmark-outline' },
+  { label: 'Agriculturist', email: 'agriculturist@dahonmd.test', icon: 'shield-checkmark-outline' },
   { label: 'Admin', email: 'admin@dahonmd.test', icon: 'settings-outline' },
 ] as const;
 const testProfilesEnabled = process.env.EXPO_PUBLIC_TEST_PROFILES === 'true';

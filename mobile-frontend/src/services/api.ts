@@ -409,9 +409,19 @@ export async function updatePassword(currentPassword: string, password: string, 
   return payload.message;
 }
 
-export async function deleteAccount(currentPassword: string) {
-  await api('/profile', { method: 'DELETE', body: JSON.stringify({ current_password: currentPassword }) });
+export async function deleteAccount(currentPassword: string, removeResearchCopies = false) {
+  await api('/profile', { method: 'DELETE', body: JSON.stringify({ current_password: currentPassword, remove_research_copies: removeResearchCopies }) });
   await clearSession();
+}
+
+export type ResearchPhoto = { id: number; source_diagnosis_id: number; verified_label: string; approved_at: string; revoked_at: string | null; file_removal_pending: boolean };
+
+export async function listResearchPhotos() {
+  return (await api<ResearchPhoto[]>('/research-images')).data;
+}
+
+export async function removeResearchPhoto(id: number) {
+  return (await api<ResearchPhoto>(`/research-images/${id}`, { method: 'DELETE' })).data;
 }
 
 export async function clearSession() {

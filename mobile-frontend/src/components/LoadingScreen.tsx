@@ -35,7 +35,7 @@ export function LoadingScreen({ ready }: { ready: boolean }) {
   if (!visible) return null;
   return (
     <Animated.View style={[styles.screen, { opacity }]} pointerEvents={done ? 'none' : 'auto'} accessibilityLabel="DahonMD is loading">
-      <Image source={require('../../assets/dahonmd-logo-green.png')} style={styles.logo} resizeMode="contain" accessibilityIgnoresInvertColors />
+      <Image source={require('../../assets/dahonmd-logo-green.webp')} style={styles.logo} resizeMode="contain" accessibilityIgnoresInvertColors />
     </Animated.View>
   );
 }

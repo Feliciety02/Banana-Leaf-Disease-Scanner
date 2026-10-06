@@ -14,7 +14,7 @@ const farmer: NavItem[] = [
   { key: 'scan', label: 'Scan', active: 'scan', inactive: 'scan-outline' },
   { key: 'history', label: 'History', active: 'time', inactive: 'time-outline' }, guide, account,
 ];
-const reviewer: NavItem[] = [
+const agriculturist: NavItem[] = [
   home,
   { key: 'reviewed', label: 'Reviewed', active: 'checkmark-done-circle', inactive: 'checkmark-done-circle-outline' },
   { key: 'content', label: 'Content', active: 'library', inactive: 'library-outline' }, guide, account,
@@ -26,7 +26,7 @@ const admin: NavItem[] = [
   { key: 'knowledge', label: 'Knowledge', active: 'library', inactive: 'library-outline' }, account,
 ];
 export function navigationForRole(role?: string | null): NavItem[] {
-  return role === 'admin' ? admin : role === 'agricultural_expert' ? reviewer : role === 'farmer' ? farmer : guest;
+  return role === 'admin' ? admin : role === 'agricultural_expert' ? agriculturist : role === 'farmer' ? farmer : guest;
 }
 export function landingTab(role?: string | null): TabKey { return navigationForRole(role)[0].key; }
 export function validTab(tab: TabKey, role?: string | null): TabKey {

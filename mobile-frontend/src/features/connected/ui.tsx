@@ -134,7 +134,7 @@ export function ModalSheet({ visible, title, description, onClose, children }: P
         <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.scrim} />
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeader}><View style={styles.sheetHeaderMark}><Image source={require('../../../assets/dahonmd-logo-green.png')} style={styles.sheetLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /></View><View style={styles.sheetHeaderCopy}><Text style={styles.sheetTitle}>{title}</Text>{description && <Text style={styles.muted}>{description}</Text>}</View><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={22} color={palette.ink} /></Pressable></View>
+          <View style={styles.sheetHeader}><View style={styles.sheetHeaderMark}><Image source={require('../../../assets/dahonmd-logo-green.webp')} style={styles.sheetLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /></View><View style={styles.sheetHeaderCopy}><Text style={styles.sheetTitle}>{title}</Text>{description && <Text style={styles.muted}>{description}</Text>}</View><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={22} color={palette.ink} /></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetBody}>{children}</ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -292,7 +292,7 @@ function AuthCardSheet({ visible, title, description, onClose, children, dismiss
       <Animated.View style={[styles.cardModal, styles.authCardModal, { height: sheetVisibleHeight, transform: [{ translateY: position }] }]}>
         <View style={[styles.authHeader, keyboardOpen && styles.authHeaderCompact]}>
           <View {...gesture.panHandlers} accessible accessibilityRole="button" accessibilityLabel={keyboardOpen ? 'Dismiss keyboard' : 'Move account sheet'} accessibilityHint="Drag down to lower, up to restore, or swipe down farther to close. Tap to toggle." accessibilityActions={[{ name: 'activate' }]} onAccessibilityTap={activateHandle} onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'activate') activateHandle(); }} style={styles.authDragZone}><View pointerEvents="none" style={styles.authHandle} /></View>
-          <View style={styles.authBrand}><Image source={require('../../../assets/dahonmd-logo-white.png')} style={styles.authBrandLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /><Text style={styles.authBrandName}>DahonMD</Text></View>
+          <View style={styles.authBrand}><Image source={require('../../../assets/dahonmd-logo-white.webp')} style={styles.authBrandLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /><Text style={styles.authBrandName}>DahonMD</Text></View>
           <Text style={[styles.authTitle, keyboardOpen && styles.authTitleCompact]}>{title === 'Sign up' ? 'Create your account' : 'Log in to your account'}</Text>
           {!keyboardOpen && <Text style={styles.authDescription}>{description || 'Pick up where you left off with your scans.'}</Text>}
           <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={dismiss} style={[styles.authCloseButton, keyboardOpen && styles.authCloseButtonCompact]}><Ionicons name="close" size={21} color="#fff" /></Pressable>
@@ -324,7 +324,7 @@ export function ModalCard({ visible, title, description, onClose, children, auth
       <KeyboardAvoidingView style={styles.cardModalRoot} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.scrim} />
         <View style={styles.cardModal}>
-          <View style={styles.sheetHeader}><View style={styles.sheetHeaderMark}><Image source={require('../../../assets/dahonmd-logo-green.png')} style={styles.sheetLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /></View><View style={styles.sheetHeaderCopy}><Text style={styles.sheetTitle}>{title}</Text>{description && <Text style={styles.muted}>{description}</Text>}</View><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={22} color={palette.ink} /></Pressable></View>
+          <View style={styles.sheetHeader}><View style={styles.sheetHeaderMark}><Image source={require('../../../assets/dahonmd-logo-green.webp')} style={styles.sheetLogo} resizeMode="contain" accessibilityLabel="DahonMD logo" /></View><View style={styles.sheetHeaderCopy}><Text style={styles.sheetTitle}>{title}</Text>{description && <Text style={styles.muted}>{description}</Text>}</View><Pressable accessibilityRole="button" accessibilityLabel={`Close ${title}`} onPress={onClose} style={styles.closeButton}><Ionicons name="close" size={22} color={palette.ink} /></Pressable></View>
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheetBody}>{children}</ScrollView>
         </View>
       </KeyboardAvoidingView>

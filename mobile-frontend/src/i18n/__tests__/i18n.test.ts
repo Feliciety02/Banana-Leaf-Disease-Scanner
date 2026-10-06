@@ -7,21 +7,26 @@ import * as SecureStore from 'expo-secure-store';
 
 import { getLanguage, loadLanguage, setLanguage, translate } from '../index';
 import { EN, FIL } from '../strings';
+import { CEB } from '../bisaya';
 import { className, guideSummary } from '../content';
 import { certaintyLevel } from '../../features/scan/ScanResult';
 
 describe('farmer language support', () => {
-  it('has a Filipino text for every English text, and fills placeholders', () => {
+  it('has Filipino and Bisaya text for every English text, and fills placeholders', () => {
     expect(Object.keys(FIL).sort()).toEqual(Object.keys(EN).sort());
+    expect(Object.keys(CEB).sort()).toEqual(Object.keys(EN).sort());
     for (const [key, text] of Object.entries(FIL)) expect(text.trim().length).toBeGreaterThan(0);
+    for (const [key, text] of Object.entries(CEB)) expect(text.trim().length).toBeGreaterThan(0);
     expect(translate('en', 'home.greeting', { name: 'Maria' })).toBe('Good to see you, Maria.');
     expect(translate('fil', 'home.greeting', { name: 'Maria' })).toBe('Magandang araw, Maria.');
+    expect(translate('ceb', 'home.greeting', { name: 'Maria' })).toBe('Maayong adlaw, Maria.');
   });
 
   it('keeps the same placeholders in both languages', () => {
     const placeholders = (text: string) => (text.match(/\{\w+\}/g) ?? []).sort();
     for (const key of Object.keys(EN) as (keyof typeof EN)[]) {
       expect(placeholders(FIL[key])).toEqual(placeholders(EN[key]));
+      expect(placeholders(CEB[key])).toEqual(placeholders(EN[key]));
     }
   });
 
@@ -33,12 +38,20 @@ describe('farmer language support', () => {
     (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('fil');
     await loadLanguage();
     expect(getLanguage()).toBe('fil');
+    await setLanguage('ceb');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('dahonmd-language', 'ceb');
+    await setLanguage('en');
+    (SecureStore.getItemAsync as jest.Mock).mockResolvedValue('ceb');
+    await loadLanguage();
+    expect(getLanguage()).toBe('ceb');
   });
 
   it('translates disease names and descriptions', () => {
     expect(className('healthy', 'fil')).toBe('Malusog');
     expect(className('sigatoka', 'en')).toBe('Black Sigatoka');
     expect(guideSummary('sigatoka', 'fil')).not.toEqual(guideSummary('sigatoka', 'en'));
+    expect(className('healthy', 'ceb')).toBe('Himsog');
+    expect(guideSummary('sigatoka', 'ceb')).not.toEqual(guideSummary('sigatoka', 'en'));
   });
 });
 

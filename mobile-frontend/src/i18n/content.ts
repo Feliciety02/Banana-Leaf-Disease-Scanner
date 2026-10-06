@@ -19,10 +19,23 @@ const SUMMARIES: Record<Language, Record<ClassKey, string>> = {
     'panama-disease': 'Naninilaw, nalalanta at bumabagsak sa paligid ng puno ang pinakamatatandang dahon; sa loob ng puno, may mapulang-kayumangging guhit ang mga daluyan ng tubig.',
     'cordana-leaf-spot': 'Kayumangging hugis-itlog na batik na may maputlang paligid, na nagdudugtong malapit sa gilid ng dahon.',
   },
+  ceb: {
+    healthy: 'Himsog nga dahon sa saging — walay nakitang timailhan sa sakit. Padayon sa regular nga pag-atiman ug pagbantay.',
+    sigatoka: 'Dilaw nga mga guhit ug ngitngit nga mga batik nga mikaylap sa dahon.',
+    'panama-disease': 'Ang labing tigulang nga mga dahon modilaw, malaya, ug mahugno palibot sa punoan; adunay pula-kape nga guhit sa sulod sa punoan.',
+    'cordana-leaf-spot': 'Kape nga lingin-lingin nga mga batik nga adunay luspad nga palibot ug nagdungan duol sa ngilit sa dahon.',
+  },
 };
 
 const NAMES_FIL: Record<ClassKey, string> = {
   healthy: 'Malusog',
+  sigatoka: 'Black Sigatoka',
+  'panama-disease': 'Panama disease',
+  'cordana-leaf-spot': 'Cordana',
+};
+
+const NAMES_CEB: Record<ClassKey, string> = {
+  healthy: 'Himsog',
   sigatoka: 'Black Sigatoka',
   'panama-disease': 'Panama disease',
   'cordana-leaf-spot': 'Cordana',
@@ -35,6 +48,13 @@ const HEADINGS_FIL: Record<ClassKey, string> = {
   'cordana-leaf-spot': 'Lunas sa Cordana',
 };
 
+const HEADINGS_CEB: Record<ClassKey, string> = {
+  healthy: 'Himsog nga tanom',
+  sigatoka: 'Pagtambal sa Black Sigatoka',
+  'panama-disease': 'Panama disease',
+  'cordana-leaf-spot': 'Pagtambal sa Cordana',
+};
+
 // Each tip keeps the "Short title: detail" form so the result screen can show the short title.
 const TIPS_FIL: Record<ClassKey, string[]> = {
   sigatoka: [
@@ -43,9 +63,9 @@ const TIPS_FIL: Record<ClassKey, string[]> = {
     'Balanseng pataba: Gumamit ng patabang mataas sa potassium para lumakas ang resistensya ng halaman.',
   ],
   'cordana-leaf-spot': [
-    'Regular na pagbabantay: Tingnan ang halaman paminsan-minsan para makita agad ang unang palatandaan ng sakit.',
-    'Huwag ipadikit sa lupa ang dahon: Nababawasan nito ang pagkahawa at pagkalat ng sakit.',
-    'Balanseng pataba: Gumamit ng patabang may micronutrients, lalo na potassium, para lumakas ang halaman.',
+    'Ipakumpirma ang sanhi: Maaaring mapagkamalan ang Cordana sa ibang batik sa dahon ng saging. Ipasuri sa agriculturist ang kumakalat na mga batik bago pumili ng fungicide.',
+    'Panatilihing malinis: Bantayan ang katabing mga dahon at alisin ang malubhang nasirang bahagi ayon sa lokal na payo sa pagsasaka.',
+    'Wala pang angkop na produkto: Wala kaming nakitang kasalukuyang FPA label na partikular sa Cordana ng saging; huwag gamitin bilang kapalit ang produkto para sa Sigatoka.',
   ],
   healthy: [
     'Ipagpatuloy ang pag-aalaga: Regular na bantayan ang halaman at tiyaking maluwag ang hangin sa pagitan ng mga puno.',
@@ -59,7 +79,31 @@ const TIPS_FIL: Record<ClassKey, string[]> = {
   ],
 };
 
+const TIPS_CEB: Record<ClassKey, string[]> = {
+  sigatoka: [
+    'Likayi ang sprinkler: Gamit og drip irrigation aron magpabiling uga ang mga dahon ug dili modaghan ang spores.',
+    'Bantayi kanunay: Susiha ang tanom kanunay aron sayo makita ang mga timailhan sa sakit.',
+    'Hustong abono: Gamit og abonong taas og potassium aron molig-on ang resistensya sa tanom.',
+  ],
+  'cordana-leaf-spot': [
+    'Ipakumpirma ang hinungdan: Ang Cordana mahimong masaypan sa ubang batik sa dahon sa saging. Ipasusi sa agriculturist ang mikaylap nga mga batik sa dili pa mopili og fungicide.',
+    'Paghinlo: Bantayi ang kasikbit nga mga dahon ug kuhaa ang grabe nga nadaot nga bahin sumala sa lokal nga tambag sa uma.',
+    'Wala pay angay nga produkto: Wala kami makakitag kasamtangang FPA label nga espesipiko sa Cordana sa saging; ayaw ipuli ang produkto para sa Sigatoka.',
+  ],
+  healthy: [
+    'Padayon sa pag-atiman: Bantayi kanunay ang tanom ug siguroha nga maayo ang agianan sa hangin tali sa mga punoan.',
+    'Maayong agianan sa tubig: Siguroha nga dili mabahaan ang yuta ug gamit og drip irrigation.',
+    'Hustong abono: Hatagi ang tanom og balanse nga sustansya aron himsog ang pagtubo.',
+  ],
+  'panama-disease': [
+    'Walay tambal: Walay tambal o epektibong spray para sa Panama disease; ireport ang gituohang kaso sa agriculturist aron makumpirma.',
+    'Ayaw ibalhin ang yuta o tanom: Ayaw ibalhin ang yuta, tubig, saha, o bahin sa apektadong tanom; limpyohi ang mga gamit ug botas.',
+    'Limpyo nga tanom: Pagtanom lamang og walay sakit nga saha ug pangutana bahin sa lig-on nga barayti sa dili pa magtanom pag-usab.',
+  ],
+};
+
 const PRODUCT_DESCRIPTIONS_FIL: Record<string, string> = {
+  'Leader 500 SC': 'Fungicide na chlorothalonil. Nakalista ng FPA para sa Sigatoka ng saging; proteksiyon ito sa bagong tubo at hindi nakapagpapagaling ng patay na bahagi ng dahon.',
   'Timorex Gold': 'Natural na fungicide na gawa sa katas ng halamang Melaleuca alternifolia.',
   Blindax: 'Likidong fungicide na gawa sa mga organikong sangkap.',
   Sonata: 'Biological na fungicide na nagbibigay ng proteksyon sa iba’t ibang bahagi.',
@@ -68,8 +112,18 @@ const PRODUCT_DESCRIPTIONS_FIL: Record<string, string> = {
   TopCop: 'Fungicide na batay sa sulfur na tumutulong panatilihing berde ang dahon.',
 };
 
+const PRODUCT_DESCRIPTIONS_CEB: Record<string, string> = {
+  'Leader 500 SC': 'Chlorothalonil nga fungicide. Gilista sa FPA ang banana Sigatoka isip target niini; mapanalipdan ang bag-ong tubo apan dili makaayo sa patay nga bahin sa dahon.',
+  'Timorex Gold': 'Natural nga fungicide nga gihimo gikan sa Melaleuca alternifolia.',
+  Blindax: 'Likidong fungicide gikan sa mga organikong sangkap.',
+  Sonata: 'Biological nga fungicide nga naghatag og proteksyon sa tanom.',
+  'Bordeaux Mix 1%': 'Inorganikong fungicide nga nagpanalipod sa ibabaw sa tanom.',
+  'Kupper 500': 'Fungicide ug bactericide nga mosukol sa lain-laing sakit.',
+  TopCop: 'Fungicide nga adunay sulfur nga makatabang sa pagpabiling lunhaw sa dahon.',
+};
+
 export function className(classKey: ClassKey, language: Language) {
-  return language === 'fil' ? NAMES_FIL[classKey] : CLASS_DISPLAY_NAMES[classKey];
+  return language === 'fil' ? NAMES_FIL[classKey] : language === 'ceb' ? NAMES_CEB[classKey] : CLASS_DISPLAY_NAMES[classKey];
 }
 
 export function guideSummary(classKey: ClassKey, language: Language) {
@@ -80,6 +134,12 @@ export function guideSummary(classKey: ClassKey, language: Language) {
 export function localizedTreatment(classKey: ClassKey, language: Language) {
   const guide = getTreatmentGuide(classKey);
   if (language === 'en') return guide;
+  if (language === 'ceb') return {
+    ...guide,
+    heading: HEADINGS_CEB[classKey],
+    tips: TIPS_CEB[classKey],
+    products: guide.products.map((product) => ({ ...product, description: PRODUCT_DESCRIPTIONS_CEB[product.name] ?? product.description })),
+  };
   return {
     ...guide,
     heading: HEADINGS_FIL[classKey],

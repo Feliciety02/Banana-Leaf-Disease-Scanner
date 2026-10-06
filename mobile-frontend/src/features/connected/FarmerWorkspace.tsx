@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Linking, View } from 'react-native';
+import { Linking, Switch, Text, View } from 'react-native';
 
-import { deleteAccount, privacyPolicyUrl, type SessionUser } from '../../services/api';
+import { deleteAccount, listResearchPhotos, removeResearchPhoto, privacyPolicyUrl, type ResearchPhoto, type SessionUser } from '../../services/api';
 import { synchronizeDiagnoses, uploadUnsentPhotos } from '../../services/diagnosisSync';
 import { claimLocalOnlyDiagnoses, countAccountDiagnoses, countLocalOnlyDiagnoses, countPendingDiagnoses, deleteLocalAccountData, subscribeToLocalDiagnosisChanges } from '../../storage/localDiagnoses';
-import { EmailVerificationNotice, LanguagePicker, ListGroup, ListRow, ProfileHeader } from './AccountUI';
+import { EmailVerificationNotice, ListGroup, ListRow, ProfileHeader } from './AccountUI';
 import { ProfileEditor } from './ProfileEditor';
 import { ProfilePhotoModal } from './ProfilePhotoModal';
 import { useT } from '../../i18n';
@@ -19,6 +19,9 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
   const [error, setError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [removeResearchCopies, setRemoveResearchCopies] = useState(false);
+  const [researchPhotos, setResearchPhotos] = useState<ResearchPhoto[]>([]);
+  const [researchTarget, setResearchTarget] = useState<ResearchPhoto | null>(null);
   const [claimOpen, setClaimOpen] = useState(false);
   const [signOutPending, setSignOutPending] = useState<number | null>(null);
   const [totals, setTotals] = useState({ total: 0, reviewed: 0 });
@@ -36,7 +39,23 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
     setTotals(accountTotals);
     setCountsReady(true);
   }, [user.id]);
-  useEffect(() => { setCountsReady(false); refreshCount().catch(() => setError('Scan totals could not be loaded. Reopen this tab to try again.')); }, [refreshCount]);
+  useEffect(() => { setCountsReady(false); refreshCount().catch(() => setError(t('account.scansLoadFailed'))); }, [refreshCount]);
+  useEffect(() => { listResearchPhotos().then(setResearchPhotos).catch(() => undefined); }, [user.id]);
+
+  const revokeResearchPhoto = async () => {
+    if (!researchTarget) return;
+    setSyncing(true);
+    try {
+      await removeResearchPhoto(researchTarget.id);
+      setResearchPhotos(await listResearchPhotos());
+      setResearchTarget(null);
+      setMessage(t('account.researchPhotoRemoved'));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : t('account.researchPhotoFailed'));
+    } finally {
+      setSyncing(false);
+    }
+  };
   // Automatic synchronization changes the local records; keep the totals current.
   useEffect(() => {
     let active = true;
@@ -57,10 +76,10 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
       const claimed = await claimLocalOnlyDiagnoses(user.id);
       const result = await synchronizeDiagnoses(user.id);
       setClaimOpen(false);
-      setMessage(`${claimed} device-only scan${claimed === 1 ? '' : 's'} added. ${result.pushed} uploaded now.`);
+      setMessage(t('account.scansAdded', { count: claimed, uploaded: result.pushed }));
       onChanged();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'The scans were kept safely on this device and can be retried.');
+      setError(requestError instanceof Error ? requestError.message : t('account.scansRetry'));
       setClaimOpen(false);
     } finally {
       await refreshCount().catch(() => undefined);
@@ -70,13 +89,13 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
 
   const openPage = async (url: string | null, label: string) => {
     if (!url) {
-      setError(`${label} is not configured for this build.`);
+      setError(t('account.linkUnavailable', { name: label }));
       return;
     }
     try {
       await Linking.openURL(url);
     } catch {
-      setError(`${label} could not be opened.`);
+      setError(t('account.linkOpenFailed', { name: label }));
     }
   };
 
@@ -84,7 +103,7 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
     setSyncing(true);
     setError('');
     try {
-      await deleteAccount(deletePassword);
+      await deleteAccount(deletePassword, removeResearchCopies);
       let localCleanupFailed = false;
       try {
         await deleteLocalAccountData(user.id);
@@ -93,11 +112,10 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
       }
       setDeleteOpen(false);
       setDeletePassword('');
-      onAccountDeleted(localCleanupFailed
-        ? 'Your server account was deleted, but some device data could not be removed. Clear DahonMD app data from Android settings to finish local cleanup.'
-        : 'Your account and account-linked data were deleted. Device-only scans remain available in local history.');
+      setRemoveResearchCopies(false);
+      onAccountDeleted(localCleanupFailed ? t('account.deletedDeviceCleanup') : t('account.deletedSuccess'));
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Your account could not be deleted. Nothing was removed.');
+      setError(requestError instanceof Error ? requestError.message : t('account.deleteFailed'));
       setDeleteOpen(false);
     } finally {
       setSyncing(false);
@@ -113,7 +131,7 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
       await onSignOut();
       onChanged();
     } catch {
-      setError('DahonMD could not securely remove this account\'s device data. Sign-out was stopped; try again or clear the app data in system settings.');
+      setError(t('account.signOutFailed'));
     } finally {
       setSyncing(false);
     }
@@ -144,8 +162,8 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
 
   const syncStatus = countsReady
     ? pending
-      ? { icon: 'cloud-upload-outline' as const, label: `${pending} waiting to sync`, tone: 'waiting' as const }
-      : { icon: 'cloud-done-outline' as const, label: 'Synced', tone: 'ok' as const }
+      ? { icon: 'cloud-upload-outline' as const, label: t('account.waitingSync', { count: pending }), tone: 'waiting' as const }
+      : { icon: 'cloud-done-outline' as const, label: t('account.synced'), tone: 'ok' as const }
     : undefined;
 
   return <View style={uiStyles.stack}>
@@ -166,21 +184,24 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
     </ListGroup>
     <ProfileEditor user={user} onUser={onUser} />
     <ProfilePhotoModal visible={photoOpen} user={user} onUser={onUser} onClose={() => setPhotoOpen(false)} />
-    <LanguagePicker />
     <ListGroup title={t('account.privacy')}>
       <ListRow first icon="image-outline" title={t('account.scanPhotos')} subtitle={t('account.scanPhotosText')} />
+      <ListRow icon="flask-outline" title={t('account.researchPhotos')} subtitle={t('account.researchPhotosText', { count: researchPhotos.filter((photo) => !photo.revoked_at).length })} onPress={() => listResearchPhotos().then(setResearchPhotos).catch(() => setError(t('account.researchPhotoFailed')))} />
+      {researchPhotos.filter((photo) => !photo.revoked_at || photo.file_removal_pending).map((photo) => <ListRow key={photo.id} icon="close-circle-outline" title={`#${photo.id} · ${photo.verified_label.replaceAll('-', ' ')}`} subtitle={t(photo.file_removal_pending ? 'account.retryResearchPhoto' : 'account.removeResearchPhoto')} danger onPress={() => setResearchTarget(photo)} />)}
       <ListRow icon="location-outline" title={t('account.scanLocation')} subtitle={t('account.scanLocationText')} />
-      <ListRow icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), 'The privacy policy')} />
+      <ListRow icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), t('account.privacyPolicy'))} />
     </ListGroup>
     <ListGroup title={t('account.account')}>
-      <ListRow first icon="log-out-outline" title={t('account.signOut')} subtitle={t('account.signOutText')} disabled={syncing} onPress={secureSignOut} />
+      <ListRow first icon="log-out-outline" title={t('account.signOut')} disabled={syncing} onPress={secureSignOut} />
       <ListRow icon="trash-outline" title={t('account.delete')} subtitle={t('account.deleteText')} danger disabled={syncing} onPress={() => setDeleteOpen(true)} />
     </ListGroup>
     <ModalSheet visible={deleteOpen} title={t('account.deleteTitle')} description={t('account.deleteDescription')} onClose={() => { if (!syncing) { setDeleteOpen(false); setDeletePassword(''); } }}>
       <Field label={t('account.currentPassword')} secureTextEntry autoComplete="current-password" value={deletePassword} onChangeText={setDeletePassword} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 }}><Switch accessibilityLabel={t('account.removeResearchCopies')} value={removeResearchCopies} onValueChange={setRemoveResearchCopies} /><Text style={{ flex: 1 }}>{t('account.removeResearchCopies')}</Text></View>
       <View style={uiStyles.actions}><ActionButton variant="secondary" disabled={syncing} onPress={() => { setDeleteOpen(false); setDeletePassword(''); }}>{t('common.cancel')}</ActionButton><ActionButton variant="danger" disabled={syncing || !deletePassword} onPress={confirmAccountDeletion}>{syncing ? t('account.deleting') : t('account.deleteButton')}</ActionButton></View>
     </ModalSheet>
     <ConfirmSheet visible={claimOpen} title={t('account.addTitle')} text={t('account.addText', { count: localOnly, name: user.name })} confirmLabel={t('account.addConfirm')} danger={false} busy={syncing} onCancel={() => setClaimOpen(false)} onConfirm={confirmClaimLocalScans} />
     <ConfirmSheet visible={signOutPending !== null} title={t('account.discardTitle')} text={t('account.discardText', { count: signOutPending ?? 0 })} confirmLabel={t('account.discardConfirm')} busy={syncing} onCancel={() => setSignOutPending(null)} onConfirm={finishSignOut} />
+    <ConfirmSheet visible={Boolean(researchTarget)} title={t(researchTarget?.file_removal_pending ? 'account.retryResearchPhoto' : 'account.removeResearchPhoto')} text={t(researchTarget?.file_removal_pending ? 'account.retryResearchPhotoText' : 'account.removeResearchPhotoText')} confirmLabel={t(researchTarget?.file_removal_pending ? 'account.retryResearchPhoto' : 'account.removeResearchPhoto')} danger busy={syncing} onCancel={() => setResearchTarget(null)} onConfirm={revokeResearchPhoto} />
   </View>;
 }

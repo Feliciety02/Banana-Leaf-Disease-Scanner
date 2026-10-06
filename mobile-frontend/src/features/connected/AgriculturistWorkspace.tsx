@@ -3,7 +3,6 @@ import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'rea
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { api } from '../../services/api';
 import { ImageViewer } from '../../components/ImageViewer';
-import { MapLink } from '../../components/MapLink';
 import { ScanImage } from '../../components/ScanImage';
 import { ViewableImage, ViewableScanImage } from '../../components/ViewableImage';
 import { UserAvatar } from '../../components/UserAvatar';
@@ -13,9 +12,8 @@ import { getTreatmentGuide } from '../classification/treatment-data';
 import { ActionButton, Field, ModalSheet, Notice, formatDate, palette, titleCase, uiStyles } from './ui';
 
 type Revision = { review_status: string; verified_label: string | null; farmer_message?: string | null; farmer_reply?: string | null; reviewed_at?: string | null; reviewer?: { name: string } | null };
-type Review = { review_status: string; verified_label: string | null; image_quality: string; next_steps: string[]; notes?: string; farmer_message?: string | null; farmer_reply?: string | null; reviewed_at?: string; reviewer?: { name: string }; revisions?: Revision[] };
-type HistoryItem = { id: number; predicted_class: string; confidence: number; diagnosed_at: string; review_status?: string | null; verified_label?: string | null };
-type ReviewCase = { farmer_history?: HistoryItem[]; location?: { latitude: number; longitude: number } | null; id: number; predicted_class: string; confidence: number; diagnosed_at: string; image_url: string | null; farmer_notes: string | null; research_consent?: boolean; review_claim?: { user?: { id: number; name: string } | null; expires_at: string } | null; user?: { name: string; avatar_url?: string | null }; review?: Review | null };
+type Review = { version: number; review_status: string; verified_label: string | null; image_quality: string; next_steps: string[]; notes?: string; farmer_message?: string | null; farmer_reply?: string | null; reviewed_at?: string; reviewer?: { name: string }; revisions?: Revision[] };
+type ReviewCase = { id: number; predicted_class: string; confidence: number; diagnosed_at: string; image_url: string | null; farmer_notes: string | null; research_consent?: boolean; review_claim?: { user?: { id: number; name: string } | null; expires_at: string } | null; user?: { name: string; avatar_url?: string | null }; review?: Review | null };
 type ReviewChoice = ClassKey | 'cannot_determine' | 'possible_outside_supported_classes';
 const choices: { value: ReviewChoice; label: string }[] = [
   { value: 'sigatoka', label: CLASS_DISPLAY_NAMES.sigatoka },
@@ -36,7 +34,7 @@ function choiceFor(item: ReviewCase): ReviewChoice | '' {
   return '';
 }
 
-export function ReviewerWorkspace({ scope = 'pending' }: { scope?: 'pending' | 'reviewed' }) {
+export function AgriculturistWorkspace({ scope = 'pending' }: { scope?: 'pending' | 'reviewed' }) {
   const [items, setItems] = useState<ReviewCase[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -47,6 +45,8 @@ export function ReviewerWorkspace({ scope = 'pending' }: { scope?: 'pending' | '
   const [farmerMessage, setFarmerMessage] = useState('');
   const [photoFailed, setPhotoFailed] = useState(false);
   const [reference, setReference] = useState<ClassKey | null>(null);
+  const [showReferences, setShowReferences] = useState(false);
+  const [showInternalNote, setShowInternalNote] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [viewer, setViewer] = useState<string | null>(null);
@@ -58,7 +58,7 @@ export function ReviewerWorkspace({ scope = 'pending' }: { scope?: 'pending' | '
     finally { setLoading(false); }
   }, [scope]);
   useEffect(() => { void load(); }, [load]);
-  // Opening a waiting case marks it as yours so other reviewers do not assess it
+  // Opening a waiting case marks it as yours so other agriculturists do not assess it
   // at the same time; the claim is renewed while open and released on leaving.
   const selectedId = selected?.id;
   const selectedPending = !selected?.review || selected.review.review_status === 'pending';
@@ -68,7 +68,7 @@ export function ReviewerWorkspace({ scope = 'pending' }: { scope?: 'pending' | '
     let active = true;
     const claim = () => api(`/expert/diagnosis-reviews/${selectedId}/claim`, { method: 'POST' })
       .then(() => { if (active) setClaimNote(''); })
-      .catch((e) => { if (active) setClaimNote(e instanceof Error ? e.message : 'Another reviewer is working on this case.'); });
+      .catch((e) => { if (active) setClaimNote(e instanceof Error ? e.message : 'Another agriculturist is working on this case.'); });
     void claim();
     const timer = setInterval(() => { void claim(); }, 10 * 60000);
     return () => {
@@ -82,6 +82,7 @@ export function ReviewerWorkspace({ scope = 'pending' }: { scope?: 'pending' | '
     try {
       const detail = (await api<ReviewCase>(`/expert/diagnosis-reviews/${item.id}`)).data;
       setSelected(detail); setChoice(choiceFor(detail)); setPhotoFailed(false);
+      setShowReferences(false); setShowInternalNote(Boolean(detail.review?.notes));
       setNotes(detail.review?.notes ?? ''); setFarmerMessage(detail.review?.farmer_message ?? ''); setDirty(false);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open this scan.'); }
     finally { setBusy(false); }
@@ -98,6 +99,7 @@ export function ReviewerWorkspace({ scope = 'pending' }: { scope?: 'pending' | '
       const isClass = CLASS_KEYS.includes(choice as ClassKey);
       const reviewStatus = isClass ? choice === selected.predicted_class ? 'confirmed' : 'alternate_class' : choice;
       await api(`/expert/diagnosis-reviews/${selected.id}`, { method: 'PUT', body: JSON.stringify({
+        expected_review_version: selected.review?.version ?? 0,
         review_status: reviewStatus,
         verified_label: reviewStatus === 'alternate_class' ? choice : null,
         image_quality: choice === 'cannot_determine' ? 'insufficient_image' : 'good',
@@ -115,7 +117,7 @@ export function ReviewerWorkspace({ scope = 'pending' }: { scope?: 'pending' | '
     setBusy(true); setError('');
     try {
       await api(`/expert/dataset-candidates/from-diagnosis/${selected.id}`, { method: 'POST' });
-      setSelected(null); setNotice('Image nominated for dataset review. Another reviewer or an administrator records the decision.');
+      setSelected(null); setNotice('Image nominated for dataset review. Another agriculturist or an administrator records the decision.');
     } catch (e) { setError(e instanceof Error ? e.message : 'The image could not be nominated.'); }
     finally { setBusy(false); }
   };
@@ -134,49 +136,42 @@ export function ReviewerWorkspace({ scope = 'pending' }: { scope?: 'pending' | '
     </Pressable>)}
     <ModalSheet visible={Boolean(selected)} title={reference ? `${CLASS_DISPLAY_NAMES[reference]} reference` : completed ? 'Completed assessment' : 'Review this scan'} onClose={() => reference ? setReference(null) : close()}>
       {reference ? <View style={uiStyles.stack}><ViewableImage source={getTreatmentGuide(reference).leafImage!} title={`${CLASS_DISPLAY_NAMES[reference]} reference`} style={styles.referenceLarge} resizeMode="contain" /><Text style={uiStyles.cardMeta}>Educational example; compare it with the submitted scan photo.</Text><ActionButton variant="secondary" onPress={() => setReference(null)}>Back to scan</ActionButton></View> : selected && <>
-        <View style={styles.farmerRow}><UserAvatar name={selected.user?.name ?? 'Farmer'} uri={selected.user?.avatar_url} size={34} /><Text style={[uiStyles.cardTitle, uiStyles.flex]}>{selected.user?.name ?? 'Farmer'} / scan #{selected.id}</Text></View>
-        <Text style={uiStyles.cardMeta}>Original AI result: {titleCase(selected.predicted_class)} ({Number(selected.confidence).toFixed(1)}%)</Text>
-        <Text style={uiStyles.cardTitle}>Submitted leaf photo</Text>
-        {selected.image_url && !photoFailed ? <Pressable accessibilityRole="button" accessibilityLabel="Enlarge submitted leaf photo" onPress={() => setViewer(selected.image_url)}><ScanImage uri={selected.image_url} style={styles.photo} resizeMode="contain" onLoadError={() => setPhotoFailed(true)} /><Text style={styles.photoHint}>Tap photo to enlarge</Text></Pressable> : <Notice tone="warning">The farmer's phone has not uploaded this photo yet. It is sent the next time their app syncs online. Until then, choose "Cannot determine"; a disease class needs the photo.</Notice>}
-        <Text style={uiStyles.cardTitle}>Farmer's reason</Text><Text style={uiStyles.cardMeta}>{selected.farmer_notes || 'No additional notes supplied.'}</Text>
+        <View style={styles.farmerRow}><UserAvatar name={selected.user?.name ?? 'Farmer'} uri={selected.user?.avatar_url} size={34} /><View style={uiStyles.flex}><Text style={styles.farmerName}>{selected.user?.name ?? 'Farmer'}</Text><Text style={uiStyles.cardMeta}>Scan #{selected.id} · {formatDate(selected.diagnosed_at)}</Text></View></View>
+        <View style={styles.aiResult}>
+          <Text style={styles.aiEyebrow}>ORIGINAL AI RESULT</Text>
+          <Text style={styles.aiDisease}>{CLASS_DISPLAY_NAMES[selected.predicted_class as ClassKey] ?? titleCase(selected.predicted_class)}</Text>
+          <Text style={styles.aiConfidence}>{Number(selected.confidence).toFixed(1)}% model confidence</Text>
+        </View>
+        <Text style={styles.sectionTitle}>Submitted leaf photo</Text>
+        {selected.image_url && !photoFailed ? <Pressable accessibilityRole="button" accessibilityLabel="Enlarge submitted leaf photo" onPress={() => setViewer(selected.image_url)}><ScanImage uri={selected.image_url} style={styles.photo} resizeMode="contain" onLoadError={() => setPhotoFailed(true)} /><Text style={styles.photoHint}>Tap photo to enlarge</Text></Pressable> : <Notice tone="warning">Photo unavailable. Choose "Cannot determine" until the farmer's photo syncs.</Notice>}
+        {selected.farmer_notes ? <View style={styles.contextCard}><Text style={styles.contextLabel}>FARMER'S NOTE</Text><Text style={styles.contextText}>{selected.farmer_notes}</Text></View> : null}
         {selected.review?.review_status === 'pending' && selected.review.revisions?.length ? (() => {
           // Revisions arrive newest first.
           const last = selected.review.revisions[0];
-          return <Notice tone="warning">{`Reopened by the farmer. Previous assessment: ${titleCase(last.review_status)}${last.verified_label ? ` (${titleCase(last.verified_label)})` : ''}${last.reviewer?.name ? ` by ${last.reviewer.name}` : ''}.${last.farmer_message ? ` Message sent: "${last.farmer_message}"` : ''}`}</Notice>;
+          return <Notice tone="warning">{`Farmer reopened this scan. Previous assessment: ${titleCase(last.verified_label || last.review_status)}.`}</Notice>;
         })() : null}
-        {selected.review?.farmer_reply ? <><Text style={uiStyles.cardTitle}>Farmer's reply</Text><Text style={uiStyles.cardMeta}>{selected.review.farmer_reply}</Text></> : null}
-        {selected.location ? <MapLink location={selected.location} /> : null}
-        {selected.farmer_history?.length ? <View style={uiStyles.stack}>
-          <Text style={uiStyles.cardTitle}>This farmer's recent scans</Text>
-          {selected.farmer_history.map((past) => <Text key={past.id} style={uiStyles.cardMeta}>{formatDate(past.diagnosed_at)} · {titleCase(past.predicted_class)} {Number(past.confidence).toFixed(0)}%{past.review_status && past.review_status !== 'pending' ? ` · reviewed: ${titleCase(past.verified_label ?? past.review_status)}` : past.review_status === 'pending' ? ' · review waiting' : ''}</Text>)}
-        </View> : null}
-        <Text style={uiStyles.cardTitle}>Reference leaf photos</Text>
-        <Text style={uiStyles.cardMeta}>Examples for comparison; they do not establish a diagnosis.</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.references}>
+        {selected.review?.farmer_reply ? <View style={styles.contextCard}><Text style={styles.contextLabel}>FARMER'S REPLY</Text><Text style={styles.contextText}>{selected.review.farmer_reply}</Text></View> : null}
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: showReferences }} onPress={() => setShowReferences(!showReferences)} style={styles.expandButton}><Ionicons name="images-outline" size={18} color={palette.green} /><Text style={styles.expandText}>Compare reference photos</Text><Ionicons name={showReferences ? 'chevron-up' : 'chevron-down'} size={18} color={palette.green} /></Pressable>
+        {showReferences ? <View style={styles.referenceSection}><Text style={uiStyles.cardMeta}>Examples for comparison; they do not establish a diagnosis.</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.references}>
           {CLASS_KEYS.map((classKey) => { const leaf = getTreatmentGuide(classKey).leafImage; return leaf ? <Pressable key={classKey} accessibilityRole="button" accessibilityLabel={`View ${CLASS_DISPLAY_NAMES[classKey]} reference photo`} onPress={() => setReference(classKey)} style={styles.referenceCard}><Image source={leaf} style={styles.referenceImage} /><Text style={styles.referenceLabel}>{classKey === 'healthy' ? 'Healthy' : CLASS_DISPLAY_NAMES[classKey]}</Text></Pressable> : null; })}
-        </ScrollView>
+        </ScrollView></View> : null}
         {error && <Notice>{error}</Notice>}
         {completed ? <View style={uiStyles.stack}>
-          <Text style={uiStyles.cardTitle}>{choices.find((option) => option.value === choiceFor(selected))?.label || titleCase(selected.review!.review_status)}</Text>
-          {selected.review?.verified_label && <Text style={uiStyles.cardMeta}>Assessment: {titleCase(selected.review.verified_label)}</Text>}
-          <Text style={uiStyles.cardMeta}>Next steps: {selected.review?.next_steps.map(titleCase).join(', ')}</Text>
-          <Text style={uiStyles.cardMeta}>Message to farmer: {selected.review?.farmer_message || 'None'}</Text>
-          <Text style={uiStyles.cardMeta}>Internal reviewer notes: {selected.review?.notes || 'None'}</Text>
-          <Text style={uiStyles.cardMeta}>{selected.review?.reviewer?.name} / {formatDate(selected.review?.reviewed_at)}</Text>
-          {selected.review?.revisions?.length ? <View style={uiStyles.stack}>
-            <Text style={uiStyles.cardTitle}>Earlier assessments</Text>
-            {selected.review.revisions.map((revision, index) => <Text key={index} style={uiStyles.cardMeta}>{titleCase(revision.review_status)}{revision.verified_label ? ` · ${titleCase(revision.verified_label)}` : ''} / {revision.reviewer?.name ?? 'Former reviewer'} / {formatDate(revision.reviewed_at)}</Text>)}
-          </View> : null}
-          {selected.image_url ? (selected.research_consent
-            ? <ActionButton variant="secondary" icon="albums-outline" disabled={busy} onPress={nominate}>{busy ? 'Nominating...' : 'Nominate for dataset review'}</ActionButton>
-            : <Text style={uiStyles.cardMeta}>The farmer has not consented to research use, so this image cannot be nominated.</Text>) : null}
+          <Text style={styles.sectionTitle}>Agriculturist assessment</Text>
+          <Text style={styles.assessmentResult}>{choices.find((option) => option.value === choiceFor(selected))?.label || titleCase(selected.review!.review_status)}</Text>
+          {selected.review?.next_steps?.length ? <Text style={styles.detailText}>Next step: {selected.review.next_steps.map(titleCase).join(', ')}</Text> : null}
+          {selected.review?.farmer_message ? <View style={styles.contextCard}><Text style={styles.contextLabel}>MESSAGE TO FARMER</Text><Text style={styles.contextText}>{selected.review.farmer_message}</Text></View> : null}
+          {selected.review?.notes ? <Text style={styles.detailText}>Internal note: {selected.review.notes}</Text> : null}
+          <Text style={uiStyles.cardMeta}>{selected.review?.reviewer?.name ? `Reviewed by ${selected.review.reviewer.name}` : 'Reviewed'} · {formatDate(selected.review?.reviewed_at)}</Text>
+          {selected.image_url && selected.research_consent ? <ActionButton variant="secondary" icon="albums-outline" disabled={busy} onPress={nominate}>{busy ? 'Nominating...' : 'Nominate for dataset review'}</ActionButton> : null}
         </View> : <View pointerEvents={busy ? 'none' : 'auto'} style={uiStyles.stack}>
           {claimNote ? <Notice tone="warning">{claimNote}</Notice> : null}
-          <Text style={uiStyles.cardTitle}>What does the photo show?</Text>
+          <Text style={styles.sectionTitle}>Your assessment</Text>
+          <Text style={uiStyles.cardMeta}>Choose what you can see in the submitted photo.</Text>
           {choices.filter((option) => photoAvailable || option.value === 'cannot_determine').map((option) => <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: choice === option.value }} onPress={() => { setChoice(option.value); setDirty(true); }} style={[styles.choice, choice === option.value && styles.choiceSelected]}><Ionicons name={choice === option.value ? 'radio-button-on' : 'radio-button-off'} size={21} color={palette.green} /><Text style={styles.choiceText}>{option.label}</Text></Pressable>)}
-          <Field label="Message to the farmer (optional)" multiline maxLength={2000} value={farmerMessage} onChangeText={(value) => { setFarmerMessage(value); setDirty(true); }} placeholder="Advice in plain words, e.g. what to check on this plant this week" />
-          <Field label="Internal note (reviewers and admins only)" multiline maxLength={5000} value={notes} onChangeText={(value) => { setNotes(value); setDirty(true); }} />
-          <Text style={uiStyles.cardMeta}>The farmer sees the assessment, a suggested next step and your message. Internal notes are never shown to the farmer.</Text>
+          <Field label="Message to farmer (optional)" multiline maxLength={2000} value={farmerMessage} onChangeText={(value) => { setFarmerMessage(value); setDirty(true); }} placeholder="What should the farmer check or do next?" />
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: showInternalNote }} onPress={() => setShowInternalNote(!showInternalNote)} style={styles.expandButton}><Ionicons name="create-outline" size={18} color={palette.green} /><Text style={styles.expandText}>Internal note (optional)</Text><Ionicons name={showInternalNote ? 'chevron-up' : 'chevron-down'} size={18} color={palette.green} /></Pressable>
+          {showInternalNote ? <Field label="Only agriculturists and admins can see this" multiline maxLength={5000} value={notes} onChangeText={(value) => { setNotes(value); setDirty(true); }} /> : null}
           <ActionButton disabled={busy || Boolean(claimNote) || !choice || (!photoAvailable && choice !== 'cannot_determine')} onPress={submit}>{busy ? 'Saving...' : 'Save assessment'}</ActionButton>
         </View>}
       </>}
@@ -190,6 +185,20 @@ const styles = StyleSheet.create({
   thumb: { width: 66, height: 78, borderRadius: 12, backgroundColor: palette.greenSoft, alignItems: 'center', justifyContent: 'center' },
   photo: { width: '100%', height: 240, borderRadius: 16, backgroundColor: palette.greenSoft },
   farmerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  farmerName: { color: palette.ink, fontSize: 15, fontWeight: '700' },
+  aiResult: { backgroundColor: palette.greenSoft, borderColor: '#c8decf', borderWidth: 1, borderRadius: 18, padding: 18, gap: 7 },
+  aiEyebrow: { color: palette.green, fontSize: 11, fontWeight: '800', letterSpacing: 1.1 },
+  aiDisease: { color: palette.ink, fontSize: 25, lineHeight: 31, fontWeight: '800' },
+  aiConfidence: { color: palette.green, fontSize: 14, fontWeight: '700' },
+  sectionTitle: { color: palette.ink, fontSize: 18, lineHeight: 24, fontWeight: '800' },
+  assessmentResult: { color: palette.green, fontSize: 21, lineHeight: 27, fontWeight: '800' },
+  detailText: { color: palette.ink, fontSize: 14, lineHeight: 21 },
+  contextCard: { backgroundColor: '#f7f9f7', borderRadius: 14, padding: 14, gap: 5 },
+  contextLabel: { color: palette.muted, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
+  contextText: { color: palette.ink, fontSize: 15, lineHeight: 22 },
+  expandButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff' },
+  expandText: { flex: 1, color: palette.green, fontSize: 14, fontWeight: '700' },
+  referenceSection: { gap: 8 },
   photoHint: { color: palette.green, fontSize: 12, fontWeight: '700', textAlign: 'right', marginTop: 4 },
   references: { gap: 9, paddingVertical: 4 },
   referenceCard: { width: 108, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff' },

@@ -1,0 +1,450 @@
+{
+  "version": 2,
+  "sources": {
+    "esguera_2024": {
+      "title": "Overview of the Sigatoka leaf spot complex in banana and its current management",
+      "authors": "Julienne G. Esguera; Mark Angelo Balendres; Diana P. Paguntalan",
+      "year": 2024,
+      "journal_or_institution": "Tropical Plants",
+      "source_type": "review_article",
+      "volume": "3",
+      "issue": null,
+      "pages": "e002",
+      "doi": "10.48130/tp-0024-0001",
+      "reference_url": "https://maxapress.com/article/doi/10.48130/tp-0024-0001",
+      "country_or_region": "Philippines / global review",
+      "peer_reviewed": true,
+      "philippines_specific": true,
+      "publication_date": "2024-01-17",
+      "notes": "Philippine-authored review covering causal organisms, symptoms, spread, environmental factors, and integrated management of the Sigatoka complex."
+    },
+    "pcaarrd_2017": {
+      "title": "Good agricultural practices (GAP) reduces pests and diseases of Lakatan and Cardaba",
+      "authors": "Rose Anne M. Aya; Gretchen O. Nas; DOST-PCAARRD S&T Media Service",
+      "year": 2017,
+      "journal_or_institution": "DOST-PCAARRD",
+      "source_type": "government_guideline",
+      "volume": null,
+      "issue": null,
+      "pages": null,
+      "doi": null,
+      "reference_url": "https://www.pcaarrd.dost.gov.ph/index.php/quick-information-dispatch-qid-articles/good-agricultural-practices-gap-reduces-pests-and-diseases-of-lakatan-and-cardaba",
+      "country_or_region": "Region XII, Philippines",
+      "peer_reviewed": false,
+      "philippines_specific": true,
+      "publication_date": "2017-06-28",
+      "notes": "Philippine government report on banana disease relevance and reductions observed under GAP interventions."
+    },
+    "nozawa_2026": {
+      "title": "Occurrence of Nigrospora spp. as the predominant causal agents of leaf spot disease in Cavendish banana in banana plantations in Mindanao Island, Philippines",
+      "authors": "Shunsuke Nozawa; Yui Harada; Yoshiki Takata; Keiko Uchida; Mike Andre Malonzo; Reynaldo Valle; Sherman M. Chavez; Aniway F. Penalosa; Kyoko Watanabe",
+      "year": 2026,
+      "journal_or_institution": "Scientific Reports",
+      "source_type": "peer_reviewed_article",
+      "volume": "16",
+      "issue": null,
+      "pages": "12619",
+      "doi": "10.1038/s41598-026-37922-z",
+      "reference_url": "https://www.nature.com/articles/s41598-026-37922-z",
+      "country_or_region": "Mindanao, Philippines",
+      "peer_reviewed": true,
+      "philippines_specific": true,
+      "publication_date": "2026-03-08",
+      "notes": "Molecular, morphological, and pathogenicity evidence that Sigatoka-like leaf spots at six Mindanao sites were predominantly associated with Nigrospora species."
+    },
+    "enardecido_2026": {
+      "title": "Histopathology of Cordana musae in the Development of Cordana Leaf Spot Disease in Cardaba and Lakatan Bananas (Musa spp.)",
+      "authors": "Jolina A. Enardecido",
+      "year": 2026,
+      "journal_or_institution": "Philippine Phytopathology",
+      "source_type": "peer_reviewed_article",
+      "volume": "56",
+      "issue": "1-2",
+      "pages": "12-23",
+      "doi": null,
+      "reference_url": "https://philphytopath.org/manuscript/histopathology-of-cordana-musae-in-the-development-of-cordana-leaf-spot-disease-in-cardaba-and-lakatan-bananas-musa-spp/",
+      "country_or_region": "Philippines",
+      "peer_reviewed": true,
+      "philippines_specific": true,
+      "publication_date": "2026-03-18",
+      "notes": "Philippine cultivar-specific histopathology and symptom evidence for Cardaba and Lakatan bananas."
+    },
+    "ploetz_2015": {
+      "title": "Fusarium wilt of banana",
+      "authors": "Randy C. Ploetz",
+      "year": 2015,
+      "journal_or_institution": "Phytopathology",
+      "source_type": "review_article",
+      "volume": "105",
+      "issue": "12",
+      "pages": "1512-1521",
+      "doi": "10.1094/PHYTO-04-15-0101-RVW",
+      "reference_url": "https://apsjournals.apsnet.org/doi/10.1094/PHYTO-04-15-0101-RVW",
+      "country_or_region": "Global review",
+      "peer_reviewed": true,
+      "philippines_specific": false,
+      "publication_date": "2015-11-23",
+      "notes": "Review of Fusarium wilt (Panama disease) symptoms, survival and spread of Fusarium oxysporum f. sp. cubense, tropical race 4, and management limited to exclusion and resistant cultivars."
+    },
+    "solpot_2016": {
+      "title": "Occurrence of Fusarium oxysporum f. sp. cubense tropical race 4 and other genotypes in banana in South-Central Mindanao, Philippines",
+      "authors": "Tamie C. Solpot; Irene B. Pangga; Rowena D. T. Baconguis; Christian Joseph R. Cumagun",
+      "year": 2016,
+      "journal_or_institution": "The Philippine Agricultural Scientist",
+      "source_type": "peer_reviewed_article",
+      "volume": "99",
+      "issue": "4",
+      "pages": "370-378",
+      "doi": null,
+      "reference_url": "https://www.ukdr.uplb.edu.ph/journal-articles/1523/",
+      "country_or_region": "South-Central Mindanao, Philippines",
+      "peer_reviewed": true,
+      "philippines_specific": true,
+      "publication_date": null,
+      "notes": "Molecular detection found Foc TR4 in 25 of 75 isolates (22 confirmed as VCG 01213/16) from North Cotabato, South Cotabato, Sarangani, Davao del Sur and General Santos City, on Lakatan, Cavendish and Latundan."
+    },
+    "fpa_registered_2026": {
+      "title": "Registered pesticide products as of June 30, 2026",
+      "authors": "Philippine Fertilizer and Pesticide Authority",
+      "year": 2026,
+      "journal_or_institution": "Department of Agriculture – Fertilizer and Pesticide Authority",
+      "source_type": "regulatory_document",
+      "volume": null,
+      "issue": null,
+      "pages": null,
+      "doi": null,
+      "reference_url": "https://fpa.da.gov.ph/resources/reports/registered-products/",
+      "country_or_region": "Philippines",
+      "peer_reviewed": false,
+      "philippines_specific": true,
+      "publication_date": "2026-06-30",
+      "notes": "Time-sensitive official registry. Re-check before presenting or acting on any product-specific guidance."
+    },
+    "fpa_banned_restricted": {
+      "title": "List of Banned and Restricted Pesticides",
+      "authors": "Philippine Fertilizer and Pesticide Authority",
+      "year": 2026,
+      "journal_or_institution": "Department of Agriculture – Fertilizer and Pesticide Authority",
+      "source_type": "regulatory_document",
+      "volume": null,
+      "issue": null,
+      "pages": null,
+      "doi": null,
+      "reference_url": "https://fpa.da.gov.ph/resources/reports/list-of-banned-and-restricted-pesticides/",
+      "country_or_region": "Philippines",
+      "peer_reviewed": false,
+      "philippines_specific": true,
+      "publication_date": null,
+      "notes": "Official companion safeguard for checking prohibited or restricted pesticide uses, including restrictions relevant to banana."
+    },
+    "pcaarrd_fusarium_2017": {
+      "title": "S&T Management approaches against Fusarium wilt of 'cavendish' in Mindanao developed",
+      "authors": "Ricardo R. Argana; Gretchen O. Nas; DOST-PCAARRD S&T Media Service",
+      "year": 2017,
+      "journal_or_institution": "DOST-PCAARRD",
+      "source_type": "government_guideline",
+      "volume": null,
+      "issue": null,
+      "pages": null,
+      "doi": null,
+      "reference_url": "https://www.pcaarrd.dost.gov.ph/index.php/quick-information-dispatch-qid-articles/s-t-management-approaches-against-fusarium-wilt-of-cavendish-in-mindanao-developed",
+      "country_or_region": "Mindanao, Philippines",
+      "peer_reviewed": false,
+      "philippines_specific": true,
+      "publication_date": "2017-07-03",
+      "notes": "Philippine field evaluation of seven Giant Cavendish tissue-cultured variants; GCTCV 218 and 219 performed best against Foc TR4, with resistance varying by farm, soil management, soil acidity and inoculum level."
+    },
+    "promusa_tr4": {
+      "title": "Tropical race 4 - TR4",
+      "authors": "ProMusa (Alliance of Bioversity International and CIAT)",
+      "year": 2022,
+      "journal_or_institution": "ProMusa – Musapedia",
+      "source_type": "research_institute",
+      "volume": null,
+      "issue": null,
+      "pages": null,
+      "doi": null,
+      "reference_url": "https://www.promusa.org/Tropical+race+4+-+TR4",
+      "country_or_region": "Global",
+      "peer_reviewed": false,
+      "philippines_specific": false,
+      "publication_date": "2022-03-09",
+      "notes": "Reference page on TR4 spread and farm-level biosecurity (wash-down facilities, access zoning, footwear changes), its resistance to fungicides and soil fumigants, and resistant cultivars including GCTCV variants tested in the Philippines."
+    },
+    "promusa_cordana": {
+      "title": "Cordana leaf spot",
+      "authors": "ProMusa (Alliance of Bioversity International and CIAT)",
+      "year": 2020,
+      "journal_or_institution": "ProMusa – Musapedia",
+      "source_type": "research_institute",
+      "volume": null,
+      "issue": null,
+      "pages": null,
+      "doi": null,
+      "reference_url": "https://www.promusa.org/Cordana+leaf+spot",
+      "country_or_region": "Global",
+      "peer_reviewed": false,
+      "philippines_specific": false,
+      "publication_date": "2020-07-16",
+      "notes": "Reference page on Neocordana species, lesion appearance, invasion of weakened leaves, and enlarged lesions when combined with black leaf streak under humid conditions."
+    },
+    "promusa_bls": {
+      "title": "Black leaf streak",
+      "authors": "ProMusa (Alliance of Bioversity International and CIAT)",
+      "year": 2025,
+      "journal_or_institution": "ProMusa – Musapedia",
+      "source_type": "research_institute",
+      "volume": null,
+      "issue": null,
+      "pages": null,
+      "doi": null,
+      "reference_url": "https://www.promusa.org/Black+leaf+streak",
+      "country_or_region": "Global",
+      "peer_reviewed": false,
+      "philippines_specific": false,
+      "publication_date": "2025-02-20",
+      "notes": "Reference page on black leaf streak (black Sigatoka), including integrated management with deleafing, fungicides, plant nutrition, water management and plant density."
+    }
+  },
+  "articles": [
+    {
+      "slug": "sigatoka-deleafing",
+      "title": "Deleafing: cutting off diseased leaves to slow Sigatoka",
+      "disease": "sigatoka",
+      "topic": "field_care",
+      "summary": "Removing badly spotted and dead leaf tissue is one of the most common things banana farmers do against Sigatoka. Here is why it works and how farmers use it.",
+      "body": "## Why it helps\nSigatoka spreads through spores that form on spotted and dead leaf tissue. Rain, wind and wet leaves carry them to healthy leaves. Removing heavily diseased tissue lowers the number of spores on the farm.\n\nThe Esguera and others review of Sigatoka management lists leaf pruning — removing dead leaf tissue — as a main cultural practice, and notes that early pruning of affected leaves has improved disease control.\n\n[[image:sigatoka-leaf-half-spotted.webp]]\n\n## How farmers do it\n- Check the plants regularly and cut leaves that are mostly dead or covered in spots.\n- When only part of a leaf is affected, some farmers remove just the dead, spotted part and keep the green part working for the plant.\n\n## What to do with the cut leaves\nCut leaves still carry spores. The same review describes spraying fallen leaves with a 10% urea solution, which can reduce spores and make the leaves rot faster. Ask your agriculturist before trying it on your farm.\n\n## Results in Philippine farms\nIn a DOST-PCAARRD study in Region XII, deleafing was part of a package of good agricultural practices for Lakatan and Cardaba. Lakatan farms using the package saw larger reductions in Sigatoka than farms without it: 95% versus 91.57% in Maguindanao, 80.33% versus 68.09% in Cotabato, and 64.77% versus 40.02% in Sultan Kudarat.\n\n## Remember\nDeleafing slows the disease; it does not cure leaves that are already damaged. Combine it with good drainage, nutrition and monitoring.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "esguera_2024",
+        "pcaarrd_2017",
+        "promusa_bls"
+      ],
+      "published_at": "2026-10-05",
+      "images": [
+        {
+          "file": "sigatoka-leaf-half-spotted.webp",
+          "caption": "Black Sigatoka on a banana leaf: one half is covered in dark streaks and yellowing while the other half is still green. Deleafing removes the badly spotted tissue.",
+          "credit": "Plant pests and diseases (Flickr), via Wikimedia Commons",
+          "license": "CC0 1.0",
+          "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Banana-_Black_leaf_streak_(Black_Sigatoka).jpg"
+        }
+      ]
+    },
+    {
+      "slug": "sigatoka-drainage-spacing",
+      "title": "Keep leaves dry: drainage, weeding and spacing",
+      "disease": "sigatoka",
+      "topic": "prevention",
+      "summary": "Sigatoka loves wet, humid farms. Simple field work that lowers humidity makes it harder for the disease to spread.",
+      "body": "## Why humidity matters\nLeaf wetness, rain and high humidity help Sigatoka spores infect leaves and spread. A farm that stays damp for a long time gives the disease more chances.\n\n## What farmers do\nThe Esguera and others review lists these ways to lower humidity inside the plantation:\n- Build and maintain good drainage so water does not stay around the plants.\n- Control weeds regularly, so air can move between the plants.\n- Prevent leaves of neighbouring plants from overlapping too much.\n\nProMusa also lists water management and plant density (how close plants are to each other) as part of an integrated approach against black leaf streak, the black form of Sigatoka.\n\n## Practical tips\n- Clear blocked canals after heavy rain.\n- When planting a new area, ask your agriculturist for a spacing that suits your variety.\n- Remove extra suckers so the mat does not become crowded.\n\n## Remember\nThese steps work best together with deleafing and balanced plant nutrition.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "esguera_2024",
+        "promusa_bls"
+      ],
+      "published_at": "2026-10-05"
+    },
+    {
+      "slug": "balanced-nutrition",
+      "title": "Feed the plant well: nutrition and soil testing",
+      "disease": "sigatoka",
+      "topic": "field_care",
+      "summary": "Well-fed banana plants show less severe Sigatoka. Farmers in the Philippine GAP study fertilized based on soil analysis.",
+      "body": "## Why nutrition helps\nThe Esguera and others review reports that good soil fertility and a balanced supply of nutrients — such as potassium, nitrogen, magnesium, boron and iron — improve general plant health, so the plants show lower disease severity.\n\nProMusa also includes plant nutrition in the integrated management of black leaf streak.\n\n## Fertilize based on soil analysis\nIn the DOST-PCAARRD good agricultural practices study for Lakatan and Cardaba, fertilizer was applied based on soil analysis. Ask your municipal agriculture office where you can have your soil tested.\n\n## Practical tips\n- Do not guess the fertilizer: a soil test shows what your soil is missing.\n- Feed the plants regularly, not only after they look sick.\n\n## Remember\nGood nutrition lowers how badly Sigatoka hurts the plant, but it does not replace deleafing and good drainage.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "esguera_2024",
+        "pcaarrd_2017",
+        "promusa_bls"
+      ],
+      "published_at": "2026-10-05"
+    },
+    {
+      "slug": "sigatoka-fungicides",
+      "title": "Fungicides for Sigatoka: what every farmer should know",
+      "disease": "sigatoka",
+      "topic": "treatment",
+      "summary": "Many farms spray against Sigatoka. Using the wrong product, or the same product again and again, can make sprays stop working.",
+      "body": "## Two kinds of fungicides\nThe Esguera and others review explains that farms use both contact (protectant) fungicides, which protect the leaf surface, and systemic fungicides, which move inside the leaf. The review also notes that protectant fungicides work better when applied as an oil-in-water mixture.\n\n## Sprays can stop working\nThe same review reports that the Sigatoka fungus became resistant to benzimidazole fungicides about 2 to 3 years after they were first used, in places including the Philippines. Resistance to another group (QoI fungicides) was also found in Brazil. Using one product again and again makes this more likely.\n\n## Before you spray\n- Ask your agriculturist which product, rate and schedule fit your farm.\n- Check that the product is registered for banana in the Fertilizer and Pesticide Authority (FPA) list of registered products.\n- Check that it is not on the FPA list of banned and restricted pesticides.\n- Read and follow the approved label every time.\n\n## Remember\nSpraying works best together with deleafing, drainage and good nutrition, not instead of them.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "esguera_2024",
+        "fpa_registered_2026",
+        "fpa_banned_restricted"
+      ],
+      "published_at": "2026-10-05"
+    },
+    {
+      "slug": "sigatoka-natural-options",
+      "title": "Natural and biological options: what research says so far",
+      "disease": "sigatoka",
+      "topic": "research",
+      "summary": "Farmers often ask about natural sprays and helpful microbes. Some show promise in the laboratory, but they are not yet proven on farms.",
+      "body": "## What has been tested\nThe Esguera and others review describes several options studied against the Sigatoka fungus:\n- Trichoderma, a helpful fungus, held back the black Sigatoka fungus in the laboratory about as well as the fungicide azoxystrobin.\n- Bacteria such as Bacillus amyloliquefaciens and a Bacillus subtilis product also held back the fungus in laboratory tests.\n- Some plant extracts and vegetable oils showed strong effects in tests, comparable to the fungicide benomyl.\n- Leaf sprays that feed helpful microbes — for example mixtures with urea, milk and molasses — were reported to increase beneficial bacteria and reduce the number of fungicide sprays.\n\n## What this means for your farm\nMost of these results come from laboratory tests. Laboratory success does not always work the same way in the field. Ask your agriculturist before relying on any of these options, and do not stop proven practices such as deleafing and drainage.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "esguera_2024"
+      ],
+      "published_at": "2026-10-05"
+    },
+    {
+      "slug": "leaf-spot-look-alikes",
+      "title": "Is it really Sigatoka? Leaf spots that look alike",
+      "disease": "sigatoka",
+      "topic": "identification",
+      "summary": "Different fungi can make spots that look like Sigatoka. A Mindanao study found that most Sigatoka-like spots it sampled were caused by another fungus.",
+      "body": "## The Mindanao study\nNozawa and others studied Sigatoka-like leaf spots on Cavendish banana at six sites in Mindanao. Using laboratory tests, they found that most of the spots were caused by Nigrospora fungi, not by the Sigatoka fungus.\n\n## Why it matters\nIf the spots come from a different fungus, a spray chosen for Sigatoka may not help. This is also why DahonMD gives a screening result, not a final diagnosis.\n\n[[image:sigatoka-streaks-closeup.webp]]\n\n## Other look-alikes\n- Cordana leaf spot makes large, pale brown oval spots, often with a yellow ring around them.\n- Spots from different diseases can join together and look the same when they are old.\n\n[[image:cordana-edge-lesion.webp]]\n\n## What to do\n- Scan young spots too, not only old dried ones.\n- Use 'Ask an expert' in DahonMD, or bring a sample leaf to your agriculturist, before choosing a spray.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "nozawa_2026",
+        "esguera_2024",
+        "promusa_cordana"
+      ],
+      "published_at": "2026-10-05",
+      "images": [
+        {
+          "file": "sigatoka-streaks-closeup.webp",
+          "caption": "Close-up of black Sigatoka (black leaf streak): many dark streaks and spots on yellowing tissue, with dead tissue at the leaf edge.",
+          "credit": "Plant pests and diseases (Flickr), via Wikimedia Commons",
+          "license": "CC0 1.0",
+          "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Banana-_Black_leaf_streak_(Black_sigatoka)_-_27615557010.jpg"
+        },
+        {
+          "file": "cordana-edge-lesion.webp",
+          "caption": "Cordana leaf spot: a large pale-brown spot at the leaf edge with faint rings inside, a dark border and a bright yellow halo.",
+          "credit": "Scot Nelson, via Wikimedia Commons",
+          "license": "CC0 1.0",
+          "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Cordana_leaf_spot_by_Cordana_musae.jpg"
+        }
+      ]
+    },
+    {
+      "slug": "panama-farm-hygiene",
+      "title": "Keep Panama disease out: clean boots, tools and planting material",
+      "disease": "panama-disease",
+      "topic": "prevention",
+      "summary": "Panama disease lives in soil for decades and travels on muddy boots, tools, vehicles, water and suckers. Keeping it out is the most important thing a farmer can do.",
+      "body": "## How it spreads\nPloetz's review explains that the fungus survives in the soil for decades. It moves to new places on contaminated tools, farm equipment, clothes, footwear, planting material and irrigation water.\n\n## What farms do\nProMusa describes these farm-level measures used against tropical race 4 (TR4):\n- Wash-down areas where vehicles are cleaned with disinfectant before entering.\n- Separate zones, so vehicles and people from outside do not go into the planted area.\n- Places to change or clean footwear at the boundaries of the farm.\n\n## Simple steps for small farms\n- Clean soil off boots and tools before going from one area to another.\n- Do not let visitors walk into your farm with muddy footwear.\n- Plant only clean suckers or tissue-cultured plantlets from trusted sources.\n- Do not take suckers, soil or plant parts from a farm with Panama disease.\n- Avoid letting water from affected areas flow into clean areas.\n\n## Why this matters in Mindanao\nSolpot and others confirmed TR4 in South-Central Mindanao, including Davao del Sur, on Lakatan, Cavendish and Latundan bananas.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "ploetz_2015",
+        "promusa_tr4",
+        "solpot_2016"
+      ],
+      "published_at": "2026-10-05"
+    },
+    {
+      "slug": "panama-resistant-varieties",
+      "title": "Resistant varieties: GCTCV 218 and 219",
+      "disease": "panama-disease",
+      "topic": "varieties",
+      "summary": "On land where Panama disease is already present, farmers in Mindanao have tried Cavendish variants that resist TR4. Here is what the trials found.",
+      "body": "## Why varieties matter\nOnce Panama disease is in the soil it cannot be removed. Ploetz's review explains that management is mostly limited to keeping the disease out and using resistant varieties where it is already present.\n\n## The Mindanao trials\nA DOST-PCAARRD project evaluated seven Giant Cavendish tissue-cultured variants (GCTCV) against TR4, with Grand Nain and Lakatan for comparison.\n- GCTCV 218 had a strong stem and bunches comparable to Grand Nain.\n- GCTCV 219 was highly resistant to TR4, but some bunches had malformed hands.\n- Farmer-cooperators preferred GCTCV 218 and 219.\n\nProMusa also reports that in a Philippine field trial, only 1% of GCTCV-219 plants showed symptoms in the second crop cycle.\n\n## Important limits\nThe same project found that resistance was site- and farm-specific. It depended on soil management, soil acidity and how much of the fungus was in the soil. Resistant does not mean immune, so farm hygiene is still needed.\n\n## How to get them\nAsk your municipal or provincial agriculturist about clean planting material of resistant varieties suited to your area.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "pcaarrd_fusarium_2017",
+        "promusa_tr4",
+        "ploetz_2015"
+      ],
+      "published_at": "2026-10-05"
+    },
+    {
+      "slug": "panama-sick-plant",
+      "title": "Found a plant with Panama disease? What to do next",
+      "disease": "panama-disease",
+      "topic": "treatment",
+      "summary": "There is no spray that cures Panama disease. What you do in the first days decides whether it spreads to the rest of your farm.",
+      "body": "[[image:panama-stem-streaks.webp]]\n\n\n## No chemical cure\nProMusa states that TR4 cannot be controlled with fungicides and cannot be removed from the soil with fumigants. Ploetz's review also explains that the fungus cannot be eradicated from an area once it is there.\n\n## What to do\n- Report the plant to your municipal or provincial agriculturist so it can be confirmed.\n- Mark the spot and keep people, animals and tools away from it.\n- Do not take suckers, leaves or soil from the plant or the area around it.\n- Clean your boots and tools before going to other parts of the farm.\n- Follow your agriculturist's instructions on how to destroy the plant and isolate the spot.\n\n## Be careful with sellers\nDahonMD does not list any chemical cure for Panama disease. Check any product that claims to cure it against the FPA list of banned and restricted pesticides, and ask your agriculturist first.\n\n## Checking the plant\nYellow, wilting leaves can also come from drought or other problems. Panama disease shows reddish-brown streaks inside the stem, and laboratory tests confirm it.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "promusa_tr4",
+        "ploetz_2015",
+        "fpa_banned_restricted"
+      ],
+      "published_at": "2026-10-05",
+      "images": [
+        {
+          "file": "panama-stem-streaks.webp",
+          "caption": "A cut banana stem (pseudostem) with Panama disease: the water channels inside show dark reddish-brown streaks.",
+          "credit": "Scot Nelson, via Wikimedia Commons",
+          "license": "CC0 1.0",
+          "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Banana_(variety-_Koa_e'_Kea)-_Fusarium_wilt_(Panama_disease).jpg"
+        }
+      ]
+    },
+    {
+      "slug": "cordana-weak-plants",
+      "title": "Cordana leaf spot: a disease of weak leaves",
+      "disease": "cordana-leaf-spot",
+      "topic": "field_care",
+      "summary": "Cordana leaf spot mostly attacks leaves that are already old, stressed, wounded or sick. Keeping plants strong is the main defence.",
+      "body": "## What it looks like\nProMusa describes large, pale brown, oval spots with pale grey rings inside, a dark brown border and a bright yellow halo around them.\n\nIn Philippine studies by Enardecido, the spots looked different between varieties: Cardaba showed smaller oval to long spots, while Lakatan showed small oval spots that grew and changed colour.\n\n[[image:cordana-edge-lesion.webp]]\n\n## When it attacks\nProMusa explains that the fungus often enters at the leaf edge of plants weakened by old age, bad weather, lack of nutrients, wounds, or infections by other diseases. When it occurs together with black Sigatoka, the spots become bigger, especially in humid weather.\n\n## What farmers can do\n- Keep plants well fed (see the article on nutrition).\n- Remove old, dying leaves as part of normal deleafing.\n- Manage Sigatoka well, since the two diseases make each other worse.\n- Avoid wounding leaves during farm work.\n\n## What is not known yet\nProMusa notes that Cordana leaf spot generally has little impact on production. The Philippine study says more research is needed on how well different control measures work, so DahonMD does not recommend a specific spray. Ask your agriculturist if spotting spreads or becomes severe.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "promusa_cordana",
+        "enardecido_2026"
+      ],
+      "published_at": "2026-10-05",
+      "images": [
+        {
+          "file": "cordana-edge-lesion.webp",
+          "caption": "Cordana leaf spot: a large pale-brown spot at the leaf edge with faint rings inside, a dark border and a bright yellow halo.",
+          "credit": "Scot Nelson, via Wikimedia Commons",
+          "license": "CC0 1.0",
+          "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Cordana_leaf_spot_by_Cordana_musae.jpg"
+        }
+      ]
+    },
+    {
+      "slug": "gap-package",
+      "title": "Good agricultural practices that paid off for Lakatan and Cardaba farmers",
+      "disease": "healthy",
+      "topic": "field_care",
+      "summary": "A Philippine study in Region XII showed that a simple package of farm practices reduced pests and diseases and more than doubled yields.",
+      "body": "## The study\nDOST-PCAARRD reported on a study by universities in Region XII (USM, SKSU and CCSPC) on Lakatan and Cardaba farms.\n\n[[image:bagged-bunches-panabo.webp]]\n\n## The practices\nFarmers applied a package of good agricultural practices, including:\n- Fertilizer application based on soil analysis.\n- Desuckering — removing extra suckers.\n- Deleafing — removing diseased and dead leaves.\n- Debelling — removing the male bud after the last hand forms.\n- Fruit bagging.\n- Replanting missing hills.\n\n[[image:fruit-bag-closeup.webp]]\n\n## The results\n- The study reported reductions in Sigatoka, bunchy top, Moko and freckle problems on farms using the package.\n- Lakatan yield increased by 116.21% in Maguindanao.\n- Cardaba yield increased by 135.54% in Cotabato.\n- Return on investment ranged from 156.31% to 437.96% for Lakatan and from 133.69% to 164.74% for Cardaba.\n\n## Remember\nEven if your leaves look healthy now, these practices keep them that way. Keep scanning and checking your plants regularly.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "pcaarrd_2017"
+      ],
+      "published_at": "2026-10-05",
+      "images": [
+        {
+          "file": "bagged-bunches-panabo.webp",
+          "caption": "Rows of banana plants with bagged fruit bunches in a plantation in Panabo City, Davao.",
+          "credit": "Shubert Ciencia, via Wikimedia Commons",
+          "license": "CC BY 2.0",
+          "license_url": "https://creativecommons.org/licenses/by/2.0/",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Banana_Plantation_Panabo_City.jpg"
+        },
+        {
+          "file": "fruit-bag-closeup.webp",
+          "caption": "Fruit bagging: a banana bunch covered with a perforated plastic bag while it grows on the plant.",
+          "credit": "Fairsing, via Wikimedia Commons",
+          "license": "Public domain",
+          "license_url": null,
+          "source_url": "https://commons.wikimedia.org/wiki/File:BananasBlueBagStLucia.jpg"
+        }
+      ]
+    },
+    {
+      "slug": "pesticide-safety-check",
+      "title": "Before you buy a spray: check if it is allowed",
+      "disease": null,
+      "topic": "safety",
+      "summary": "Not every product sold for bananas is registered or legal. Two official FPA lists help you check before you buy or spray.",
+      "body": "## The two lists to check\nThe Fertilizer and Pesticide Authority (FPA) of the Department of Agriculture publishes:\n- The list of registered pesticide products, which shows which products are approved and for which crops.\n- The list of banned and restricted pesticides, which shows products that must not be used or may only be used with limits.\n\n## How to check\n- Find the product name and active ingredient on the label.\n- Look for it in the registered products list and make sure banana is a listed crop.\n- Make sure it is not on the banned and restricted list.\n- The lists change over time, so check again before each new purchase.\n\n## When using a product\n- Follow the approved label for the rate, timing and safety precautions.\n- Ask your agriculturist if you are not sure which product fits your problem.\n\n## Remember\nNo spray cures Panama disease, and DahonMD does not recommend a specific spray for Cordana leaf spot. Be careful with products that promise to cure them.",
+      "authors": "DahonMD editorial team (summary of the cited sources)",
+      "references": [
+        "fpa_registered_2026",
+        "fpa_banned_restricted"
+      ],
+      "published_at": "2026-10-05"
+    }
+  ]
+}

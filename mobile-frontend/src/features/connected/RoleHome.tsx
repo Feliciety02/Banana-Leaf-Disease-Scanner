@@ -4,7 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { TabKey } from '../../app/navigation';
 import type { SessionUser } from '../../services/api';
 import { AdminWorkspace } from './AdminWorkspace';
-import { ReviewerWorkspace } from './ReviewerWorkspace';
+import { AgriculturistWorkspace } from './AgriculturistWorkspace';
 import { palette } from './ui';
 
 type Role = 'admin' | 'agricultural_expert';
@@ -12,7 +12,7 @@ type Shortcut = { tab: TabKey; title: string; detail: string; icon: keyof typeof
 
 const shortcuts: Record<Role, Shortcut[]> = {
   admin: [
-    { tab: 'accounts', title: 'Users', detail: 'Manage farmer and reviewer accounts', icon: 'people-outline' },
+    { tab: 'accounts', title: 'Users', detail: 'Manage farmer and agriculturist accounts', icon: 'people-outline' },
     { tab: 'diagnoses', title: 'Scans', detail: 'Inspect saved diagnoses', icon: 'images-outline' },
     { tab: 'knowledge', title: 'Knowledge', detail: 'Maintain disease records and sources', icon: 'library-outline' },
   ],
@@ -33,7 +33,7 @@ export function RoleHome({ user, role, onNavigate }: { user: SessionUser; role: 
       <Text style={styles.title}>{firstName ? `Welcome, ${firstName}.` : 'Welcome back.'}</Text>
       <Text style={styles.description}>{admin ? 'Monitor the system and manage the people, scans, and knowledge behind DahonMD.' : 'Start with scans waiting for your assessment, then continue with completed reviews and content checks.'}</Text>
     </View>
-    {admin ? <AdminWorkspace section="overview" /> : <ReviewerWorkspace scope="pending" />}
+    {admin ? <AdminWorkspace section="overview" /> : <AgriculturistWorkspace scope="pending" />}
     <View style={styles.shortcuts}>
       {shortcuts[role].map((item) => <Pressable key={item.tab} accessibilityRole="button" onPress={() => onNavigate(item.tab)} style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}>
         <View style={styles.shortcutIcon}><Ionicons name={item.icon} size={20} color={palette.green} /></View>

@@ -27,8 +27,11 @@ export type LocalDiagnosis = {
   model_version: string | null;
   inference_time_ms: number | null;
   image_uri: string | null;
+  image_version?: string | null;
+  pending_seen_version?: number | null;
   farmer_notes: string | null;
   research_consent: number;
+  research_consent_current: number;
   source: 'mobile' | 'web';
   sync_status: LocalSyncStatus;
   last_error: string | null;
@@ -50,8 +53,10 @@ export type RemoteDiagnosis = {
   model_version?: string | null;
   inference_time_ms?: number | null;
   image_url?: string | null;
+  image_version?: string | null;
   farmer_notes?: string | null;
   research_consent?: boolean;
+  research_consent_current?: boolean;
   source?: 'mobile' | 'web';
   sync_uuid?: string | null;
   review?: DiagnosticReview | null;
@@ -71,6 +76,7 @@ export type ReviewStatus =
 
 export type DiagnosticReview = {
   id: number;
+  version?: number;
   review_status: ReviewStatus;
   verified_label: string | null;
   image_quality: string | null;
@@ -81,7 +87,7 @@ export type DiagnosticReview = {
   farmer_seen_at?: string | null;
   farmer_message?: string | null;
   farmer_reply?: string | null;
-  /** Set while a reviewer has the case open; the time their hold ends. */
+  /** Set while an agriculturist has the case open; the time their hold ends. */
   in_progress_until?: string | null;
   reviewer?: { id: number; name: string } | null;
   farmer_follow_up: string | null;
@@ -101,6 +107,7 @@ export function parseDiagnosisReview(raw: string | null): DiagnosticReview | nul
     if (typeof candidate.id !== 'number' || !Number.isInteger(candidate.id) || typeof candidate.review_status !== 'string') return null;
     return {
       id: candidate.id,
+      version: candidate.version ?? 0,
       review_status: candidate.review_status as ReviewStatus,
       verified_label: candidate.verified_label ?? null,
       image_quality: candidate.image_quality ?? null,
@@ -121,7 +128,7 @@ export function parseDiagnosisReview(raw: string | null): DiagnosticReview | nul
 }
 
 const DATABASE_NAME = 'dahonmd-offline.db';
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 7;
 let databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
 export async function initializeLocalDatabase() {
@@ -201,6 +208,19 @@ async function openAndMigrate() {
     await db.execAsync(`
       ALTER TABLE local_diagnoses ADD COLUMN latitude REAL;
       ALTER TABLE local_diagnoses ADD COLUMN longitude REAL;
+      PRAGMA user_version = 5;
+    `);
+  }
+  if (currentVersion < 6) {
+    await db.execAsync(`
+      ALTER TABLE local_diagnoses ADD COLUMN image_version TEXT;
+      ALTER TABLE local_diagnoses ADD COLUMN pending_seen_version INTEGER;
+      PRAGMA user_version = 6;
+    `);
+  }
+  if (currentVersion < 7) {
+    await db.execAsync(`
+      ALTER TABLE local_diagnoses ADD COLUMN research_consent_current INTEGER NOT NULL DEFAULT 0;
       PRAGMA user_version = ${SCHEMA_VERSION};
     `);
   }
@@ -322,7 +342,7 @@ export async function getPendingDeletions(ownerUserId: number, limit = 100) {
 export async function countAccountDiagnoses(ownerUserId: number) {
   const db = await database();
   const row = await db.getFirstAsync<{ total: number; reviewed: number }>(
-    `SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN review_json IS NOT NULL THEN 1 ELSE 0 END), 0) AS reviewed
+    `SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN review_json IS NOT NULL AND json_extract(review_json, '$.review_status') != 'pending' THEN 1 ELSE 0 END), 0) AS reviewed
      FROM local_diagnoses
      WHERE owner_user_id = ? AND sync_status NOT IN ('pending_delete', 'delete_failed')`,
     ownerUserId,
@@ -410,12 +430,27 @@ async function updateMany(localIds: string[], status: LocalSyncStatus, error: st
 export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: number) {
   const db = await database();
   const now = new Date().toISOString();
-  const reviewJson = item.review ? JSON.stringify({ ...item.review, in_progress_until: item.review_in_progress_until ?? null }) : null;
+  const existing = await db.getFirstAsync<LocalDiagnosis>(
+    'SELECT * FROM local_diagnoses WHERE owner_user_id = ? AND (server_id = ? OR (? IS NOT NULL AND sync_uuid = ?))',
+    ownerUserId, item.id, item.sync_uuid ?? null, item.sync_uuid ?? null,
+  );
+  const previousReview = parseDiagnosisReview(existing?.review_json ?? null);
+  const keepLocalSeen = existing?.pending_seen_version != null && previousReview?.farmer_seen_at && existing.pending_seen_version === (item.review?.version ?? 0);
+  const reviewJson = item.review ? JSON.stringify({ ...item.review, farmer_seen_at: keepLocalSeen ? previousReview?.farmer_seen_at : item.review.farmer_seen_at, in_progress_until: item.review_in_progress_until ?? null }) : null;
+  const changedPhoto = Boolean(existing?.image_version && item.image_version && existing.image_version !== item.image_version);
+  // Refresh expiring signed URLs on every pull, but retain an offline device photo
+  // until the server reports a different image version.
+  const imageUri = changedPhoto
+    ? item.image_url ?? null
+    : existing?.image_uri && !/^https?:\/\//i.test(existing.image_uri)
+      ? existing.image_uri
+      : item.image_url ?? existing?.image_uri ?? null;
+  const pendingSeenVersion = keepLocalSeen ? existing?.pending_seen_version ?? null : null;
   if (item.sync_uuid) {
     const updated = await db.runAsync(
       `UPDATE local_diagnoses SET
         server_id = ?, owner_user_id = ?, predicted_class = ?, confidence = ?, model_version = ?,
-        inference_time_ms = ?, image_uri = COALESCE(image_uri, ?), farmer_notes = ?, research_consent = ?,
+        inference_time_ms = ?, image_uri = ?, image_version = ?, pending_seen_version = ?, farmer_notes = ?, research_consent = ?, research_consent_current = ?,
         source = ?, review_json = ?, latitude = ?, longitude = ?,
         sync_status = CASE WHEN sync_status IN ('pending_delete', 'delete_failed', 'failed') THEN sync_status ELSE 'synced' END,
         last_error = CASE WHEN sync_status IN ('pending_delete', 'delete_failed', 'failed') THEN last_error ELSE NULL END,
@@ -427,9 +462,12 @@ export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: 
       item.confidence,
       item.model_version ?? null,
       item.inference_time_ms ?? null,
-      item.image_url ?? null,
+      imageUri,
+      item.image_version ?? null,
+      pendingSeenVersion,
       item.farmer_notes ?? null,
       item.research_consent ? 1 : 0,
+      item.research_consent_current ? 1 : 0,
       item.source ?? 'mobile',
       reviewJson,
       item.location?.latitude ?? null,
@@ -438,24 +476,30 @@ export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: 
       now,
       item.sync_uuid,
     );
-    if (updated.changes > 0) return;
+    if (updated.changes > 0) {
+      if (changedPhoto) removeStoredImage(existing?.image_uri ?? null);
+      return;
+    }
   }
 
   await db.runAsync(
     `INSERT INTO local_diagnoses (
       local_id, sync_uuid, server_id, owner_user_id, predicted_class, confidence, model_version,
-      inference_time_ms, image_uri, farmer_notes, research_consent, source, sync_status, review_json,
+      inference_time_ms, image_uri, image_version, pending_seen_version, farmer_notes, research_consent, research_consent_current, source, sync_status, review_json,
       latitude, longitude, diagnosed_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?, ?, ?)
     ON CONFLICT(server_id) DO UPDATE SET
       owner_user_id = excluded.owner_user_id,
       predicted_class = excluded.predicted_class,
       confidence = excluded.confidence,
       model_version = excluded.model_version,
       inference_time_ms = excluded.inference_time_ms,
-      image_uri = COALESCE(local_diagnoses.image_uri, excluded.image_uri),
+      image_uri = excluded.image_uri,
+      image_version = excluded.image_version,
+      pending_seen_version = excluded.pending_seen_version,
       farmer_notes = excluded.farmer_notes,
       research_consent = excluded.research_consent,
+      research_consent_current = excluded.research_consent_current,
       source = excluded.source,
       review_json = excluded.review_json,
       latitude = excluded.latitude,
@@ -472,9 +516,12 @@ export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: 
     item.confidence,
     item.model_version ?? null,
     item.inference_time_ms ?? null,
-    item.image_url ?? null,
+    imageUri,
+    item.image_version ?? null,
+    pendingSeenVersion,
     item.farmer_notes ?? null,
     item.research_consent ? 1 : 0,
+    item.research_consent_current ? 1 : 0,
     item.source ?? 'web',
     reviewJson,
     item.location?.latitude ?? null,
@@ -483,6 +530,7 @@ export async function upsertRemoteDiagnosis(item: RemoteDiagnosis, ownerUserId: 
     item.created_at ?? now,
     now,
   );
+  if (changedPhoto) removeStoredImage(existing?.image_uri ?? null);
 }
 
 /** Repairs photos hidden by older clients that discarded a valid server image URL. */
@@ -630,7 +678,8 @@ export async function getLocalDiagnosis(localId: string) {
 export async function saveLocalResearchConsent(localId: string, granted: boolean) {
   const db = await database();
   await db.runAsync(
-    'UPDATE local_diagnoses SET research_consent = ?, updated_at = ? WHERE local_id = ?',
+    'UPDATE local_diagnoses SET research_consent = ?, research_consent_current = ?, updated_at = ? WHERE local_id = ?',
+    granted ? 1 : 0,
     granted ? 1 : 0,
     new Date().toISOString(),
     localId,
@@ -648,7 +697,7 @@ export async function countNewReviews(ownerUserId: number) {
   return rows.filter((row) => isNewReview(parseDiagnosisReview(row.review_json))).length;
 }
 
-/** Keeps a copy of a replacement photo sent to the reviewer and shows it for this scan. */
+/** Keeps a copy of a replacement photo sent to the agriculturist and shows it for this scan. */
 export async function replaceLocalDiagnosisImage(localId: string, sourceUri: string) {
   const db = await database();
   const record = await db.getFirstAsync<Pick<LocalDiagnosis, 'image_uri'>>('SELECT image_uri FROM local_diagnoses WHERE local_id = ?', localId);
@@ -675,6 +724,21 @@ export async function saveDiagnosisReview(localId: string, review: DiagnosticRev
     new Date().toISOString(),
     localId,
   );
+}
+
+export async function queueReviewSeen(localId: string, version: number) {
+  const db = await database();
+  await db.runAsync('UPDATE local_diagnoses SET pending_seen_version = ? WHERE local_id = ?', version, localId);
+}
+
+export async function clearQueuedReviewSeen(localId: string, version: number) {
+  const db = await database();
+  await db.runAsync('UPDATE local_diagnoses SET pending_seen_version = NULL WHERE local_id = ? AND pending_seen_version = ?', localId, version);
+}
+
+export async function queuedReviewSeen(ownerUserId: number): Promise<LocalDiagnosis[]> {
+  const db = await database();
+  return db.getAllAsync<LocalDiagnosis>('SELECT * FROM local_diagnoses WHERE owner_user_id = ? AND server_id IS NOT NULL AND pending_seen_version IS NOT NULL', ownerUserId);
 }
 
 export async function applyRemoteDeletion(serverId: number | null, syncUuid?: string | null) {

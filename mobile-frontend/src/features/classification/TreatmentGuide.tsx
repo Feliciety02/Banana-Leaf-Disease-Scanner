@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Image, type ImageSourcePropType, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, type ImageSourcePropType, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { ClassKey } from './types';
+import type { TreatmentGuideContent } from './treatment-data';
 import { ViewableImage } from '../../components/ViewableImage';
 import { localizedTreatment } from '../../i18n/content';
 import { useT } from '../../i18n';
@@ -21,12 +22,14 @@ function isSharpPhoto(source?: ImageSourcePropType) {
 
 /**
  * Treatment for one class, shared by the scan result and the Guide so both say
- * the same thing. Practical steps come first; research products stay folded.
+ * the same thing. Practical steps come first; matching products stay folded.
  */
-export function TreatmentGuide({ classKey, showHeader = true }: { classKey: ClassKey; showHeader?: boolean }) {
+type TreatmentGuideProps = ({ classKey: ClassKey; content?: never } | { classKey?: never; content: TreatmentGuideContent }) & { showHeader?: boolean };
+
+export function TreatmentGuide({ classKey, content, showHeader = true }: TreatmentGuideProps) {
   const { t, language } = useT();
   const [showProducts, setShowProducts] = useState(false);
-  const guide = localizedTreatment(classKey, language);
+  const guide = content ?? localizedTreatment(classKey!, language);
   const isHealthy = classKey === 'healthy';
   return (
     <View style={[styles.section, !showHeader && styles.embedded]}>
@@ -76,13 +79,13 @@ export function TreatmentGuide({ classKey, showHeader = true }: { classKey: Clas
             </View>
             {guide.products.map((product) => (
               <View key={product.name} style={styles.productRow}>
-                {isSharpPhoto(product.image)
+                {product.image && isSharpPhoto(product.image)
                   ? <ViewableImage source={product.image} title={product.name} style={styles.productImage} />
                   : <View style={styles.productImagePlaceholder} accessibilityLabel={product.name}><Ionicons name="flask" size={26} color={colors.green} /></View>}
                 <View style={styles.productCopy}>
                   <Text style={styles.productName}>{product.name}</Text>
                   <Text style={styles.productDescription}>{product.description}</Text>
-                  <Text style={styles.productPrice}>{product.price}</Text>
+                  <Pressable accessibilityRole="link" onPress={() => Linking.openURL(product.sourceUrl)}><Text style={styles.productSource}>{t('guide.checkFpa')}</Text></Pressable>
                 </View>
               </View>
             ))}
@@ -122,5 +125,5 @@ const styles = StyleSheet.create({
   productCopy: { flex: 1, gap: 2 },
   productName: { color: colors.ink, fontSize: 15, fontWeight: '900' },
   productDescription: { color: colors.muted, fontSize: 12, lineHeight: 17 },
-  productPrice: { color: colors.green, fontSize: 15, fontWeight: '900', marginTop: 2 },
+  productSource: { color: colors.green, fontSize: 13, fontWeight: '800', marginTop: 5, textDecorationLine: 'underline' },
 });

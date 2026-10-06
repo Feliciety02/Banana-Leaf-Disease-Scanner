@@ -6,7 +6,7 @@ describe('role navigation transitions', () => {
     expect(landingTab(null)).toBe('scan');
     expect(validTab('home', null)).toBe('scan');
   });
-  it('keeps farmer scans out of reviewer and administrator navigation', () => {
+  it('keeps farmer scans out of agriculturist and administrator navigation', () => {
     for (const role of ['admin', 'agricultural_expert']) {
       const keys = navigationForRole(role).map((item) => item.key);
       expect(keys[0]).toBe('home');

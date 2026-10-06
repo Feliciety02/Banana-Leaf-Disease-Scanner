@@ -18,19 +18,16 @@ describe('treatment guide data contract', () => {
     }
   });
 
-  it('lists three products with prices for sigatoka and cordana', () => {
-    expect(treatmentGuides.sigatoka.products.map((product) => product.name)).toEqual(['Timorex Gold', 'Blindax', 'Sonata']);
-    expect(treatmentGuides['cordana-leaf-spot'].products.map((product) => product.name)).toEqual(['Bordeaux Mix 1%', 'Kupper 500', 'TopCop']);
-    for (const product of [...treatmentGuides.sigatoka.products, ...treatmentGuides['cordana-leaf-spot'].products]) {
-      expect(product.price).toMatch(/^₱[\d,]+$/);
-      expect(product.description).toBeTruthy();
-    }
+  it('shows a banana Sigatoka product with an FPA listing', () => {
+    expect(treatmentGuides.sigatoka.products.map((product) => product.name)).toEqual(['Leader 500 SC']);
+    expect(treatmentGuides.sigatoka.products[0].sourceUrl).toMatch(/fpa-gov\.ph/);
+    expect(treatmentGuides['cordana-leaf-spot'].products).toEqual([]);
   });
 
-  it('labels products as unverified research examples that need an FPA check', () => {
-    expect(PRODUCT_SECTION_TITLE).not.toMatch(/recommended/i);
+  it('labels products plainly and requires a current FPA label check', () => {
+    expect(PRODUCT_SECTION_TITLE).toBe('Products used');
     expect(PRODUCT_SAFETY_NOTICE).toMatch(/Fertilizer and Pesticide Authority/);
-    expect(PRODUCT_SAFETY_NOTICE).toMatch(/not verified/);
+    expect(PRODUCT_SAFETY_NOTICE).toMatch(/Registration and labels can change/);
   });
 
   it('does not advertise products for healthy or panama-disease', () => {
@@ -43,14 +40,6 @@ describe('treatment guide data contract', () => {
     expect(treatmentGuides['cordana-leaf-spot'].leafImage).toBeTruthy();
     expect(treatmentGuides.healthy.leafImage).toBeTruthy();
     expect(treatmentGuides['panama-disease'].leafImage).toBeTruthy();
-  });
-
-  it('bundles a product image for every listed product', () => {
-    for (const classKey of ['sigatoka' as const, 'cordana-leaf-spot' as const]) {
-      for (const product of treatmentGuides[classKey].products) {
-        expect(product.image).toBeTruthy();
-      }
-    }
   });
 
   it('gives every step a short title for the result screen, in both languages', () => {

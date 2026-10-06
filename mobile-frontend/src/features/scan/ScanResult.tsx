@@ -12,7 +12,7 @@ import { ProbabilityRow } from './ProbabilityRow';
 const LOW_CONFIDENCE = 0.7;
 const HIGH_CONFIDENCE = 0.85;
 
-/** How sure the result is, in words a farmer can act on; the exact numbers stay under "More info". */
+/** How sure the result is, in words a farmer can act on, shown next to the headline percentage. */
 export function certaintyLevel(confidence: number): { key: StringKey; tone: 'sure' | 'likely' | 'unsure'; bars: number } {
   if (confidence >= HIGH_CONFIDENCE) return { key: 'result.sure', tone: 'sure', bars: 3 };
   if (confidence >= LOW_CONFIDENCE) return { key: 'result.likely', tone: 'likely', bars: 2 };
@@ -25,16 +25,23 @@ export function ScanResult({ result }: { result: PredictionResult }) {
   const level = certaintyLevel(result.confidence);
   const unsure = level.tone === 'unsure';
   const color = unsure ? '#8a5a00' : '#1e6b47';
+  const percent = Math.round(result.confidence * 100);
 
   return (
     <View style={styles.container}>
       <View style={styles.result}>
-        <Text style={styles.prediction}>{className(result.predictedClass, language)}</Text>
-        <View style={styles.certainty} accessibilityLabel={t(level.key)}>
-          <View style={styles.bars}>
-            {[1, 2, 3].map((bar) => <View key={bar} style={[styles.bar, { height: 6 + bar * 5 }, bar <= level.bars && { backgroundColor: color }]} />)}
+        {/* The percentage leads on the left so it is the first thing a farmer reads. */}
+        <View style={[styles.percentBox, { borderColor: color }]} accessibilityLabel={`${percent}%`}>
+          <Text style={[styles.percent, { color }]} adjustsFontSizeToFit numberOfLines={1}>{percent}%</Text>
+        </View>
+        <View style={styles.resultCopy}>
+          <Text style={styles.prediction}>{className(result.predictedClass, language)}</Text>
+          <View style={styles.certainty} accessibilityLabel={t(level.key)}>
+            <View style={styles.bars}>
+              {[1, 2, 3].map((bar) => <View key={bar} style={[styles.bar, { height: 6 + bar * 5 }, bar <= level.bars && { backgroundColor: color }]} />)}
+            </View>
+            <Text style={[styles.certaintyText, { color }]}>{t(level.key)}</Text>
           </View>
-          <Text style={[styles.certaintyText, { color }]}>{t(level.key)}</Text>
         </View>
       </View>
 
@@ -74,8 +81,11 @@ export function ScanResult({ result }: { result: PredictionResult }) {
 
 const styles = StyleSheet.create({
   container: { gap: 10 },
-  result: { gap: 10, backgroundColor: '#fff', borderColor: palette.border, borderRadius: 14, borderWidth: 1, paddingHorizontal: 18, paddingVertical: 18 },
-  prediction: { color: '#1d3327', fontSize: 26, fontWeight: '800', letterSpacing: -0.4 },
+  result: { flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#fff', borderColor: palette.border, borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 18 },
+  percentBox: { width: 104, height: 104, borderRadius: 52, borderWidth: 4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  percent: { fontSize: 34, fontWeight: '900', letterSpacing: -1 },
+  resultCopy: { flex: 1, gap: 10 },
+  prediction: { color: '#1d3327', fontSize: 24, fontWeight: '800', letterSpacing: -0.4 },
   certainty: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
   bar: { width: 7, borderRadius: 2, backgroundColor: '#dde5e0' },
