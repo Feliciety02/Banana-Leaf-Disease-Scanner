@@ -15,13 +15,13 @@ class ScientificKnowledgeSeeder extends Seeder
     public function run(): void
     {
         // Production receives the same source-audited content, but only as
-        // "researched": a real agricultural reviewer must verify it before it is
+        // "researched": a real agriculturist must verify it before it is
         // published, and records an expert has already worked on are left alone.
         $production = app()->environment('production');
 
         $this->reviewedAt = CarbonImmutable::parse('2026-08-14 00:00:00', 'Asia/Manila');
         $sources = $this->seedSources();
-        $reviewer = $production ? null : User::query()->where('email', 'reviewer@dahonmd.test')->first();
+        $reviewer = $production ? null : User::query()->where('email', 'agriculturist@dahonmd.test')->first();
 
         foreach ($this->diseases() as $record) {
             if ($production && $this->hasExpertWork($record['slug'])) {
@@ -116,7 +116,7 @@ class ScientificKnowledgeSeeder extends Seeder
                 $disease->verifications()->updateOrCreate(
                     ['status' => 'verified', 'expert_id' => $reviewer?->id],
                     [
-                        'notes' => 'Source-audited development baseline imported from the documented research dossier. A qualified agricultural reviewer must independently confirm the content before production publication.',
+                        'notes' => 'Source-audited development baseline imported from the documented research dossier. A qualified agriculturist must independently confirm the content before production publication.',
                         'verified_at' => $this->reviewedAt,
                     ],
                 );

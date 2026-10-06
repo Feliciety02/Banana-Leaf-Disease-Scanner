@@ -101,20 +101,20 @@ PROMPT.$this->verifiedKnowledge();
         ];
         $review = $diagnosis->review;
         if (! $review) {
-            $lines[] = '- No agricultural reviewer has checked this scan.';
+            $lines[] = '- No agriculturist has checked this scan.';
         } elseif ($review->review_status === 'pending') {
             $lines[] = '- An agricultural review was requested and is still waiting.';
         } else {
-            $lines[] = '- Agricultural reviewer outcome: '.str_replace('_', ' ', $review->review_status)
+            $lines[] = '- Agriculturist outcome: '.str_replace('_', ' ', $review->review_status)
                 .($review->verified_label ? ' (verified class: '.str_replace('-', ' ', $review->verified_label).')' : '').'.';
             if ($review->next_steps) {
-                $lines[] = '- Reviewer next steps: '.implode(', ', array_map(fn ($step) => str_replace('_', ' ', $step), $review->next_steps)).'.';
+                $lines[] = '- Agriculturist next steps: '.implode(', ', array_map(fn ($step) => str_replace('_', ' ', $step), $review->next_steps)).'.';
             }
             if ($review->farmer_message) {
-                $lines[] = '- Reviewer message to the farmer: "'.str_replace('"', "'", mb_substr($review->farmer_message, 0, 600)).'"';
+                $lines[] = '- Agriculturist message to the farmer: "'.str_replace('"', "'", mb_substr($review->farmer_message, 0, 600)).'"';
             }
         }
-        $lines[] = 'Explain this result in plain words. A reviewer outcome outweighs the AI result. The AI result alone never confirms a disease.';
+        $lines[] = 'Explain this result in plain words. An agriculturist outcome outweighs the AI result. The AI result alone never confirms a disease.';
 
         return implode("\n", $lines);
     }

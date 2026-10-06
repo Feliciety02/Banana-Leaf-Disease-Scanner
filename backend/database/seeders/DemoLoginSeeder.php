@@ -15,9 +15,14 @@ class DemoLoginSeeder extends Seeder
             throw new \RuntimeException('Demo profiles require the testing environment.');
         }
 
+        // The demo agriculturist used to sign in as reviewer@; keep that account and its review history.
+        User::query()->where('email', 'reviewer@dahonmd.test')
+            ->whereNotExists(fn ($query) => $query->from('users', 'existing')->where('existing.email', 'agriculturist@dahonmd.test'))
+            ->update(['email' => 'agriculturist@dahonmd.test']);
+
         foreach ([
             ['Maria Santos', 'maria.santos@dahonmd.test', 'farmer'],
-            ['Dr. Ana Reyes', 'reviewer@dahonmd.test', 'agricultural_expert'],
+            ['Dr. Ana Reyes', 'agriculturist@dahonmd.test', 'agricultural_expert'],
             ['DahonMD Administrator', 'admin@dahonmd.test', 'admin'],
         ] as [$name, $email, $role]) {
             User::firstOrCreate(['email' => $email], [

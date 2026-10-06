@@ -45,7 +45,7 @@ class ProfileAvatarTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('avatar');
     }
 
-    public function test_only_the_owner_reviewers_and_admins_can_view_a_profile_photo(): void
+    public function test_only_the_owner_agriculturists_and_admins_can_view_a_profile_photo(): void
     {
         Storage::fake('local');
         $farmer = User::factory()->farmer()->create();

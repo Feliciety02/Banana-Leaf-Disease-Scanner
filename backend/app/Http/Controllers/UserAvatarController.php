@@ -11,7 +11,7 @@ class UserAvatarController extends Controller
 {
     /**
      * Profile photos are private. Users see their own; administrators and
-     * agricultural reviewers see the people they manage or review.
+     * agriculturists see the people they manage or review.
      */
     public function __invoke(Request $request, User $user): BinaryFileResponse
     {

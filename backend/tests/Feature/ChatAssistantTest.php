@@ -91,7 +91,7 @@ class ChatAssistantTest extends TestCase
         ]);
         $diagnosis->review()->create([
             'review_status' => 'alternate_class', 'verified_label' => 'panama-disease', 'next_steps' => ['seek_field_inspection'],
-            'notes' => 'internal reviewer note', 'farmer_message' => 'Check the stem base this week.', 'reviewed_at' => now(),
+            'notes' => 'internal agriculturist note', 'farmer_message' => 'Check the stem base this week.', 'reviewed_at' => now(),
         ]);
         Http::fake(['api.groq.test/*' => Http::response(['choices' => [['message' => ['content' => 'Explained.']]]])]);
         $question = ['messages' => [['role' => 'user', 'content' => 'What does my result mean?']], 'diagnosis_id' => $diagnosis->id];
@@ -113,7 +113,7 @@ class ChatAssistantTest extends TestCase
                 && str_contains($context, 'alternate class (verified class: panama disease)')
                 && str_contains($context, 'seek field inspection')
                 && str_contains($context, 'Check the stem base this week.')
-                && ! str_contains($context, 'internal reviewer note')
+                && ! str_contains($context, 'internal agriculturist note')
                 && ! str_contains($context, 'private note')
                 && ! str_contains($context, 'Private Farmer Name')
                 && ! str_contains($context, '7.073');

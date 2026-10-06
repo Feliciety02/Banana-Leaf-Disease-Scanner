@@ -66,7 +66,7 @@ class UserController extends Controller
 
     public function storeExpert(StoreUserRequest $request): JsonResponse
     {
-        return response()->json(['success' => true, 'message' => 'Agricultural reviewer created.', 'data' => new UserResource($this->users->create($request->validated(), User::ROLE_AGRICULTURAL_EXPERT))], 201);
+        return response()->json(['success' => true, 'message' => 'Agriculturist created.', 'data' => new UserResource($this->users->create($request->validated(), User::ROLE_AGRICULTURAL_EXPERT))], 201);
     }
 
     public function update(UpdateUserRequest $request, User $user): JsonResponse
@@ -93,7 +93,7 @@ class UserController extends Controller
         abort_unless($user->isAgriculturalExpert(), 404);
         $user = $this->users->update($user, $request->validated(), User::ROLE_AGRICULTURAL_EXPERT);
 
-        return response()->json(['success' => true, 'message' => 'Agricultural reviewer updated.', 'data' => new UserResource($user)]);
+        return response()->json(['success' => true, 'message' => 'Agriculturist updated.', 'data' => new UserResource($user)]);
     }
 
     public function destroyFarmer(Request $request, User $user): JsonResponse
