@@ -92,14 +92,14 @@ export function FarmerHome({ user, ownerUserId, online, refreshKey = 0, onNaviga
   const pending = items.filter((item) => item.sync_status !== 'synced' && item.sync_status !== 'local_only').length;
   const uncertain = items.filter((item) => item.confidence < LOW_CONFIDENCE && !reviewIsComplete(item)).length;
   const newReviews = items.filter((item) => isNewReview(parseDiagnosisReview(item.review_json))).length;
-  const firstName = user?.name?.trim().split(/\s+/)[0];
+  const fullName = user?.name?.trim().replace(/\s+/g, ' ');
   const signedInFarmer = user?.role === 'farmer';
   const { t, language } = useT();
 
   return (
     <View style={styles.screen}>
       <View style={styles.intro}>
-        <Text style={styles.hello}>{firstName ? t('home.greeting', { name: firstName }) : t('home.welcome')}</Text>
+        <Text style={styles.hello}>{fullName ? t('home.greeting', { name: fullName }) : t('home.welcome')}</Text>
         <Text style={styles.subtitle}>{t('home.subtitle')}</Text>
       </View>
 

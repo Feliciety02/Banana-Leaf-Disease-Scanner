@@ -14,15 +14,32 @@ import { ActionButton, Field, ModalSheet, Notice, formatDate, palette, titleCase
 type Revision = { review_status: string; verified_label: string | null; farmer_message?: string | null; farmer_reply?: string | null; reviewed_at?: string | null; reviewer?: { name: string } | null };
 type Review = { version: number; review_status: string; verified_label: string | null; image_quality: string; next_steps: string[]; notes?: string; farmer_message?: string | null; farmer_reply?: string | null; reviewed_at?: string; reviewer?: { name: string }; revisions?: Revision[] };
 type ReviewCase = { id: number; predicted_class: string; confidence: number; diagnosed_at: string; image_url: string | null; farmer_notes: string | null; research_consent?: boolean; review_claim?: { user?: { id: number; name: string } | null; expires_at: string } | null; user?: { name: string; avatar_url?: string | null }; review?: Review | null };
-type ReviewChoice = ClassKey | 'cannot_determine' | 'possible_outside_supported_classes';
+type ReviewChoice = ClassKey | 'cannot_determine' | 'field_or_laboratory_required' | 'possible_outside_supported_classes';
 const choices: { value: ReviewChoice; label: string }[] = [
   { value: 'sigatoka', label: CLASS_DISPLAY_NAMES.sigatoka },
   { value: 'panama-disease', label: CLASS_DISPLAY_NAMES['panama-disease'] },
   { value: 'cordana-leaf-spot', label: CLASS_DISPLAY_NAMES['cordana-leaf-spot'] },
   { value: 'healthy', label: 'No supported disease visible' },
   { value: 'cannot_determine', label: 'Cannot determine from this photo' },
+  { value: 'field_or_laboratory_required', label: 'Field or laboratory check needed' },
   { value: 'possible_outside_supported_classes', label: 'Looks like another condition' },
 ];
+const messageTemplates = [
+  { id: 'blurry', label: 'Photo is blurry', message: 'The photo is blurry. Please take a clearer photo in daylight with the affected leaf in focus.' },
+  { id: 'poor_light', label: 'Photo is too dark', message: 'The photo is too dark to assess. Please take another photo in even daylight.' },
+  { id: 'field', label: 'Ask for a field inspection', message: 'Please ask your local agriculture office to check the plant in person.' },
+  { id: 'monitor', label: 'Monitor the plant', message: 'Please check the plant over the next few days and take a new photo if the symptoms spread.' },
+  { id: 'healthy', label: 'No disease visible', message: 'I do not see a supported disease in this photo. Continue checking the plant for new symptoms.' },
+  { id: 'missing', label: 'Photo did not arrive', message: 'The scan photo did not arrive. Please send a new clear photo so I can assess the leaf.' },
+] as const;
+type MessageChoice = typeof messageTemplates[number]['id'] | 'none' | 'other';
+function availableMessageTemplates(choice: ReviewChoice | '', photoAvailable: boolean) {
+  if (!photoAvailable) return messageTemplates.filter((template) => template.id === 'missing' || template.id === 'field');
+  if (choice === 'cannot_determine') return messageTemplates.filter((template) => template.id === 'blurry' || template.id === 'poor_light' || template.id === 'field');
+  if (choice === 'field_or_laboratory_required') return messageTemplates.filter((template) => template.id === 'field' || template.id === 'blurry' || template.id === 'poor_light');
+  if (choice === 'healthy') return messageTemplates.filter((template) => template.id === 'healthy' || template.id === 'field');
+  return messageTemplates.filter((template) => template.id === 'field' || template.id === 'monitor' || template.id === 'blurry' || template.id === 'poor_light');
+}
 function choiceFor(item: ReviewCase): ReviewChoice | '' {
   const review = item.review;
   if (!review || review.review_status === 'pending') return '';
@@ -30,7 +47,7 @@ function choiceFor(item: ReviewCase): ReviewChoice | '' {
     const value = review.verified_label || item.predicted_class;
     return CLASS_KEYS.includes(value as ClassKey) ? value as ClassKey : '';
   }
-  if (review.review_status === 'cannot_determine' || review.review_status === 'possible_outside_supported_classes') return review.review_status;
+  if (review.review_status === 'cannot_determine' || review.review_status === 'field_or_laboratory_required' || review.review_status === 'possible_outside_supported_classes') return review.review_status;
   return '';
 }
 
@@ -43,6 +60,8 @@ export function AgriculturistWorkspace({ scope = 'pending' }: { scope?: 'pending
   const [choice, setChoice] = useState<ReviewChoice | ''>('');
   const [notes, setNotes] = useState('');
   const [farmerMessage, setFarmerMessage] = useState('');
+  const [messageChoice, setMessageChoice] = useState<MessageChoice>('none');
+  const [messageMenuOpen, setMessageMenuOpen] = useState(false);
   const [photoFailed, setPhotoFailed] = useState(false);
   const [reference, setReference] = useState<ClassKey | null>(null);
   const [showReferences, setShowReferences] = useState(false);
@@ -83,7 +102,12 @@ export function AgriculturistWorkspace({ scope = 'pending' }: { scope?: 'pending
       const detail = (await api<ReviewCase>(`/expert/diagnosis-reviews/${item.id}`)).data;
       setSelected(detail); setChoice(choiceFor(detail)); setPhotoFailed(false);
       setShowReferences(false); setShowInternalNote(Boolean(detail.review?.notes));
-      setNotes(detail.review?.notes ?? ''); setFarmerMessage(detail.review?.farmer_message ?? ''); setDirty(false);
+      setNotes(detail.review?.notes ?? '');
+      const savedMessage = detail.review?.farmer_message ?? '';
+      setFarmerMessage(savedMessage);
+      setMessageChoice(savedMessage ? messageTemplates.find((template) => template.message === savedMessage)?.id ?? 'other' : 'none');
+      setMessageMenuOpen(false);
+      setDirty(false);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open this scan.'); }
     finally { setBusy(false); }
   };
@@ -93,18 +117,21 @@ export function AgriculturistWorkspace({ scope = 'pending' }: { scope?: 'pending
     else setSelected(null);
   };
   const submit = async () => {
-    if (!selected || busy || !choice || ((!selected.image_url || photoFailed) && choice !== 'cannot_determine')) return;
+    if (!selected || busy || !choice || (messageChoice === 'other' && !farmerMessage.trim()) || ((!selected.image_url || photoFailed) && choice !== 'cannot_determine')) return;
     setBusy(true); setError('');
     try {
       const isClass = CLASS_KEYS.includes(choice as ClassKey);
       const reviewStatus = isClass ? choice === selected.predicted_class ? 'confirmed' : 'alternate_class' : choice;
+      const unclearPhoto = messageChoice === 'blurry' || messageChoice === 'poor_light' || choice === 'cannot_determine';
       await api(`/expert/diagnosis-reviews/${selected.id}`, { method: 'PUT', body: JSON.stringify({
         expected_review_version: selected.review?.version ?? 0,
         review_status: reviewStatus,
         verified_label: reviewStatus === 'alternate_class' ? choice : null,
-        image_quality: choice === 'cannot_determine' ? 'insufficient_image' : 'good',
-        next_steps: choice === 'cannot_determine' ? ['retake_photo', 'seek_field_inspection']
-          : choice === 'possible_outside_supported_classes' || choice === 'panama-disease' ? ['seek_field_inspection'] : ['monitor_plant'],
+        image_quality: messageChoice === 'blurry' ? 'blurry' : messageChoice === 'poor_light' ? 'poor_lighting' : choice === 'cannot_determine' ? 'insufficient_image' : 'good',
+        next_steps: [
+          ...(unclearPhoto ? ['retake_photo'] : []),
+          ...(choice === 'cannot_determine' || choice === 'field_or_laboratory_required' || choice === 'possible_outside_supported_classes' || choice === 'panama-disease' ? ['seek_field_inspection'] : ['monitor_plant']),
+        ],
         notes: notes.trim() || null,
         farmer_message: farmerMessage.trim() || null,
       }) });
@@ -168,11 +195,24 @@ export function AgriculturistWorkspace({ scope = 'pending' }: { scope?: 'pending
           {claimNote ? <Notice tone="warning">{claimNote}</Notice> : null}
           <Text style={styles.sectionTitle}>Your assessment</Text>
           <Text style={uiStyles.cardMeta}>Choose what you can see in the submitted photo.</Text>
-          {choices.filter((option) => photoAvailable || option.value === 'cannot_determine').map((option) => <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: choice === option.value }} onPress={() => { setChoice(option.value); setDirty(true); }} style={[styles.choice, choice === option.value && styles.choiceSelected]}><Ionicons name={choice === option.value ? 'radio-button-on' : 'radio-button-off'} size={21} color={palette.green} /><Text style={styles.choiceText}>{option.label}</Text></Pressable>)}
-          <Field label="Message to farmer (optional)" multiline maxLength={2000} value={farmerMessage} onChangeText={(value) => { setFarmerMessage(value); setDirty(true); }} placeholder="What should the farmer check or do next?" />
+          {choices.filter((option) => photoAvailable || option.value === 'cannot_determine').map((option) => <Pressable key={option.value} accessibilityRole="radio" accessibilityState={{ checked: choice === option.value }} onPress={() => { if (choice !== option.value) { setMessageChoice('none'); setFarmerMessage(''); } setChoice(option.value); setDirty(true); }} style={[styles.choice, choice === option.value && styles.choiceSelected]}><Ionicons name={choice === option.value ? 'radio-button-on' : 'radio-button-off'} size={21} color={palette.green} /><Text style={styles.choiceText}>{option.label}</Text></Pressable>)}
+          <Text style={styles.sectionTitle}>Message to farmer</Text>
+          <Text style={uiStyles.cardMeta}>Choose a suggested response, or write your own.</Text>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: messageMenuOpen }} onPress={() => setMessageMenuOpen((open) => !open)} style={styles.messageSelect}>
+            <Text style={styles.messageSelectText}>{messageChoice === 'none' ? 'Choose a response (optional)' : messageChoice === 'other' ? 'Other — write your own' : messageTemplates.find((template) => template.id === messageChoice)?.label}</Text>
+            <Ionicons name={messageMenuOpen ? 'chevron-up' : 'chevron-down'} size={20} color={palette.green} />
+          </Pressable>
+          {messageMenuOpen && <View style={styles.messageOptions}>
+            {([
+              { id: 'none', label: 'No extra message', message: '' },
+              ...availableMessageTemplates(choice, photoAvailable),
+              { id: 'other', label: 'Other — write your own', message: '' },
+            ] as { id: MessageChoice; label: string; message: string }[]).map((option) => <Pressable key={option.id} accessibilityRole="button" accessibilityState={{ selected: messageChoice === option.id }} onPress={() => { setMessageChoice(option.id); setFarmerMessage(option.message); setMessageMenuOpen(false); setDirty(true); }} style={[styles.messageOption, messageChoice === option.id && styles.messageOptionSelected]}><Text style={styles.choiceText}>{option.label}</Text>{messageChoice === option.id ? <Ionicons name="checkmark" size={18} color={palette.green} /> : null}</Pressable>)}
+          </View>}
+          {messageChoice === 'other' ? <Field label="Your message to the farmer" multiline maxLength={2000} value={farmerMessage} onChangeText={(value) => { setFarmerMessage(value); setDirty(true); }} placeholder="What should the farmer check or do next?" /> : farmerMessage ? <Text style={styles.messagePreview}>{farmerMessage}</Text> : null}
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: showInternalNote }} onPress={() => setShowInternalNote(!showInternalNote)} style={styles.expandButton}><Ionicons name="create-outline" size={18} color={palette.green} /><Text style={styles.expandText}>Internal note (optional)</Text><Ionicons name={showInternalNote ? 'chevron-up' : 'chevron-down'} size={18} color={palette.green} /></Pressable>
           {showInternalNote ? <Field label="Only agriculturists and admins can see this" multiline maxLength={5000} value={notes} onChangeText={(value) => { setNotes(value); setDirty(true); }} /> : null}
-          <ActionButton disabled={busy || Boolean(claimNote) || !choice || (!photoAvailable && choice !== 'cannot_determine')} onPress={submit}>{busy ? 'Saving...' : 'Save assessment'}</ActionButton>
+          <ActionButton disabled={busy || Boolean(claimNote) || !choice || messageChoice === 'other' && !farmerMessage.trim() || (!photoAvailable && choice !== 'cannot_determine')} onPress={submit}>{busy ? 'Saving...' : 'Save assessment'}</ActionButton>
         </View>}
       </>}
     </ModalSheet>
@@ -208,6 +248,12 @@ const styles = StyleSheet.create({
   choice: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: '#fff' },
   choiceSelected: { borderColor: palette.green, backgroundColor: palette.greenSoft },
   choiceText: { flex: 1, color: palette.ink, fontSize: 14, fontWeight: '600' },
+  messageSelect: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#bad0c2', borderRadius: 12, backgroundColor: '#fff' },
+  messageSelectText: { flex: 1, color: palette.ink, fontSize: 15, fontWeight: '700' },
+  messageOptions: { gap: 4, padding: 5, borderWidth: 1, borderColor: palette.border, borderRadius: 12, backgroundColor: '#fff' },
+  messageOption: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, borderRadius: 9 },
+  messageOptionSelected: { backgroundColor: palette.greenSoft },
+  messagePreview: { color: palette.ink, fontSize: 14, lineHeight: 21, padding: 12, borderRadius: 12, backgroundColor: palette.greenSoft },
   claimed: { color: '#b45a09', fontSize: 12, fontWeight: '700', marginTop: 2 },
   status: { color: palette.green, fontWeight: '700', fontSize: 13, marginTop: 6 },
 });

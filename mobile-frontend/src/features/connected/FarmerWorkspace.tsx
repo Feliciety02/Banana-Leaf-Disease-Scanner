@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Switch, Text, View } from 'react-native';
 
-import { deleteAccount, listResearchPhotos, removeResearchPhoto, privacyPolicyUrl, type ResearchPhoto, type SessionUser } from '../../services/api';
+import { deleteAccount, listResearchPhotos, removeResearchPhoto, privacyPolicyUrl, updateResearchPreference, type ResearchPhoto, type SessionUser } from '../../services/api';
 import { synchronizeDiagnoses, uploadUnsentPhotos } from '../../services/diagnosisSync';
 import { claimLocalOnlyDiagnoses, countAccountDiagnoses, countLocalOnlyDiagnoses, countPendingDiagnoses, deleteLocalAccountData, subscribeToLocalDiagnosisChanges } from '../../storage/localDiagnoses';
 import { EmailVerificationNotice, ListGroup, ListRow, ProfileHeader } from './AccountUI';
@@ -22,6 +22,7 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
   const [removeResearchCopies, setRemoveResearchCopies] = useState(false);
   const [researchPhotos, setResearchPhotos] = useState<ResearchPhoto[]>([]);
   const [researchTarget, setResearchTarget] = useState<ResearchPhoto | null>(null);
+  const [researchBusy, setResearchBusy] = useState(false);
   const [claimOpen, setClaimOpen] = useState(false);
   const [signOutPending, setSignOutPending] = useState<number | null>(null);
   const [totals, setTotals] = useState({ total: 0, reviewed: 0 });
@@ -55,6 +56,18 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
     } finally {
       setSyncing(false);
     }
+  };
+  const changeResearchPreference = async (enabled: boolean) => {
+    setResearchBusy(true); setError('');
+    try {
+      onUser(await updateResearchPreference(enabled));
+      await synchronizeDiagnoses(user.id).catch(() => undefined);
+      setResearchPhotos(await listResearchPhotos());
+      onChanged();
+      setMessage(t(enabled ? 'account.researchTurnedOn' : 'account.researchTurnedOff'));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : t('account.researchUpdateFailed'));
+    } finally { setResearchBusy(false); }
   };
   // Automatic synchronization changes the local records; keep the totals current.
   useEffect(() => {
@@ -185,6 +198,7 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
     <ProfileEditor user={user} onUser={onUser} />
     <ProfilePhotoModal visible={photoOpen} user={user} onUser={onUser} onClose={() => setPhotoOpen(false)} />
     <ListGroup title={t('account.privacy')}>
+      <View style={{ padding: 16, gap: 8 }}><Text style={{ fontWeight: '700' }}>{t('account.researchSharing')}</Text><Text>{t('account.researchSharingText')}</Text><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Switch accessibilityLabel={t('account.researchSharing')} value={Boolean(user.research_photo_consent)} disabled={researchBusy} onValueChange={(value) => { void changeResearchPreference(value); }} /><Text style={{ flex: 1 }}>{t(user.research_photo_consent ? 'account.researchOn' : 'account.researchOff')}</Text></View></View>
       <ListRow first icon="image-outline" title={t('account.scanPhotos')} subtitle={t('account.scanPhotosText')} />
       <ListRow icon="flask-outline" title={t('account.researchPhotos')} subtitle={t('account.researchPhotosText', { count: researchPhotos.filter((photo) => !photo.revoked_at).length })} onPress={() => listResearchPhotos().then(setResearchPhotos).catch(() => setError(t('account.researchPhotoFailed')))} />
       {researchPhotos.filter((photo) => !photo.revoked_at || photo.file_removal_pending).map((photo) => <ListRow key={photo.id} icon="close-circle-outline" title={`#${photo.id} · ${photo.verified_label.replaceAll('-', ' ')}`} subtitle={t(photo.file_removal_pending ? 'account.retryResearchPhoto' : 'account.removeResearchPhoto')} danger onPress={() => setResearchTarget(photo)} />)}

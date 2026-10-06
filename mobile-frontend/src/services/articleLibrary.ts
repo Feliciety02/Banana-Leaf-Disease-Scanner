@@ -78,6 +78,30 @@ export function imageLineFile(line: string): string | null {
   return IMAGE_LINE.exec(line.trim())?.[1].trim() ?? null;
 }
 
+export type InlineSpan = { text: string; bold: boolean; italic: boolean };
+
+const INLINE_MARK = /(\*{1,3})([^*\s](?:[^*]*[^*\s])?)\1/g;
+
+/** Splits one line of article text on "**bold**", "*italic*" and "***both***" marks. */
+export function parseInline(text: string): InlineSpan[] {
+  const spans: InlineSpan[] = [];
+  let last = 0;
+  for (const match of text.matchAll(INLINE_MARK)) {
+    const index = match.index ?? 0;
+    if (index > last) spans.push({ text: text.slice(last, index), bold: false, italic: false });
+    const marks = match[1].length;
+    spans.push({ text: match[2], bold: marks >= 2, italic: marks !== 2 });
+    last = index + match[0].length;
+  }
+  if (last < text.length) spans.push({ text: text.slice(last), bold: false, italic: false });
+  return spans;
+}
+
+/** The text of a "1. step" line, or null for any other line. */
+export function numberedLineText(line: string): string | null {
+  return /^\d+[.)]\s+(.*)$/.exec(line)?.[1] ?? null;
+}
+
 /** Bundled photo, else the copy saved on the phone, else the server address. */
 export function articleImageSource(photo: ArticleImage) {
   if (BUNDLED_LIBRARY_IMAGES[photo.file]) return BUNDLED_LIBRARY_IMAGES[photo.file];

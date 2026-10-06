@@ -8,7 +8,7 @@ import { palette } from '../connected/ui';
 import { className } from '../../i18n/content';
 import { useT, type Language, type StringKey } from '../../i18n';
 import { ViewableImage } from '../../components/ViewableImage';
-import { ARTICLE_TOPICS, articleImageSource, imageLineFile, loadSavedLibrary, refreshLibrary, searchArticles, type ArticleImage, type ArticleTopic, type LibraryArticle, type LibraryFilter, type LibrarySnapshot } from '../../services/articleLibrary';
+import { ARTICLE_TOPICS, articleImageSource, imageLineFile, loadSavedLibrary, numberedLineText, parseInline, refreshLibrary, searchArticles, type ArticleImage, type ArticleTopic, type LibraryArticle, type LibraryFilter, type LibrarySnapshot } from '../../services/articleLibrary';
 
 type DiseaseFilter = LibraryFilter['diseaseKey'];
 
@@ -140,26 +140,40 @@ function ArticleReader({ article, onBack }: { article: LibraryArticle; onBack: (
   );
 }
 
-/** Renders "## Heading", "- bullet", "[[image:<file>]]" and plain paragraph lines. */
+/** One line of text with its **bold** and *italic* parts styled. */
+function InlineText({ text }: { text: string }) {
+  return <>{parseInline(text).map((span, index) => span.bold || span.italic
+    ? <Text key={index} style={[span.bold && styles.bold, span.italic && styles.italic]}>{span.text}</Text>
+    : span.text)}</>;
+}
+
+/** Renders "## Heading", "- bullet", "1. step", "[[image:<file>]]" and plain paragraph lines. */
 export function ArticleBody({ body, images = [] }: { body: string; images?: ArticleImage[] }) {
   const lines = body.split('\n').map((line) => line.trim()).filter(Boolean);
+  let number = 0;
   return (
     <View style={styles.body}>
       {lines.map((line, index) => {
+        const numbered = numberedLineText(line);
+        number = numbered === null ? 0 : number + 1;
         const file = imageLineFile(line);
         if (file) {
           const photo = images.find((item) => item.file === file);
           return photo ? <ArticlePhoto key={index} photo={photo} /> : null;
         }
-        if (line.startsWith('## ')) return <Text key={index} style={styles.heading2}>{line.slice(3)}</Text>;
-        if (line.startsWith('- ')) return <View key={index} style={styles.bullet}><Text style={styles.bulletDot}>•</Text><Text style={[styles.bodyText, styles.bulletText]}>{line.slice(2)}</Text></View>;
-        return <Text key={index} style={styles.bodyText}>{line}</Text>;
+        if (line.startsWith('## ')) return <Text key={index} style={styles.heading2}><InlineText text={line.slice(3)} /></Text>;
+        if (line.startsWith('- ')) return <View key={index} style={styles.bullet}><Text style={styles.bulletDot}>•</Text><Text style={[styles.bodyText, styles.bulletText]}><InlineText text={line.slice(2)} /></Text></View>;
+        if (numbered !== null) return <View key={index} style={styles.bullet}><Text style={[styles.bodyText, styles.numberMark]}>{number}.</Text><Text style={[styles.bodyText, styles.bulletText]}><InlineText text={numbered} /></Text></View>;
+        return <Text key={index} style={styles.bodyText}><InlineText text={line} /></Text>;
       })}
     </View>
   );
 }
 
-/** An article photo at its own shape, with caption, credit and license; tap to view full screen. */
+/**
+ * An article photo narrower than the screen, with caption, credit and license.
+ * Tall photos are cropped to a square here; tap to see the whole photo.
+ */
 function ArticlePhoto({ photo }: { photo: ArticleImage }) {
   const { t } = useT();
   const source = articleImageSource(photo);
@@ -175,7 +189,7 @@ function ArticlePhoto({ photo }: { photo: ArticleImage }) {
   const credit = t('library.photoCredit', { credit: photo.credit, license: photo.license });
   return (
     <View style={styles.figure}>
-      <ViewableImage source={source as ImageSourcePropType} title={photo.caption} style={[styles.photo, { aspectRatio }]} resizeMode="cover" />
+      <ViewableImage source={source as ImageSourcePropType} title={photo.caption} style={[styles.photo, { aspectRatio: Math.min(2, Math.max(1, aspectRatio)) }]} resizeMode="cover" />
       <Text style={styles.caption}>{photo.caption}</Text>
       {photo.source_url
         ? <Pressable accessibilityRole="link" onPress={() => { Linking.openURL(photo.source_url as string).catch(() => undefined); }} hitSlop={6}><Text style={[styles.credit, styles.creditLink]}>{credit}</Text></Pressable>
@@ -221,9 +235,12 @@ const styles = StyleSheet.create({
   bodyText: { color: '#3c4c43', fontSize: 15, lineHeight: 22 },
   bulletText: { flex: 1 },
   bullet: { flexDirection: 'row', gap: 8, paddingLeft: 4 },
+  numberMark: { minWidth: 18, color: palette.green, fontWeight: '800' },
+  bold: { fontWeight: '800' },
+  italic: { fontStyle: 'italic' },
   bulletDot: { color: palette.green, fontSize: 15, lineHeight: 22, fontWeight: '800' },
   cover: { width: '100%', height: 150, borderRadius: 10, backgroundColor: '#edf1ee', marginBottom: 2 },
-  figure: { gap: 5, marginVertical: 4 },
+  figure: { width: '85%', maxWidth: 360, alignSelf: 'center', gap: 5, marginVertical: 6 },
   photo: { width: '100%', borderRadius: 12, backgroundColor: '#edf1ee' },
   caption: { color: '#3c4c43', fontSize: 13, lineHeight: 18 },
   credit: { color: palette.muted, fontSize: 11, lineHeight: 15 },

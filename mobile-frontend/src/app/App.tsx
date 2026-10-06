@@ -20,6 +20,7 @@ import { ConnectedWorkspace } from '../features/connected/ConnectedWorkspace';
 import { HeaderLanguagePicker } from '../features/connected/AccountUI';
 import { AuthModal, AuthMode } from '../features/connected/AuthModal';
 import { ServerAddress } from '../features/connected/ServerAddress';
+import { ConnectionQrScanner } from '../features/connected/ConnectionQrScanner';
 import { ActionButton, ModalCard, palette } from '../features/connected/ui';
 import { FarmerHome } from '../features/farmer/FarmerHome';
 import { GuideScreen } from '../features/guide/GuideScreen';
@@ -65,6 +66,7 @@ export default function App() {
   const [connectionNoticeOpen, setConnectionNoticeOpen] = useState(false);
   const connectionNoticeOpacity = useRef(new Animated.Value(0)).current;
   const [connectionOpen, setConnectionOpen] = useState(false);
+  const [connectionScannerOpen, setConnectionScannerOpen] = useState(false);
   const [resumeTab, setResumeTab] = useState<TabKey | null>(null);
   const [historyTarget, setHistoryTarget] = useState<string | null>(null);
   const [chatResume, setChatResume] = useState(0);
@@ -75,13 +77,24 @@ export default function App() {
   const [guideTarget, setGuideTarget] = useState<{ key: number; classKey: ClassKey } | null>(null);
   const openGuide = (classKey: ClassKey) => { setGuideTarget((current) => ({ key: (current?.key ?? 0) + 1, classKey })); setTab('guide'); };
   const retryConnection = async () => {
+    if (checkingConnection) return;
+    if (!online) {
+      setInfo({ title: t('connection.offlineTitle'), message: t('connection.turnOnInternet') });
+      return;
+    }
     setCheckingConnection(true);
-    try { await checkConnection(); stored(); } catch { /* Banner remains actionable. */ }
+    try {
+      await checkConnection();
+      stored();
+    } catch {
+      setConnectionNoticeOpen(false);
+      setConnectionScannerOpen(true);
+    }
     finally { setCheckingConnection(false); }
   };
   useEffect(() => subscribeConnection(setServerUnavailable), []);
   useEffect(() => { setConnectionNoticeOpen(serverUnavailable); }, [serverUnavailable]);
-  const showConnectionNotice = serverUnavailable && connectionNoticeOpen && !authMode && !connectionOpen;
+  const showConnectionNotice = serverUnavailable && connectionNoticeOpen && !authMode && !connectionOpen && !connectionScannerOpen;
   useEffect(() => {
     if (!showConnectionNotice) return;
     Animated.timing(connectionNoticeOpacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
@@ -253,7 +266,7 @@ export default function App() {
           <FadeIn trigger={tab}>
           {tab === 'home' && sessionUser?.role === 'farmer' && <FarmerHome user={sessionUser} ownerUserId={sessionUser.id} online={online} refreshKey={historyRefresh} onNavigate={navigate} />}
           {tab === 'home' && sessionUser && (sessionUser.role === 'admin' || sessionUser.role === 'agricultural_expert') && <RoleHome user={sessionUser} role={sessionUser.role} onNavigate={navigate} />}
-          {tab === 'scan' && <ScanScreen onDirtyChange={onDirtyChange} onOpenHistory={openHistory} onOpenGuide={openGuide} user={sessionUser ?? null} onStored={stored} modelStatus={modelStatus} />}
+          {tab === 'scan' && <ScanScreen onDirtyChange={onDirtyChange} onSignIn={() => openAuth('login')} onOpenGuide={openGuide} user={sessionUser ?? null} onStored={stored} modelStatus={modelStatus} />}
           {tab === 'history' && <LocalHistory onDirtyChange={onDirtyChange} focusId={historyTarget} onSignIn={!sessionUser ? () => openAuth('login') : undefined} ownerUserId={sessionUser?.role === 'farmer' ? sessionUser.id : null} refreshKey={historyRefresh} onChanged={stored} onOpenGuide={openGuide} onAskAssistant={sessionUser?.role === 'farmer' ? (diagnosisId, label) => setChatScan((current) => ({ key: (current?.key ?? 0) + 1, diagnosisId, label })) : undefined} />}
           {tab === 'guide' && <GuideScreen key={guideTarget?.key ?? 0} initialClass={guideTarget?.classKey ?? null} onScrollTop={() => pageScroll.current?.scrollTo({ y: 0, animated: false })} />}
           {sessionUser?.role === 'agricultural_expert' && tab === 'reviewed' && <AgriculturistWorkspace scope="reviewed" />}
@@ -279,6 +292,16 @@ export default function App() {
         </View>
         {(!sessionUser || sessionUser.role === 'farmer') && <ChatAssistant resumeKey={chatResume} scanTopic={chatScan} user={sessionUser} onSignIn={() => { setResumeChat(true); openAuth('login'); }} />}
         <AuthModal mode={authMode} onClose={() => { setAuthMode(null); setResumeChat(false); }} onMode={setAuthMode} onConnection={() => setConnectionOpen(true)} onAuthenticated={authenticated} />
+        <ConnectionQrScanner visible={connectionScannerOpen} onClose={() => setConnectionScannerOpen(false)} onSettings={() => { setConnectionScannerOpen(false); setConnectionOpen(true); }} onConnect={async (server) => {
+          const changed = currentServerUrl() !== server;
+          await setServerUrl(server);
+          const user = await restoreSession();
+          setSessionUser(user);
+          setConnectionScannerOpen(false);
+          setInfo({ title: t('connection.connectedTitle'), message: t(changed ? 'connection.connectedNew' : 'connection.connectedAgain') });
+          setHistoryRefresh((value) => value + 1);
+          if (user?.role === 'farmer') void synchronizeDiagnoses(user.id).then(() => setHistoryRefresh((value) => value + 1)).catch(() => undefined);
+        }} />
         <ModalCard visible={connectionOpen} title="Connection settings" onClose={() => setConnectionOpen(false)}>
           <ServerAddress onChanged={() => { void restoreSession().then(setSessionUser); setConnectionOpen(false); }} />
         </ModalCard>

@@ -118,45 +118,10 @@ export async function markReviewSeen(localId: string): Promise<void> {
   }
 }
 
-/**
- * Records research consent for a synchronized scan, then uploads the device
- * photo so agriculturists can consider it for a research dataset.
- */
-export async function shareScanForResearch(localId: string): Promise<{ imageUploaded: boolean }> {
-  const record = await syncedRecord(localId);
-  await api(`/diagnoses/${record.server_id}/research-consent`, { method: 'POST' });
-  await saveLocalResearchConsent(localId, true);
-
-  const image = localImageFile(record);
-  if (!image) return { imageUploaded: false };
-  try {
-    await uploadImage(record.sync_uuid as string, image, 'research');
-    return { imageUploaded: true };
-  } catch (error) {
-    throw new Error(`Sharing is on, but the photo was not sent: ${messageOf(error)} Use "Send photo" in History to try again.`);
-  }
-}
-
 export async function withdrawScanResearchConsent(localId: string): Promise<void> {
   const record = await syncedRecord(localId);
   await api(`/diagnoses/${record.server_id}/research-consent`, { method: 'DELETE' });
   await saveLocalResearchConsent(localId, false);
-}
-
-/**
- * Consent chosen on the result screen. A scan that has not synced yet keeps
- * the choice locally; synchronization sends it and uploads the photo.
- */
-export async function setScanResearchConsent(localId: string, granted: boolean): Promise<void> {
-  const record = await getLocalDiagnosis(localId);
-  if (!record) throw new Error('This saved scan could not be found.');
-  if (record.server_id && record.sync_status === 'synced') {
-    if (granted) await shareScanForResearch(localId);
-    else await withdrawScanResearchConsent(localId);
-    return;
-  }
-  if (record.sync_status === 'syncing') throw new Error('This scan is uploading right now. Try again in a moment.');
-  await saveLocalResearchConsent(localId, granted);
 }
 
 /**
@@ -192,7 +157,7 @@ function localImageFile(record: LocalDiagnosis): { uri: string; type: string; na
   return { uri, type, name: `scan-${record.sync_uuid ?? record.local_id}.${fileExtension}` };
 }
 
-async function uploadImage(syncUuid: string, image: { uri: string; type: string; name: string }, purpose: 'review' | 'research' | 'sync') {
+async function uploadImage(syncUuid: string, image: { uri: string; type: string; name: string }, purpose: 'review' | 'sync') {
   await uploadFile(`/sync/${syncUuid}/image`, image.uri, { fieldName: 'image', mimeType: image.type, parameters: { purpose } });
 }
 

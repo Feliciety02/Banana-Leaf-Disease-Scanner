@@ -87,7 +87,6 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
             inference_time_ms: item.inference_time_ms,
             farmer_notes: item.farmer_notes,
             diagnosed_at: item.diagnosed_at,
-            research_consent: Boolean(item.research_consent),
             source: 'mobile',
             ...(item.latitude != null && item.longitude != null ? { latitude: item.latitude, longitude: item.longitude } : {}),
             ...predictionDetails(item),

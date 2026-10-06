@@ -10,6 +10,7 @@ import { ScanImage } from '../../components/ScanImage';
 import { ViewableScanImage } from '../../components/ViewableImage';
 import { MapLink } from '../../components/MapLink';
 import { UserAvatar } from '../../components/UserAvatar';
+import { ArticlesScreen } from './AdminArticles';
 import { ActionButton, Choice, ConfirmSheet, Empty, Field, formatDate, Loading, ModalSheet, Notice, palette, SectionHeader, titleCase, Toggle, uiStyles } from './ui';
 
 type ManagedUser = SessionUser & { created_at?: string; diagnoses_count?: number; last_activity_at?: string };
@@ -49,16 +50,16 @@ type ResearchSource = {
 function messageOf(error: unknown) { return error instanceof Error ? error.message : 'The request could not be completed.'; }
 
 export function AdminWorkspace({ section }: { section: 'overview' | 'accounts' | 'diagnoses' | 'knowledge' }) {
-  const [knowledgeTab, setKnowledgeTab] = useState<'diseases' | 'sources'>('diseases');
+  const [knowledgeTab, setKnowledgeTab] = useState<'diseases' | 'articles' | 'sources'>('diseases');
   return <View style={styles.workspace}>
     {section === 'overview' && <OverviewScreen />}
     {section === 'accounts' && <AccountsScreen />}
     {section === 'diagnoses' && <DiagnosesScreen />}
     {section === 'knowledge' && <>
       <View accessibilityRole="tablist" style={styles.segment}>
-        {(['diseases', 'sources'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: knowledgeTab === item }} onPress={() => setKnowledgeTab(item)} style={[styles.segmentItem, knowledgeTab === item && styles.segmentActive]}><Text style={[styles.segmentText, knowledgeTab === item && styles.segmentTextActive]}>{item === 'diseases' ? 'Disease records' : 'Research sources'}</Text></Pressable>)}
+        {(['diseases', 'articles', 'sources'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: knowledgeTab === item }} onPress={() => setKnowledgeTab(item)} style={[styles.segmentItem, knowledgeTab === item && styles.segmentActive]}><Text style={[styles.segmentText, knowledgeTab === item && styles.segmentTextActive]}>{item === 'diseases' ? 'Diseases' : item === 'articles' ? 'Articles' : 'Sources'}</Text></Pressable>)}
       </View>
-      {knowledgeTab === 'diseases' ? <DiseasesScreen /> : <SourcesScreen />}
+      {knowledgeTab === 'diseases' ? <DiseasesScreen /> : knowledgeTab === 'articles' ? <ArticlesScreen /> : <SourcesScreen />}
     </>}
   </View>;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -10,11 +10,15 @@ import { checkBananaLeafPhoto, LEAF_GATE_BLOCKING } from '../classification/leaf
 import { shortSteps } from '../../i18n/content';
 import { useT } from '../../i18n';
 import type { ClassKey } from '../classification/types';
-import { saveLocalDiagnosis, type ModelComparisonEntry } from '../../storage/localDiagnoses';
+import { claimLocalOnlyDiagnoses, getLocalDiagnosis, saveLocalDiagnosis, type ModelComparisonEntry } from '../../storage/localDiagnoses';
+import { synchronizeDiagnoses } from '../../services/diagnosisSync';
+import { requestAgriculturalReview } from '../../services/diagnosisReview';
+import { askToNotifyAboutReviews } from '../../services/reviewNotifications';
 import type { SessionUser } from '../../services/api';
 import type { PredictionResult } from '../../types/prediction';
 import type { ModelStatusState } from '../status/modelStatus';
 import { ImageViewer } from '../../components/ImageViewer';
+import { ScanLocationControl } from '../../components/ScanLocationControl';
 import { ViewableImage } from '../../components/ViewableImage';
 import { SelectedImagePreview } from './SelectedImagePreview';
 import { ImageSelector } from './ImageSelector';
@@ -44,7 +48,7 @@ function toComparisonEntry(result: InferenceResult): ModelComparisonEntry {
   };
 }
 
-export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenGuide, onDirtyChange }: { onDirtyChange: (dirty: boolean) => void; onOpenHistory: (id?: string) => void; onOpenGuide: (classKey: ClassKey) => void; user: SessionUser | null; onStored: () => void; modelStatus: ModelStatusState }) {
+export function ScanScreen({ user, onStored, modelStatus, onSignIn, onOpenGuide, onDirtyChange }: { onDirtyChange: (dirty: boolean) => void; onSignIn: () => void; onOpenGuide: (classKey: ClassKey) => void; user: SessionUser | null; onStored: () => void; modelStatus: ModelStatusState }) {
   const { t, language } = useT();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [photoIssues, setPhotoIssues] = useState<ImageQualityIssue[] | null>(null);
@@ -57,6 +61,10 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenG
   const savedIdRef = useRef<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reviewOpinion, setReviewOpinion] = useState('');
+  const [requestingReview, setRequestingReview] = useState(false);
+  const [reviewRequested, setReviewRequested] = useState(false);
+  const [reviewError, setReviewError] = useState('');
   const saveInput = useRef<Parameters<typeof saveLocalDiagnosis>[0] | null>(null);
   const retrySave = async () => {
     if (!saveInput.current || saving || savedIdRef.current) return;
@@ -69,7 +77,7 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenG
     finally { setSaving(false); }
   };
   const scanIdRef = useRef(0);
-  useEffect(() => { onDirtyChange(Boolean(imageUri && !savedId)); return () => onDirtyChange(false); }, [imageUri, savedId, onDirtyChange]);
+  useEffect(() => { onDirtyChange(Boolean(imageUri && !savedId || reviewOpinion.trim() && !reviewRequested)); return () => onDirtyChange(false); }, [imageUri, savedId, reviewOpinion, reviewRequested, onDirtyChange]);
 
   // 'prototype' only means no server is configured; the on-device model still runs.
   const modelReady = modelStatus.status === 'real' || modelStatus.status === 'prototype';
@@ -83,6 +91,7 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenG
     setPhase('scan');
     setSaveError('');
     setModelError('');
+    setReviewOpinion(''); setReviewRequested(false); setReviewError(''); setRequestingReview(false);
     savedIdRef.current = null; setSavedId(null); setSaving(false); saveInput.current = null;
   };
 
@@ -183,6 +192,27 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenG
   const resultPrediction: InferenceResult | null = result;
   const enhanced: PredictionResult | null = resultPrediction ? toPredictionResult(resultPrediction) : null;
 
+  const askExpert = async () => {
+    if (!savedId || user?.role !== 'farmer' || requestingReview || reviewRequested) return;
+    setRequestingReview(true);
+    setReviewError('');
+    try {
+      // A guest can sign in from this result without visiting History.
+      await claimLocalOnlyDiagnoses(user.id, savedId);
+      await synchronizeDiagnoses(user.id);
+      // A background sync may have started before this scan was saved.
+      if ((await getLocalDiagnosis(savedId))?.sync_status !== 'synced') await synchronizeDiagnoses(user.id);
+      await requestAgriculturalReview(savedId, reviewOpinion);
+      setReviewRequested(true);
+      void askToNotifyAboutReviews();
+      onStored();
+    } catch (error) {
+      setReviewError(`${t('result.askFailed')}${error instanceof Error ? ` ${error.message}` : ''}`);
+    } finally {
+      setRequestingReview(false);
+    }
+  };
+
   if (phase === 'result' && result && enhanced) {
     const retake = result.confidence < 0.7 || (photoIssues?.length ?? 0) > 0;
     const healthy = result.classKey === 'healthy';
@@ -213,11 +243,9 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenG
           </View>
         </View>
         {retake && photoIssues?.length ? <ImageQualityNotice issues={photoIssues} /> : null}
-
-        <View style={styles.actions}>
-          <ActionButton icon="camera-outline" variant={retake ? 'primary' : 'secondary'} disabled={saving} onPress={() => { reset(); setCameraOpen(true); }}>{retake ? t('result.retake') : t('result.another')}</ActionButton>
-          {farmer && savedId && !healthy && <ActionButton icon="person-outline" variant={retake ? 'secondary' : 'primary'} onPress={() => onOpenHistory(savedId)}>{t('result.askExpert')}</ActionButton>}
-        </View>
+        {retake && <View style={styles.actions}>
+          <ActionButton icon="camera-outline" disabled={saving} onPress={() => { reset(); setCameraOpen(true); }}>{t('result.retake')}</ActionButton>
+        </View>}
 
         {saveError ? (
           <View style={styles.actions}>
@@ -227,15 +255,29 @@ export function ScanScreen({ user, onStored, modelStatus, onOpenHistory, onOpenG
             </View>
             <ActionButton variant="secondary" disabled={saving} onPress={retrySave}>{t('result.retrySave')}</ActionButton>
           </View>
-        ) : (
-          <View style={styles.savedRow}>
-            {saving ? <ActivityIndicator size="small" color={palette.muted} /> : <Ionicons name="checkmark-circle" size={16} color={palette.success} />}
-            <Text style={styles.savedText}>{saving ? t('result.saving') : farmer ? t('result.savedHistory') : t('result.savedPhone')}</Text>
-            {savedId && !saving ? <Pressable accessibilityRole="button" onPress={() => onOpenHistory(savedId)}><Text style={styles.savedLink}>{t('result.open')}</Text></Pressable> : null}
-          </View>
-        )}
+        ) : null}
 
-        <Text style={styles.footer}>{t('result.research')}</Text>
+        {(farmer || !user) && <View style={styles.reviewRequest}>
+          <Text style={styles.reviewTitle}>{reviewRequested ? t('result.requestSent') : t('result.askExpert')}</Text>
+          {reviewRequested ? <>
+            <Text style={styles.reviewHelp}>{t('result.requestSentText')}</Text>
+          </> : <>
+            <Text style={styles.reviewHelp}>{t('result.opinionPrompt')}</Text>
+            <TextInput accessibilityLabel={t('result.opinionPrompt')} style={styles.reviewInput} multiline textAlignVertical="top" maxLength={1000} placeholder={t('history.explainPlaceholder')} placeholderTextColor="#788a7e" value={reviewOpinion} onChangeText={setReviewOpinion} />
+            {!farmer ? <Text style={styles.reviewHelp}>{t('result.signInToAsk')}</Text> : null}
+            {reviewError ? <Text style={styles.errorText}>{reviewError}</Text> : null}
+            <ActionButton icon="person-outline" disabled={saving || requestingReview || !savedId} onPress={() => { if (farmer) void askExpert(); else onSignIn(); }}>{requestingReview ? t('history.sending') : saveError ? t('result.saveFirst') : saving || !savedId ? t('result.saving') : t('result.askExpert')}</ActionButton>
+          </>}
+        </View>}
+
+        {savedId && <View style={styles.reviewRequest}>
+          <Text style={styles.reviewTitle}>{t('result.locationTitle')}</Text>
+          <ScanLocationControl key={savedId} localId={savedId} onChanged={onStored} />
+        </View>}
+
+        {!retake && <View style={styles.actions}>
+          <ActionButton icon="camera-outline" variant="secondary" disabled={saving} onPress={() => { reset(); setCameraOpen(true); }}>{t('result.another')}</ActionButton>
+        </View>}
 
         <ImageViewer uri={imageUri} visible={viewerVisible} onClose={() => setViewerVisible(false)} />
       </View>
@@ -324,9 +366,6 @@ const styles = StyleSheet.create({
   guideLink: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, marginTop: 2 },
   guideLinkText: { color: palette.green, fontSize: 15, fontWeight: '800' },
   actions: { gap: 10 },
-  savedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  savedText: { color: palette.muted, fontSize: 13, fontWeight: '600' },
-  savedLink: { color: palette.green, fontSize: 13, fontWeight: '800', paddingHorizontal: 6, paddingVertical: 8 },
   dim: { opacity: 0.65 },
   errorCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, borderRadius: 10, backgroundColor: '#fff0ee', padding: 12 },
   rejectCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderRadius: 12, backgroundColor: '#fff0ee', borderWidth: 1, borderColor: '#efc2bd', padding: 14 },
@@ -339,5 +378,8 @@ const styles = StyleSheet.create({
   nextCopy: { flex: 1, gap: 5 },
   nextTitle: { color: palette.ink, fontSize: 17, fontWeight: '800' },
   nextText: { color: '#405e4a', fontSize: 14, lineHeight: 21 },
-  footer: { color: '#89918c', fontSize: 11, textAlign: 'center', fontWeight: '600', marginTop: 4 },
+  reviewRequest: { gap: 10, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#cfe0d6', backgroundColor: '#f3f8f4' },
+  reviewTitle: { color: palette.ink, fontSize: 18, fontWeight: '800' },
+  reviewHelp: { color: '#405e4a', fontSize: 14, lineHeight: 20 },
+  reviewInput: { minHeight: 94, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#bad0c2', backgroundColor: '#fff', color: palette.ink, fontSize: 15, lineHeight: 21 },
 });
