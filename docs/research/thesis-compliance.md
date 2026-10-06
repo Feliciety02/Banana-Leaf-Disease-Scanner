@@ -33,6 +33,53 @@
 
 ---
 
+## Optional connected review and data provenance
+
+The editable [complete user-flow diagram](../diagrams/dahonmd-complete-user-flows.drawio)
+maps interactions for guests, farmers, agriculturists, and administrators across
+mobile and web. Its detailed pages trace offline scanning, account and session
+transitions, connected review, sync recovery, privacy controls, content
+publication, administrator oversight, exception recovery, and record visibility.
+
+This workflow follows a local scan and does not change requirements 14–17 or
+the pending Android device acceptance test. A signed-in farmer can sync a scan
+and private photo, request agricultural review, and see the final verdict beside
+the original AI result. The admin record shows the same verdict. A revision
+requires the current review version and a reason; prior completed assessments
+remain in an audit trail. Mobile can queue the review-seen acknowledgement
+offline and refresh a replaced photo when its image version changes.
+
+Research-image consent is a separate action; email verification is required
+when that server policy is enabled. A nominated image can be approved only
+while consent is active and the latest review is determinate with good image
+quality. Approval saves a separate private research copy and locks subsequent
+review changes. The copy survives scan or account deletion unless the farmer
+withdraws consent or chooses to remove research copies during account deletion.
+Staff removal requires a recorded reason. Withdrawal removes the private file,
+marks its candidate rejected, and keeps an audit record. Existing v1 consent
+must be renewed for v2 before a new copy can be approved. Farmer follow-up
+moves an unapproved candidate to `uncertain`. Nomination or approval does not
+itself add an image to model training data.
+Earlier approved candidates have no backfilled research file; a farmer must
+renew consent and staff must make a new approval decision for a retained copy.
+
+The optional web API marks a saved prediction `prediction_verified` only when
+an unexpired server-issued inference receipt matches the photo, class,
+confidence, and model. Client-reported mobile results are not server-attested;
+this label is about provenance, not whether the phone's local model ran.
+Server model analytics exclude unverified predictions. None of these review or
+provenance controls establish diagnostic accuracy or replace locked-test and
+physical-device evidence.
+
+Source evidence: `backend/app/Services/ExpertReviewService.php`,
+`backend/app/Services/DatasetCandidateService.php`,
+`backend/app/Services/InferenceReceiptService.php`,
+`backend/app/Repositories/DashboardRepository.php`,
+`mobile-frontend/src/services/diagnosisSync.ts`, and
+`mobile-frontend/src/storage/localDiagnoses.ts`.
+
+---
+
 ## Conclusion
 
 **SOURCE CONTRACT IMPLEMENTED — RELEASE NOT VERIFIED**

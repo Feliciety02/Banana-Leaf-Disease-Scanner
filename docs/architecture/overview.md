@@ -16,9 +16,10 @@ The primary classification path runs entirely on the Android device and does
 not require an Internet connection, account, centralized backend, or central
 database. After a genuine local prediction, the application stores history in
 app-private files and Expo SQLite. Signed-in users may optionally synchronize
-diagnosis metadata with the Laravel/Eloquent relational store; image upload is
-separate and consent-gated. These connected features are downstream of
-classification and never provide or replace the model result.
+diagnosis metadata with the Laravel/Eloquent relational store and upload a
+private photo for shared history and agricultural review. Research use of that
+photo requires separate, explicit consent. These connected features are
+downstream of classification and never provide or replace the model result.
 
 The research pipeline is separate from mobile inference. Python,
 TensorFlow/Keras, and a ResNet-101 teacher support self-supervised learning and
@@ -106,6 +107,25 @@ React web client
 7. Server upserts and soft-delete tombstones are applied to Expo SQLite and browser IndexedDB, making web-created, reviewed, deleted, and other-device records converge.
 8. Mobile reconnect listeners sync immediately. Expo BackgroundTask also requests best-effort periodic work under platform network and battery constraints.
 
-Prediction metadata synchronizes by default. Leaf images are uploaded only through the separate consent-gated image endpoint.
+Prediction metadata synchronizes by default for signed-in farmers. Photo upload
+is a separate private endpoint; it supports shared history and expert review.
+The farmer's research consent controls research nomination and approval, not
+ordinary private photo upload. A completed expert assessment is stored apart
+from the original AI prediction. It appears in farmer history after sync and in
+the admin record; mobile queues a review-seen acknowledgement while offline.
+When a reviewed candidate is approved under current v2 consent, the server
+copies the photo into private research storage and records its hash, label,
+consent, approver, and time. This record has no cascading link to its source
+scan or account. Scan deletion removes the normal photo; account deletion
+offers a choice to keep or revoke approved copies. Farmers can revoke a copy
+while signed in, even after deleting the scan. Staff can revoke with a reason.
+The file is removed and the audit row retained after revocation.
+
+For optional web screening, `/api/inference` can return a short-lived encrypted
+receipt tied to the uploaded image, class, confidence, and model. The server
+checks that receipt when saving the scan and records `prediction_verified`.
+Mobile and other client-reported results remain unverified by the server even
+when they came from a genuine local model. Model-performance summaries use only
+server-verified predictions; operational review counts can include all scans.
 
 See `docs/archive/audits/architecture-audit-2026-08-28.md` for the historical evidence table, workflow trace, limitations, and test record.

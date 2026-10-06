@@ -15,8 +15,9 @@ The following release blockers are handled in the repository:
 - Production connected features reject a non-HTTPS API URL.
 - Auth tokens are stored in Expo SecureStore.
 - Signed-in farmers can permanently delete their account in the app. Account
-  deletion removes server records, tokens, stored server images, and the
-  account-linked local history and image copies.
+  deletion removes server records, tokens, normal scan images, and the
+  account-linked local history and image copies. A separately approved private
+  research copy remains unless the farmer selects its removal option.
 - The app links to public privacy and web account-deletion pages from both the
   signed-out and signed-in workspace.
 - The readiness script checks these controls and refuses to build without the
@@ -48,7 +49,8 @@ PENDING EXPERIMENTAL VALIDATION: final FP32 TFLite model is not bundled.
    `EXPO_PUBLIC_ACCOUNT_DELETION_URL`.
 4. Exercise registration, login, password reset/email delivery, sync, logout,
    in-app deletion, and web deletion against the production service. Confirm
-   deleted image objects are no longer present in storage.
+   deleted scan images are no longer present in storage. Test both account
+   deletion choices for separately approved research copies and audit records.
 5. Back up the production database and uploaded-file storage, document restore
    ownership, and configure uptime/error monitoring without logging passwords,
    bearer tokens, or uploaded image bodies.

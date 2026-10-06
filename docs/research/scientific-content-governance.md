@@ -8,8 +8,10 @@ combines Black- and Yellow-source presentations and does not claim subtype
 identification. Generic Sigatoka images without sufficient provenance remain
 outside the training root pending expert review. The Panama training folder has
 42 readable source-labeled leaf candidates, but agricultural-expert review and
-scientific content verification remain outstanding. Existing artifacts stay
-blocked until both models are retrained under the new contract.
+scientific content verification remain outstanding. The current FP32 student
+artifact is trained and bundled under the four-class contract; these remaining
+source-label and content checks must not be presented as completed expert
+validation of the field images.
 
 The deployed model's four-entry JSON label map is tracked at
 `backend/resources/models/label_map.json` and used by default; set
@@ -41,3 +43,28 @@ All chemical management items must set `regulatory_check_required`. They remain 
 ## Public result rule
 
 Uncertain results show retry guidance and no disease-specific management. Healthy output says only that no supported disease pattern was strongly detected. Farmer guidance comes only from verified records. All results retain the screening disclaimer and image-only limitations.
+
+## Connected agricultural review and research images
+
+The original AI result stays visible and unchanged. An agriculturist records a
+separate current verdict, farmer-facing message, image quality, and next steps.
+The verdict syncs to the farmer and appears in the administrator's diagnosis
+view. Internal notes and revision history are staff-only. A reviewer saving an
+assessment supplies the version they opened; changing a completed assessment
+requires a reason and preserves the previous version. An approved dataset
+candidate locks later review revisions.
+
+A private photo may be uploaded for shared history and review without research
+consent. Research nomination requires a retained photo, active consent, and a
+completed review. Approval additionally requires a current `confirmed` or
+`alternate_class` verdict and `good` image quality. The approver cannot be the
+nominator. Consent withdrawal blocks approval while consent is inactive;
+farmer follow-up marks an unapproved candidate `uncertain`. Approval creates a
+separate private research copy and locks later review edits. Deleting the scan
+or account does not remove that copy by default. Farmers can revoke consent
+while signed in, including after deleting the scan; account deletion offers
+an option to remove every approved copy. Staff can remove a copy with a recorded
+reason. Revocation marks the candidate rejected and deletes the private file,
+while retaining the audit record. The new copy requires consent version `v2`;
+older consent must be renewed. Approval is an intake decision, not automatic
+inclusion in a training set.
