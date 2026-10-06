@@ -1,12 +1,10 @@
-# DahonMD Database — Complete Source for the Data Dictionary and Data Model
+# DahonMD Database — September 2026 Dictionary Snapshot and Current Additions
 
-> **For the AI assistant reading this file:** everything you need to write the
-> **Data Dictionary (document)** and draw the **Data Model (diagram)** is in this
-> file. It was generated from the real database: a fresh database was built from
-> every migration in the project on 2026-09-29 and its structure was read back
-> column by column, so the names, types, keys, nullability and defaults below are
-> exact. **Do not invent, rename, merge or drop tables or fields.** Section 1
-> tells you exactly what to produce.
+> **Scope:** Sections 1–12 document the schema inspected on 2026-09-29. They are
+> a historical snapshot, not a complete current schema or final submission
+> template. Later migrations added review audit, claims, provenance, location,
+> article library, and mobile cache fields. Use Section 13 and the current
+> Laravel migrations / `localDiagnoses.ts` before drawing a current data model.
 
 ---
 
@@ -24,6 +22,7 @@
 10. [Ready-to-use ER diagram (Mermaid)](#10-ready-to-use-er-diagram-mermaid)
 11. [Drawing the diagram in Draw.io / Lucidchart / MySQL Workbench](#11-drawing-the-diagram-in-other-tools)
 12. [Quick-reference counts and checklist](#12-quick-reference-counts-and-checklist)
+13. [Current schema additions after the September snapshot](#13-current-schema-additions-after-the-september-snapshot)
 
 ---
 
@@ -46,7 +45,7 @@ Rules:
 - **Allow Null** — exactly `Yes` or `No`.
 - **Description** — one short, plain-English sentence stating the purpose. Mention the default value and allowed values when they exist (see Section 8).
 - Start each table with a one-line **table description** (given in this file).
-- Include **all 20 server tables** and the **2 mobile tables**. The 8 framework/security tables (Section 5) can be placed in a separate section titled "Framework and security tables", but must not be left out.
+- For the September snapshot, include its **20 server tables** and **2 mobile tables**. A current deliverable must also include the later tables and columns in Section 13.
 - Keep the order used in this file. Use the table name exactly as written (lowercase with underscores).
 - Add a short **front section**: purpose of the database, DBMS (SQLite in development; MySQL-compatible types), naming conventions (Section 3), and a legend for PK / FK / UK.
 - Add an **appendix** listing the allowed values in Section 8, and a **relationships table** from Section 7.
@@ -326,7 +325,7 @@ The system has **two databases**:
 | confidence | DECIMAL | 5,2 | — | No | — | Model confidence in the predicted class, as a percentage (0.00–100.00). |
 | class_probabilities | JSON | — | — | Yes | NULL | Probability (0–1) the model gave each class, e.g. `{"healthy":0.05,"sigatoka":0.88,…}`. |
 | model_comparison | JSON | — | — | Yes | NULL | On-device baseline vs enhanced model results for the same photo (class, confidence, time, model). |
-| image_path | VARCHAR | 255 | — | Yes | NULL | Private storage path of the leaf photo (only if the farmer consented or requested review). |
+| image_path | VARCHAR | 255 | — | Yes | NULL | Private storage path of the leaf photo for shared history or review; research use has a separate consent gate. |
 | gradcam_path | VARCHAR | 255 | — | Yes | NULL | Storage path of the model-attention (Grad-CAM) image, if generated. |
 | farmer_notes | TEXT | — | — | Yes | NULL | Notes the farmer added for the reviewer. |
 | research_consented_at | TIMESTAMP | — | — | Yes | NULL | When the farmer consented to research use of the image. |
@@ -381,7 +380,20 @@ The system has **two databases**:
 | created_at | TIMESTAMP | — | — | Yes | NULL | When the image was nominated. |
 | updated_at | TIMESTAMP | — | — | Yes | NULL | When the candidate was last updated. |
 
-### 4.12 `diagnosis_sync_changes`
+### 4.12 `research_images`
+
+**Description:** Independent private copies created only after a current-consent, clear-image research approval. Source IDs are audit snapshots, not cascading foreign keys, so deleting a scan or account does not delete an approved copy. The file is removed on revocation; the audit row remains.
+
+| Field | Meaning |
+|---|---|
+| `id`, `source_user_id`, `source_diagnosis_id`, `source_candidate_id` | Copy ID and source references. `source_user_id` becomes null on account deletion. |
+| `image_path`, `sha256`, `verified_label` | Private file location, integrity hash, and agricultural label. `image_path` becomes null after removal. |
+| `consent_version`, `consented_at` | Consent version and time captured at approval. New copies require v2 consent. |
+| `approved_by`, `approved_at` | Staff approval actor and time. |
+| `revoked_by`, `revoked_at`, `revocation_reason` | Removal audit; records remain after the photo is deleted. |
+| `created_at`, `updated_at` | Database timestamps. |
+
+### 4.13 `diagnosis_sync_changes`
 
 **Description:** Append-only change log used by phones to download new, updated and deleted diagnoses since their last sync ("sync cursor").
 **Primary key:** `id` · **Indexed:** `diagnosis_id`, `sync_uuid`, (`user_id`, `id`)
@@ -521,7 +533,7 @@ These tables are created by the Laravel framework and the Sanctum authentication
 
 ## 6. Mobile (on-device) database
 
-**File:** `dahonmd-offline.db` inside the Android app's private storage · **Engine:** SQLite with WAL journaling and foreign keys enabled · **Schema version:** 4 (upgraded automatically on app update).
+**File:** `dahonmd-offline.db` inside the Android app's private storage · **Engine:** SQLite with WAL journaling and foreign keys enabled · **Snapshot schema version:** 4; current source upgrades to version 6 (see Section 13).
 SQLite has flexible types; the MySQL-style types below are the equivalents to document. Scan photos are stored as files in the app folder `diagnosis-images/`, not inside the database.
 
 ### 6.1 `local_diagnoses`
@@ -1046,7 +1058,7 @@ erDiagram
 | Server application tables | 12 |
 | Server framework/security tables | 8 |
 | Mobile tables | 2 |
-| **Total tables to document** | **22** |
+| **Total tables in September snapshot** | **22** |
 | Enforced foreign keys (server) | 19 (R1–R8, R10–R20) |
 | Logical (unenforced) references | 4 on the server (R9, R21, R22, R23) + 3 cross-database (X1–X3) |
 | Many-to-many relationships | 3 (N1–N3) |
@@ -1054,9 +1066,43 @@ erDiagram
 
 Checklist before submitting:
 
-- [ ] Every one of the 22 tables appears in the data dictionary, with every field listed in this file.
+- [ ] Every table in the schema being submitted appears in the dictionary; use Section 13 and live migrations for a current submission.
 - [ ] Every field has Data Type, Field Length (or —), Key, Allow Null (Yes/No) and a description.
 - [ ] PKs and FKs match Section 4–6; FK descriptions name the referenced table.column.
 - [ ] Relationship lines and crow's-foot cardinality match Section 7, including the three M—N junction entities.
 - [ ] Normalization evidence included (Section 9: worked example, table check, denormalizations and the 3NF alternative).
 - [ ] Names are spelled exactly as in this file.
+
+---
+
+## 13. Current schema additions after the September snapshot
+
+The live schema is defined by `backend/database/migrations/`; the phone schema
+is defined by `mobile-frontend/src/storage/localDiagnoses.ts` (SQLite
+`user_version = 6`). These changes are required when extending the snapshot
+dictionary and ER diagram:
+
+| Entity | Added fields or tables | Purpose |
+|---|---|---|
+| `diagnoses` | `prediction_verified` TINYINT(1) NOT NULL DEFAULT 0, indexed; `latitude` and `longitude` DECIMAL(8,3) NULL | Server attestation of a saved prediction and optional farmer-chosen location. Historical and mobile submissions default to unverified; this does not mean mobile inference was simulated. |
+| `diagnosis_reviews` | `version` INT UNSIGNED NOT NULL DEFAULT 0; `farmer_seen_at` TIMESTAMP NULL; `farmer_message` and `farmer_reply` TEXT NULL | Compare-and-save review version, farmer acknowledgement, and two-way farmer-facing communication. Original AI prediction stays in `diagnoses`. |
+| `diagnosis_review_revisions` | New table; `diagnosis_review_id` FK → `diagnosis_reviews.id`, `expert_id` and `replaced_by` FKs → `users.id`, previous verdict/label/quality/steps/notes/message/reply/inspection/timestamp, `revision_reason` VARCHAR(500) NULL, timestamps | Audit trail of replaced completed assessments. One current review may have many revisions. |
+| `review_claims` | New table; `diagnosis_id` unique FK → `diagnoses.id`, `user_id` FK → `users.id`, `expires_at`, timestamps | Temporary ownership of a review case; claim changes do not change the farmer's diagnosis. |
+| `users` | `avatar_path` VARCHAR NULL | Private profile photo storage path. |
+| `articles`, `article_research_source` | New article and citation-link tables | Farmer library content and links to `research_sources`; inspect the October 5 migrations for the full field dictionary. |
+| `local_diagnoses` | `latitude` and `longitude` REAL NULL; `image_version` TEXT NULL; `pending_seen_version` INTEGER NULL | Optional location, detection of a replaced server photo, and offline queue for acknowledging the exact review version. |
+
+For a current ER diagram, add `diagnosis_reviews ||--o{ diagnosis_review_revisions`,
+`diagnoses ||--o| review_claims`, `users ||--o{ review_claims`,
+`articles ||--o{ article_research_source`, and
+`research_sources ||--o{ article_research_source` (with their respective
+foreign keys). The September Mermaid diagram above does not include these
+later entities.
+
+The workflow rule is also part of the data model: a candidate approval requires
+active research consent and a current clear, determinate expert review. A
+receipt-verified web prediction and a client-reported mobile prediction both
+retain the immutable original result; only the first is counted in server model
+performance summaries. A farmer or admin reads the current verdict from
+`diagnosis_reviews`, while staff can inspect prior assessments in
+`diagnosis_review_revisions`.

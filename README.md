@@ -5,6 +5,13 @@
 
 The Android app classifies a leaf photo on the phone, offline, as **Healthy**, **Sigatoka**, **Panama disease** or **Cordana leaf spot**. Accounts, sync, expert review and the website are optional.
 
+When a signed-in farmer requests review, the agriculturist's final verdict
+syncs into farmer history and appears in the admin record beside the original
+AI result. A private photo can be shared for history and review; research use
+requires separate consent. The optional web API records whether it can verify
+a saved prediction with its own inference receipt. Phone results remain
+client-reported to that API even when the on-device model ran successfully.
+
 All commands use **Windows PowerShell** from the project folder.
 
 ---
@@ -68,7 +75,9 @@ tunnel connection, then checks the public API before handing the link to the
 phone. If all attempts fail, check `tunnel-*.err.log` under `.dahonmd\free-test\`
 and retry when the network can reach Cloudflare.
 
-Test data lives in `.dahonmd\free-test\` and is kept between runs. Emails are only written to the log. Keep the computer on while using the link.
+Test data lives in `.dahonmd\free-test\` and is kept between runs. The script
+applies pending backend migrations to that isolated database at startup. Emails
+are only written to the log. Keep the computer on while using the link.
 
 ---
 
@@ -153,7 +162,7 @@ Created by `php artisan migrate --seed` (not in production). Password: `DahonMD@
 | Email | Role |
 | --- | --- |
 | `admin@dahonmd.test` | Administrator |
-| `reviewer@dahonmd.test` | Agricultural reviewer |
+| `agriculturist@dahonmd.test` | Agriculturist |
 | `maria.santos@dahonmd.test` | Farmer |
 
 ---

@@ -101,7 +101,7 @@ Non-production seeding creates one account per role. The default password is `Da
 | Email | Role |
 | --- | --- |
 | `admin@dahonmd.test` | Administrator |
-| `reviewer@dahonmd.test` | Agricultural reviewer |
+| `agriculturist@dahonmd.test` | Agriculturist |
 | `maria.santos@dahonmd.test` | Farmer |
 
 Set `DEV_ADMIN_EMAIL`, `DEV_ADMIN_PASSWORD`, and optionally `DEV_ADMIN_NAME` to create a custom initial development administrator. No administrator password is stored in source, and development accounts are not seeded in production.
@@ -114,7 +114,7 @@ Set `DEV_ADMIN_EMAIL`, `DEV_ADMIN_PASSWORD`, and optionally `DEV_ADMIN_NAME` to 
 | `PRIVACY_CONTACT_EMAIL` | Contact shown on privacy and deletion pages |
 | `RESEARCH_CONSENT_VERSION` | Version recorded when a farmer opts to contribute an image for future research |
 | `DEV_USER_PASSWORD` | Local seeded-account password |
-| `AI_MODE` | Visible inference mode, currently simulated/development |
+| `AI_MODE` | Development-mode setting; it does not validate a model by itself |
 | `AI_LABEL_MAP_PATH` | Optional override for the deployed model's label map; defaults to the tracked `resources/models/label_map.json` |
 | `AI_COMPARISON_URL` | Optional baseline-versus-enhanced research service |
 | `AI_COMPARISON_TIMEOUT_SECONDS` | Timeout for research comparison calls |
@@ -131,13 +131,19 @@ Production also requires real mail transport, sender details, HTTPS, protected s
 | `POST /api/auth/login` | Start a CSRF-protected web session or issue a mobile bearer token | Public |
 | `GET /api/diseases` | Read verified disease-guide content | Public |
 | `GET, POST /api/diagnoses` | List or create diagnoses | Farmer |
-| `POST /api/inference` | Submit an image for the normal screening flow | Farmer |
+| `POST /api/inference` | Optional web screening; returns a receipt only for a real supported result | Public |
 | `POST /api/sync` | Synchronize queued mobile or web records (UUID-idempotent) | Farmer |
 | `GET /api/sync` | Pull incremental upserts and deletion tombstones using an opaque cursor | Farmer |
 | `POST /api/sync/{syncUuid}/image` | Upload the photo of a synchronized scan | Record owner |
 | `GET, POST /api/mobile/sync` | Backward-compatible mobile sync aliases | Farmer |
 | `GET, POST /api/v1/sync` | Versioned sync aliases for future client migration | Farmer |
 | `POST /api/diagnoses/{diagnosis}/review-request` | Request agricultural review | Record owner |
+| `POST /api/diagnoses/{diagnosis}/review-seen` | Acknowledge a specific review version after opening it | Record owner |
+| `POST /api/diagnoses/{diagnosis}/follow-up` | Send farmer follow-up on a completed assessment | Record owner |
+| `POST, DELETE /api/diagnoses/{diagnosis}/research-consent` | Grant or withdraw research-image consent | Record owner; grant requires verified email when configured |
+| `GET, DELETE /api/research-images[/{researchImage}]` | List or remove approved private research copies, including after scan deletion | Farmer owner |
+| `GET, DELETE /api/admin/research-images[/{researchImage}]` | Inspect the research-image audit or remove a copy with a reason | Administrator |
+| `GET /api/admin/research-images/{researchImage}/photo` | Retrieve an active private research photo | Administrator |
 | `POST /api/research/model-comparison` | Run an unsaved research comparison | Authenticated |
 | `/api/expert/diagnosis-reviews/*` | Review uncertain or requested diagnoses | Reviewer |
 | `/api/expert/diseases/*` | Verify researched disease content | Reviewer |
@@ -163,7 +169,12 @@ both; UUID-only deletion resolves the case where creation succeeded but its
 acknowledgement was lost. Sync logs record counts and request IDs without
 logging diagnosis payloads or images.
 
-`POST /api/inference` remains an explicitly simulated development boundary until a validated production model service is connected. A real service must:
+`POST /api/inference` is an optional web screening boundary. When
+`AI_COMPARISON_URL` is configured and returns a supported enhanced result, the
+API returns it with a 30-day encrypted receipt. When the service is unavailable,
+the API returns an uncertain development-unconfigured result without a receipt.
+This route is not called by the thesis Android classifier. A deployed model
+service must:
 
 1. Treat uploaded bytes as untrusted input and verify actual decodability.
 2. Normalize orientation and convert the decoded image to RGB.
@@ -173,9 +184,45 @@ logging diagnosis payloads or images.
 
 A label map alone does not make inference production-ready. Readiness also requires a validated model artifact, preprocessing parity, health checks, and deployment evaluation.
 
+Saving a web scan can set `prediction_verified` only when its original image,
+class, confidence, and model match an unexpired receipt. Mobile sync and other
+client-reported predictions remain `prediction_verified=false` even if the
+phone performed real local inference. Admin model-performance summaries use
+verified predictions; general case and review counts include all saved scans.
+Private photo upload supports history and agricultural review. Research use
+requires separate active consent; the default server policy requires verified
+email, while the isolated test profile can disable that requirement.
+
 ## Agricultural Review and Content Governance
 
-Original AI predictions are immutable. Reviewer assessments are stored separately with supported label, image quality, next steps, notes, and field-inspection status.
+Original AI predictions are immutable. Reviewer assessments are stored separately
+with supported label, image quality, next steps, internal notes, a farmer-facing
+message, and field-inspection status. Farmer and admin views receive the current
+verdict; internal notes and revision reasons remain staff-only. Review saves
+check `expected_review_version`, and changing a completed assessment requires
+`revision_reason` so the previous assessment remains auditable. Farmer follow-up
+reopens the review and marks an unapproved research candidate `uncertain`. Candidate
+approval requires current consent, a determinate completed review, and good
+image quality; an approved candidate locks subsequent review edits.
+Approval requires current v2 research-copy consent and saves a separate private
+file plus `research_images` audit row. Existing v1 consent must be renewed.
+Set `RESEARCH_CONSENT_VERSION=research-image-consent-v2` in existing deployments
+that explicitly configured v1, then run `php artisan migrate`. Earlier approved
+candidates are not backfilled with files; they need a new consent and approval
+decision before a retained copy exists.
+Deleting a scan removes its normal photo and candidate row but keeps the
+independent approved copy. Farmers can remove that copy from their research
+photo list even after deleting the scan. Account deletion offers an explicit
+`remove_research_copies` choice; staff can revoke an active copy with a reason
+through the admin research-image API. Revocation deletes the private file and
+retains the audit row. Approval does not add the file to training data.
+
+The October 2026 review/provenance migration adds `diagnosis_reviews.version`,
+`diagnosis_review_revisions.revision_reason`, and
+`diagnoses.prediction_verified`. Existing installations must run
+`php artisan migrate` after updating the backend. The repository's
+`start-free-test.ps1` copies migrations and applies them to its isolated test
+database on the next start.
 
 Disease content follows this lifecycle:
 

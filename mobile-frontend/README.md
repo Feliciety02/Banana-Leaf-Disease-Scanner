@@ -15,8 +15,9 @@ The two modes do not silently substitute for one another. Losing connectivity
 disables live server work but does not affect local image selection or inference.
 All completed scans are stored in Expo SQLite. Signed-in farmer scans receive a
 UUID and are queued for automatic metadata sync; signed-out scans remain local
-only. Leaf images remain on the device unless explicit research consent is
-provided through the separate upload workflow.
+only. Signed-in scans may also upload a private photo for shared history and
+agricultural review. Research use of that photo requires a separate consent
+action from a verified account.
 
 Synchronization is bidirectional and incremental. A monotonic server cursor is
 stored in SQLite after every applied page, server deletions arrive as
@@ -24,6 +25,13 @@ tombstones, failed uploads/deletions remain retryable, and signed-out scans are
 never attached to an account without an explicit farmer action. Foreground
 reconnects sync immediately; Expo BackgroundTask requests a battery- and
 network-aware best-effort sync while the app is inactive.
+
+An agriculturist's verdict syncs into farmer history while preserving the
+original AI result. Opening a new verdict marks that review version as seen;
+if offline, the acknowledgement is queued. A changed server image version
+refreshes the cached photo. The mobile AI result is genuine on-device output,
+but the server marks it as client-reported because it cannot attest a phone's
+local inference from a sync payload.
 
 The UI warns that confidence is not diagnostic certainty, Panama Disease output is not laboratory confirmation of Fusarium/Foc, and inputs outside the validated four-class leaf-image scope may be unreliable.
 
@@ -53,7 +61,7 @@ Release builds apply mobile-native controls in addition to the backend's authori
 - bearer tokens and the cached identity use Expo SecureStore with Android Keystore/iOS Keychain and a device-only, unlocked accessibility class;
 - Android automatic backup and unnecessary broad media/audio permissions are disabled, and the generated manifest rejects cleartext traffic;
 - iOS App Transport Security rejects arbitrary insecure loads and `NSFileProtectionComplete` protects app files while the device is locked;
-- screenshots and screen recordings are blocked while the app runs, with an additional iOS app-switcher privacy overlay;
+- screenshots and screen recordings are allowed in the app; iOS still uses an app-switcher privacy overlay;
 - sign-out attempts a final sync, warns before discarding unsynchronized changes, then removes account-linked SQLite rows and private image copies; and
 - authenticated remote images carry the bearer header, while local `file://` images never receive authorization headers.
 
@@ -71,11 +79,17 @@ These controls require a new native Android/iOS build; Expo Go does not reproduc
 | `src/storage/localDiagnoses.ts` | SQLite schema, migration, outbox state, and remote upsert logic |
 | `src/services/api.ts` | Existing Laravel API client and SecureStore session |
 | `src/services/diagnosisSync.ts` | Push/pull synchronization coordinator |
+| `src/services/diagnosisReview.ts` | Review requests, research consent, and photo upload |
 | `src/services/backgroundSync.ts` | SDK 57 background-task registration and secure-session sync |
-| `src/services/mobileSecurity.ts` | Android/iOS screen-capture and app-switcher privacy protection |
+| `src/services/mobileSecurity.ts` | iOS app-switcher privacy overlay; in-app screenshots remain available |
 | `src/shared/` | Reusable application-level components |
 | `modules/dahonmd-tflite/` | Native Expo/Kotlin TensorFlow Lite bridge |
 | `assets/models/` | Validated mobile models: production `ca_mobilenetv3_small_fp32.tflite` and benchmark-only `ca_mobilenetv3_small_int8.tflite` |
+
+Approved research photos are separate private server copies. History lets a
+farmer grant, renew, or withdraw consent. Account lists approved copy IDs and
+allows removal even after the original scan was deleted. Account deletion
+offers a separate choice to remove all approved research copies.
 
 ## Setup
 

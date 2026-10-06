@@ -50,10 +50,10 @@ These shortcuts are for the shared test environment. Anyone with its link or tes
 
 ### Mobile flow behavior
 
-- Connection failures show Retry and Update connection. Reachability is checked again every 30 seconds while online and unavailable; submitted mutations are never retried automatically. A new temporary tunnel address still must come from the computer automation or be entered explicitly.
-- Farmers return to the initiating screen after login. Ask Dahon reopens after authentication. Admins start in their mobile tools; reviewers get an Open website action (browser sign-in remains separate).
+- Connection failures show Retry and Update connection. Reachability is checked again every 30 seconds while online and unavailable. Interactive form submissions require the user to retry; the scan outbox and queued review-seen acknowledgements retry through sync. A new temporary tunnel address still must come from the computer automation or be entered explicitly.
+- Farmers return to the initiating screen after login. Ask Dahon reopens after authentication. Admins and agriculturists open their respective mobile workspaces.
 - New scan results show saving/saved state, a save retry on failure, and a shortcut to the saved record. Saved records offer sync, review preparation, and review progress.
-- The first farmer login with guest scans offers Add existing scans or Keep on this phone. The choice is remembered for that account email in sync_state, so temporary tunnel address changes do not ask again. Individual guest scans can also be added from History. Photos require a separate appeal/review request or research consent.
-- History offers a Reviewed filter and Check for review updates. No estimated review turnaround is invented.
+- The first farmer login with guest scans offers Add existing scans or Keep on this phone. The choice is remembered for that account email in sync_state, so temporary tunnel address changes do not ask again. Individual guest scans can also be added from History. Signed-in scans may upload private photos for history and agricultural review; research use requires separate consent.
+- History offers a Reviewed filter and Check for review updates. The current agriculturist verdict remains separate from the original AI result; opening a verdict acknowledges its version, with offline acknowledgements queued for later sync. No estimated review turnaround is invented.
 - Login/signup drafts survive mode changes in memory on mobile and web. Closing a populated form asks before discarding; successful authentication or confirmed closure clears it. Mobile navigation also warns about unsaved scan input and review notes.
 - Session expiry leaves unsynchronized account records attached to their original owner for recovery after login; it does not make them guest records.
