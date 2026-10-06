@@ -1,5 +1,5 @@
-const CACHE_NAME = 'dahonmd-shell-v1';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/favicon.png', '/apple-touch-icon.png', '/assets/brand/dahonmd-logo-green.png'];
+const CACHE_NAME = 'dahonmd-shell-v2';
+const APP_SHELL = ['/', '/manifest.webmanifest', '/favicon.png', '/apple-touch-icon.png', '/assets/brand/dahonmd-logo-green.webp'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
