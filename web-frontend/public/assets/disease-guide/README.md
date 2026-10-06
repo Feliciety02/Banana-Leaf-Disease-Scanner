@@ -26,10 +26,12 @@ Before adding an asset:
 
 | Guide category | Local files | Source | License |
 | --- | --- | --- | --- |
-| Healthy | `healthy-*.jpg` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
-| Sigatoka leaf spot | `sigatoka-*.jpg` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
-| Cordana leaf spot | `cordana-*.jpg` | Arman et al. (2023), *Banana Leaf Spot Diseases (BananaLSD) Dataset*, V1 | CC BY 4.0 |
-| Panama disease leaf stages | `panama-stages/*/panama-leaf-stage-*.jpg` | Mduma & Elinisa (2025), *Banana Leaves Imagery Dataset* | CC BY 4.0 |
+| Healthy | `healthy-*.webp` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
+| Sigatoka leaf spot | `sigatoka-*.webp` | Mafi et al. (2023), *Banana Disease Recognition Dataset*, V1 | CC BY 4.0 |
+| Cordana leaf spot | `cordana-*.webp` | Arman et al. (2023), *Banana Leaf Spot Diseases (BananaLSD) Dataset*, V1 | CC BY 4.0 |
+| Panama disease leaf stages | `panama-stages/*/panama-leaf-stage-*.webp` | Mduma & Elinisa (2025), *Banana Leaves Imagery Dataset* | CC BY 4.0 |
+| Banana freckle (leaf symptoms) | `banana-freckle.webp` | © State of Queensland, [Business Queensland](https://www.business.qld.gov.au/industries/farms-fishing-forestry/agriculture/biosecurity/plants/priority-pest-disease/banana-freckle) | CC BY 4.0 |
+| Banana bunchy top | `banana-bunchy-top.webp` | Scot Nelson, [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Banana_bunchy_top_virus_symptoms.jpg) | CC0 1.0 |
 
 ## Sources
 
@@ -59,16 +61,16 @@ The `panama-stages` collection uses only images from the dataset's Fusarium Wilt
 
 ## Asset Handling
 
-The selected files came from the datasets' original, non-augmented image sets. They were renamed for stable application use; no visual modifications were made.
+The selected files came from the datasets' original, non-augmented image sets. They were renamed for stable application use and, in October 2026, re-encoded as WebP (quality 82, Panama stages quality 80) to load faster; the Panama stage photos were also resized from 4624 px to 1600 px wide. No other edits (cropping, color or content changes) were made.
 
 ### Filename patterns
 
 | Category | Pattern |
 | --- | --- |
-| Healthy | `healthy-<number>.jpg` |
-| Sigatoka leaf spot | `sigatoka-<number>.jpg` |
-| Cordana leaf spot | `cordana-<number>.jpg` |
-| Panama disease leaf stage | `panama-stages/<stage-folder>/panama-leaf-stage-<number>.jpg` |
+| Healthy | `healthy-<number>.webp` |
+| Sigatoka leaf spot | `sigatoka-<number>.webp` |
+| Cordana leaf spot | `cordana-<number>.webp` |
+| Panama disease leaf stage | `panama-stages/<stage-folder>/panama-leaf-stage-<number>.webp` |
 
 ## Student Checklist
 
@@ -76,5 +78,5 @@ The selected files came from the datasets' original, non-augmented image sets. T
 - [ ] Attribution points to the original source.
 - [ ] The license is recorded and compatible with use.
 - [ ] The file is not an augmented export.
-- [ ] The filename follows the table above.
+- [ ] The file is saved as WebP (longest side at most 1600 px) and the filename follows the table above.
 - [ ] The UI still builds after the asset change.
