@@ -20,6 +20,7 @@ class ExpertReviewService
         private readonly DiagnosisRepositoryInterface $diagnoses,
         private readonly DiseaseRepositoryInterface $diseases,
         private readonly ReviewPriorityService $priority,
+        private readonly DatasetCandidateService $candidates,
     ) {}
 
     public function cases(string $scope): Collection
@@ -137,7 +138,7 @@ class ExpertReviewService
             }
             unset($attributes['revision_reason']);
             ReviewClaim::query()->where('diagnosis_id', $locked->id)->delete();
-            return $this->diagnoses->saveReview($locked, [
+            $reviewed = $this->diagnoses->saveReview($locked, [
                 ...$attributes,
                 'version' => ($previous?->version ?? 0) + 1,
                 'expert_id' => $expert->id,
@@ -147,6 +148,9 @@ class ExpertReviewService
                 // A new or changed assessment is unread until the farmer opens it.
                 'farmer_seen_at' => null,
             ]);
+            $this->candidates->nominateIfEligible($reviewed);
+
+            return $reviewed;
         });
     }
 }

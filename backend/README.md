@@ -190,7 +190,7 @@ client-reported predictions remain `prediction_verified=false` even if the
 phone performed real local inference. Admin model-performance summaries use
 verified predictions; general case and review counts include all saved scans.
 Private photo upload supports history and agricultural review. Research use
-requires separate active consent; the default server policy requires verified
+requires current active consent, enabled by the new account signup agreement or Account settings; the default server policy requires verified
 email, while the isolated test profile can disable that requirement.
 
 ## Agricultural Review and Content Governance
@@ -201,9 +201,14 @@ message, and field-inspection status. Farmer and admin views receive the current
 verdict; internal notes and revision reasons remain staff-only. Review saves
 check `expected_review_version`, and changing a completed assessment requires
 `revision_reason` so the previous assessment remains auditable. Farmer follow-up
-reopens the review and marks an unapproved research candidate `uncertain`. Candidate
-approval requires current consent, a determinate completed review, and good
-image quality; an approved candidate locks subsequent review edits.
+ reopens the review and marks an unapproved research candidate `uncertain`. A
+ completed review automatically queues a candidate when the scan has a retained
+ photo and current research consent. The queue is never approved automatically;
+ candidate approval requires current consent, a determinate completed review, and good
+ image quality; an approved candidate locks subsequent review edits.
+ The candidate queue also receives eligible older reviews once through the
+ `2026_10_07_000002` migration. A fresh assessment returns a candidate made
+ stale by farmer follow-up to the pending queue.
 Approval requires current v2 research-copy consent and saves a separate private
 file plus `research_images` audit row. Existing v1 consent must be renewed.
 Set `RESEARCH_CONSENT_VERSION=research-image-consent-v2` in existing deployments

@@ -28,7 +28,7 @@ class DatasetCandidateRepository implements DatasetCandidateRepositoryInterface
             ->get();
     }
 
-    public function firstOrCreate(Diagnosis $diagnosis, int $proposerId): DatasetCandidate
+    public function firstOrCreate(Diagnosis $diagnosis, ?int $proposerId): DatasetCandidate
     {
         return DatasetCandidate::query()->firstOrCreate(
             ['diagnosis_id' => $diagnosis->id],

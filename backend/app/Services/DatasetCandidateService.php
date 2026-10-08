@@ -34,6 +34,25 @@ class DatasetCandidateService
         return $this->candidates->withDetails($this->candidates->firstOrCreate($diagnosis, $proposer->id));
     }
 
+    /** Queue an eligible reviewed scan automatically; a person still decides whether to retain it. */
+    public function nominateIfEligible(Diagnosis $diagnosis): ?DatasetCandidate
+    {
+        $diagnosis->loadMissing('review');
+        if (! $diagnosis->image_path || ! $diagnosis->hasCurrentResearchConsent()
+            || ! $diagnosis->review || $diagnosis->review->review_status === 'pending') {
+            return null;
+        }
+
+        $candidate = $this->candidates->firstOrCreate($diagnosis, $diagnosis->review->expert_id);
+        // A farmer reply makes an undecided candidate stale. Once the new
+        // assessment is complete, return only that stale item to the queue.
+        if ($candidate->status === 'uncertain' && $candidate->reviewed_by === null) {
+            $candidate = $this->candidates->update($candidate, ['status' => 'pending', 'review_notes' => null]);
+        }
+
+        return $candidate;
+    }
+
     public function decide(User $reviewer, DatasetCandidate $candidate, array $attributes): DatasetCandidate
     {
         $copiedPath = null;
@@ -46,6 +65,9 @@ class DatasetCandidateService
                 }
                 if ($locked->proposed_by !== null && $locked->proposed_by === $reviewer->id) {
                     throw ValidationException::withMessages(['status' => 'You nominated this image. Another agriculturist or an administrator must record the dataset decision.']);
+                }
+                if ($diagnosis->review()->where('expert_id', $reviewer->id)->exists()) {
+                    throw ValidationException::withMessages(['status' => 'You assessed this scan. Another agriculturist or an administrator must decide on its dataset use.']);
                 }
                 $retained = ResearchImage::query()->where('source_candidate_id', $locked->id)->whereNull('revoked_at')->exists();
                 if ($retained) {
