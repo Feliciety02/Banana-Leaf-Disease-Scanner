@@ -289,7 +289,7 @@ class RoleFlowIntegrityTest extends TestCase
         $this->assertFalse(Diagnosis::query()->where('sync_uuid', '3d3c8f3e-2f4b-4c55-9f1e-7c9ad0b7e111')->firstOrFail()->hasActiveResearchConsent());
     }
 
-    public function test_research_sharing_is_a_separate_optional_choice_at_registration(): void
+    public function test_api_registration_respects_explicit_research_consent_for_older_clients(): void
     {
         $base = ['name' => 'Farmer', 'password' => 'Correct123!', 'password_confirmation' => 'Correct123!', 'device_name' => 'test'];
         $this->postJson('/api/auth/register', [...$base, 'email' => 'no-terms@example.com'])

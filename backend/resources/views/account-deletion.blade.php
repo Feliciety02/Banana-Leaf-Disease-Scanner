@@ -3,7 +3,7 @@
     <p>This permanently removes your account, access tokens, scans, and scan photos. A separately approved research copy remains unless you choose to remove it below. This cannot be undone.</p>
     @if (session('status')) <p class="notice">{{ session('status') }}</p> @endif
     @if ($errors->any()) <p class="error">{{ $errors->first() }}</p> @endif
-    <form method="post" action="{{ route('account-deletion') }}">
+    <form method="post" action="/account-deletion">
         @csrf
         <label>Email address<input type="email" name="email" value="{{ old('email') }}" autocomplete="email" required></label>
         <label>Current password<input type="password" name="password" autocomplete="current-password" required></label>
