@@ -23,7 +23,7 @@ class AuthenticationService
             'password' => Hash::make($attributes['password']),
             'role' => User::ROLE_FARMER,
             'terms_accepted_at' => now(),
-            'terms_version' => 'account-terms-v1',
+            'terms_version' => 'account-terms-v2',
             'research_photo_consent_at' => $researchConsent ? now() : null,
             'research_photo_consent_version' => $researchConsent ? config('banana.research_consent_version') : null,
         ]);
