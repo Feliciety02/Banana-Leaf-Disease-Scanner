@@ -9,7 +9,7 @@ const FIL = {
   'and have read the': 'at nabasa ko ang',
   'Privacy Policy': 'Patakaran sa Privacy',
   'Please agree to the Terms of Use to create an account.': 'Sumang-ayon muna sa Mga Tuntunin ng Paggamit para makagawa ng account.',
-  'Optional: Automatically share my future account scan photos for research consideration after expert review. An approved private copy may remain after I delete a scan. I can turn this off in Profile.': 'Opsyonal: Awtomatikong ibahagi ang mga susunod kong larawan ng scan para sa posibleng pananaliksik matapos suriin ng eksperto. Maaaring manatili ang isang pribadong kopya kahit burahin ko ang scan. Maaari ko itong patayin sa Profile.',
+  'Future account scan photos may enter research review after an agriculturist assesses them. An approved private copy may remain after scan deletion. I can withdraw sharing in Profile.': 'Maaaring isama sa pagsusuri para sa pananaliksik ang mga susunod kong larawan ng scan matapos suriin ng agriculturist. Maaaring manatili ang aprubadong pribadong kopya kahit burahin ang scan. Maaari kong bawiin ang pahintulot sa Profile.',
   // Navigation and shell
   Home: 'Home', Scan: 'I-scan', History: 'Kasaysayan', Guide: 'Gabay', Profile: 'Profile',
   'Log out': 'Mag-log out', 'Open profile': 'Buksan ang profile',
