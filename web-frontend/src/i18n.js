@@ -290,6 +290,11 @@ const FIL = {
   'Works offline': 'Gumagana kahit offline', 'Scans are kept in your browser and sent when you are back online.': 'Naka-save ang mga scan sa inyong browser at maipapadala kapag may internet na.',
   'Signs, prevention and care for each disease, plus short articles.': 'Mga palatandaan, pag-iwas at pag-aalaga para sa bawat sakit, at maiikling artikulo.',
   'DahonMD gives screening support only. It cannot confirm a disease. Always ask your local agriculturist before spraying or removing plants.': 'Gabay lamang ang ibinibigay ng DahonMD. Hindi nito makukumpirma ang sakit. Magtanong muna sa inyong lokal na agriculturist bago mag-spray o magtanggal ng halaman.',
+  'AI leaf screening for banana farmers': 'AI na pagsusuri ng dahon para sa magsasaka ng saging',
+  'Photo needed': 'Litratong kailangan', Price: 'Presyo', Free: 'Libre',
+  Diseases: 'Mga sakit', 'Try a scan': 'Subukang mag-scan', Features: 'Mga tampok',
+  'Page sections': 'Mga bahagi ng pahina', Footer: 'Footer',
+  'Ready to check your leaves?': 'Handa na bang suriin ang inyong mga dahon?',
 };
 
 const STORAGE_KEY = 'dahonmd-language';

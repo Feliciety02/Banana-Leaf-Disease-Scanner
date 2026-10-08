@@ -1,6 +1,6 @@
 import { tr, useLanguage, setLanguage, getLanguage } from './i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, AlertTriangle, Bell, ArrowLeft, ArrowRightLeft, BarChart3, BookOpen, Camera, Check, ChevronDown, ChevronRight, CircleUserRound, Cloud, CloudOff, Database, Eye, EyeOff, FileImage, GitCompareArrows, History, Home, ImagePlus, Info, Leaf, Library, Lightbulb, Link2, LockKeyhole, LogOut, Mail, Menu, MessageCircle, Plus, RefreshCw, ScanLine, Search, Send, Settings, ShieldCheck, Trash2, Upload, Users, X } from 'lucide-react';
+import { Activity, AlertTriangle, Bell, ArrowLeft, ArrowRight, ArrowRightLeft, BarChart3, BookOpen, Camera, Check, ChevronDown, ChevronRight, CircleUserRound, Cloud, CloudOff, Database, Eye, EyeOff, FileImage, GitCompareArrows, History, Home, ImagePlus, Info, Leaf, Library, Lightbulb, Link2, LockKeyhole, LogOut, Mail, Menu, MessageCircle, Plus, RefreshCw, ScanLine, Search, Send, Settings, ShieldCheck, Sparkles, Trash2, Upload, Users, X } from 'lucide-react';
 import { analyzeLeaf } from './services/inferenceService';
 import { CLASS_NAMES, getHighestClass, normalizeClassProbabilities } from './services/classificationResults';
 import { AUTH_EXPIRED_EVENT, api, apiFileUrl, authenticate, logout, requestPasswordReset, setToken } from './services/api';
@@ -74,6 +74,25 @@ const mapDiagnosis = (item) => ({ id: String(item.id), syncUuid: item.sync_uuid 
 const mergeRecords = (pending, server) => { const followUps = new Map(pending.filter((item) => item.lastError).map((item) => [item.syncUuid, item.lastError])); const synced = new Set(server.map((item) => item.syncUuid).filter(Boolean)); return [...pending.filter((item) => !synced.has(item.syncUuid)), ...server.map((item) => followUps.has(item.syncUuid) ? { ...item, followUpError: followUps.get(item.syncUuid) } : item)]; };
 const roleHome = (role) => role === 'admin' ? '/admin/dashboard' : role === 'agricultural_expert' ? '/expert/dashboard' : '/farmer/dashboard';
 
+// Fades the page content in when the route changes, without remounting the page.
+function usePageTransition(path) {
+  const page = useRef(null);
+  useEffect(() => {
+    if (!page.current?.animate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    page.current.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+  }, [path]);
+  return page;
+}
+function useScrolled(offset = 8) {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > offset);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [offset]);
+  return scrolled;
+}
 function IconButton({ label, children, ...props }) { return <button className="icon-button" aria-label={label} title={label} {...props}>{children}</button>; }
 function LogoMark({ inverse = false }) { return <img className="logo-mark" src={inverse ? '/assets/brand/dahonmd-logo-white.webp' : '/assets/brand/dahonmd-logo-green.webp'} alt="" aria-hidden="true" />; }
 function Loading({ text = 'Loading...' }) { return <div className="role-loading"><RefreshCw className="spin" size={24} /><p>{text}</p></div>; }
@@ -369,6 +388,10 @@ function Shell({ role, user, path, navigate, onSignedOut, children, online, badg
   const currentSection = items.find(([route]) => route === normalizedPath)?.[1] || 'Home';
   const [open, setOpen] = useState(false);
   const signOut = async () => { await onSignedOut(); };
+  const page = usePageTransition(path);
+  const scrolled = useScrolled();
+  const roleLabel = role === 'admin' ? 'Administrator' : role === 'agricultural_expert' ? 'Agriculturist' : 'Farmer account';
+  const profileRoute = role === 'admin' ? '/admin/profile' : role === 'agricultural_expert' ? '/expert/profile' : '/farmer/profile';
 
   useEffect(() => {
     const desktopViewport = window.matchMedia('(min-width: 1051px)');
@@ -415,12 +438,14 @@ function Shell({ role, user, path, navigate, onSignedOut, children, online, badg
       </div>
     </aside>
     <main className="role-main">
-      <header className="role-topbar">
+      <header className={`role-topbar ${scrolled ? 'scrolled' : ''}`}>
         <IconButton label="Open menu" aria-controls="role-navigation" aria-expanded={open} onClick={() => setOpen(true)}><Menu size={21} /></IconButton>
-        <div className="role-header-brand"><strong>{currentSection}</strong></div>
+        <div className="role-header-brand"><small className="role-breadcrumb">{roleLabel}<ChevronRight size={13} /></small><strong>{currentSection}</strong></div>
         {role === 'farmer' && <span className={`top-network ${online ? '' : 'offline'}`}>{online ? <Cloud size={15} /> : <CloudOff size={15} />}{online ? 'Online' : 'Offline'}</span>}
+        <button type="button" className="role-topbar-account" aria-label="Open profile" title={user.name} onClick={() => navigate(profileRoute)}><span><AvatarContent user={user} /></span><strong>{user.name}</strong></button>
       </header>
-      <div className="role-page">{children}</div>
+      <div className="role-page" ref={page}>{children}</div>
+      <footer className="site-footer"><span><LogoMark /> DahonMD</span><p>{roleLabel} workspace</p></footer>
     </main>
     {role === 'farmer' && <nav className="farmer-bottom-nav">{FARMER_NAV.map(([route, label, Icon]) => <button key={route} className={path === route || (route === '/farmer/diseases' && path === '/farmer/library') ? 'active' : ''} onClick={() => navigate(route)}><Icon size={20} /><span>{label}</span></button>)}</nav>}
     <AssistantWidget user={user} online={online} />
@@ -430,23 +455,30 @@ function Shell({ role, user, path, navigate, onSignedOut, children, online, badg
 function FarmerShell({ user, path, navigate, onSignedOut, online, children, badges = {}, chatTopic = null }) {
   const items = FARMER_NAV.filter(([route]) => !route.endsWith('/profile'));
   const signOut = async () => { await onSignedOut(); };
+  const page = usePageTransition(path);
+  const scrolled = useScrolled();
+  const isActive = (route) => path === route || (route === '/farmer/diseases' && path === '/farmer/library');
   return <div className="role-shell farmer-shell farmer-mobile-shell">
-    <header className="farmer-mobile-header">
+    <header className={`farmer-mobile-header ${scrolled ? 'scrolled' : ''}`}>
       <a className="farmer-mobile-brand" href="/farmer/dashboard" onClick={(event) => { event.preventDefault(); navigate('/farmer/dashboard'); }}>
         <span><LogoMark /></span>
         <div><strong>DahonMD</strong></div>
       </a>
+      <nav className="farmer-top-nav" aria-label="Site navigation">
+        {items.map(([route, label, Icon]) => <a key={route} href={route} className={isActive(route) ? 'active' : ''} aria-current={isActive(route) ? 'page' : undefined} onClick={(event) => { event.preventDefault(); navigate(route); }}><Icon size={17} />{tr(label)}{badges[route] > 0 && <b className="nav-badge" aria-label={`${badges[route]} new`}>{badges[route] > 9 ? '9+' : badges[route]}</b>}</a>)}
+      </nav>
       <div className="farmer-header-actions">
         <IconButton label={tr('Log out')} title={tr('Log out')} onClick={signOut}><LogOut size={18} /></IconButton>
         <button className="farmer-header-avatar" aria-label={tr('Open profile')} title={tr('Profile')} onClick={() => navigate('/farmer/profile')}><AvatarContent user={user} /></button>
       </div>
     </header>
     <main className="farmer-mobile-main">
-      <div className="role-page">{children}</div>
+      <div className="role-page" ref={page}>{children}</div>
+      <footer className="site-footer"><span><LogoMark /> DahonMD</span><p>{tr('DahonMD gives screening support only. It cannot confirm a disease. Always ask your local agriculturist before spraying or removing plants.')}</p></footer>
     </main>
     <nav className="farmer-mobile-nav" aria-label="Primary navigation">
       {items.map(([route, label, Icon]) => {
-        const active = path === route || (route === '/farmer/diseases' && path === '/farmer/library');
+        const active = isActive(route);
         return <button key={route} className={active ? 'active' : ''} aria-current={active ? 'page' : undefined} onClick={() => navigate(route)}><span className="nav-icon"><Icon size={21} />{badges[route] > 0 && <b className="nav-badge" aria-label={`${badges[route]} new`}>{badges[route] > 9 ? '9+' : badges[route]}</b>}</span><span>{tr(label)}</span></button>;
       })}
     </nav>
@@ -1216,38 +1248,6 @@ function DiagnosesAdmin() {
   </div>;
 }
 
-function DiseasesAdmin() {
-  const empty = { slug: '', model_class_key: '', name: '', alternative_names: [], scientific_name: '', causal_agent: '', pathogen_type: '', short_description: '', farmer_summary: '', curative_status: 'unclear_evidence', evidence_level: 'limited', image_only_limitations: '', professional_referral: '', prevention: '' };
-  const [items, setItems] = useState([]); const [classes, setClasses] = useState([]); const [contentStatus, setContentStatus] = useState(''); const [form, setForm] = useState(empty); const [editing, setEditing] = useState(null); const [selected, setSelected] = useState(null); const [modalOpen, setModalOpen] = useState(false); const [archiveTarget, setArchiveTarget] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
-  const load = useCallback(async () => { try { const [knowledge, system] = await Promise.all([api('/admin/diseases'), api('/admin/system')]); setItems(knowledge.data); setClasses(system.data.classes); setContentStatus(system.data.disease_content_status); } catch (exception) { setError(exception.message); } }, []); useEffect(() => { load(); }, [load]);
-  const availableClasses = classes.filter((label) => !items.some((item) => item.model_class_key === label));
-  const create = () => { const modelClass = availableClasses[0] || ''; setEditing(null); setForm({ ...empty, model_class_key: modelClass, slug: modelClass }); setError(''); setModalOpen(true); };
-  const edit = (item) => { setEditing(item.id); setForm({ ...empty, ...item, alternative_names: item.alternative_names || [], farmer_summary: item.farmer_summary || item.description || '' }); setError(''); setModalOpen(true); };
-  const submit = async (event) => { event.preventDefault(); setBusy(true); try { await api(`/admin/diseases${editing ? `/${editing}` : ''}`, { method: editing ? 'PUT' : 'POST', body: JSON.stringify(form) }); setModalOpen(false); setForm(empty); setEditing(null); setMessage(editing ? 'Disease content updated and returned for review.' : 'Missing class record created as a draft.'); setError(''); load(); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
-  const setStatus = async (item, status) => { try { await api(`/admin/diseases/${item.id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }); setMessage(status === 'researched' ? 'Disease content submitted for agricultural review.' : 'Disease status updated.'); setError(''); load(); } catch (exception) { setError(exception.message); } };
-  const inspect = async (item) => { try { const payload = await api(`/admin/diseases/${item.id}`); setSelected(payload.data); } catch (exception) { setError(exception.message); } };
-  const archive = async () => { if (!archiveTarget) return; setBusy(true); try { await api(`/admin/diseases/${archiveTarget.id}`, { method: 'DELETE' }); setArchiveTarget(null); setSelected(null); setMessage('Disease knowledge record archived.'); setError(''); load(); } catch (exception) { setError(exception.message); setArchiveTarget(null); } finally { setBusy(false); } };
-  return <div className="role-stack"><Heading title="Disease Knowledge" text="Maintain one governed knowledge record for each validated model class, then submit researched content to an agriculturist." action={<button className="primary-button" disabled={!availableClasses.length} title={!availableClasses.length ? 'Every validated model class already has a knowledge record.' : undefined} onClick={create}><Plus size={17} />Add Missing Class Record</button>} /><div className={`development-note ${classes.length ? '' : 'warning'}`}><Info size={18} /><p>{contentStatus || 'Checking the final four-class label map...'}</p></div>{!availableClasses.length && classes.length > 0 && <div className="scope-note"><Check size={17} /><span>All {classes.length} validated model classes already have knowledge records. Edit an existing record instead of adding an unsupported disease.</span></div>}{message && <div className="success-message">{message}</div>}{error && <div className="form-error">{error}</div>}<DiseaseKnowledgeGrid items={items} classes={classes} availableClasses={availableClasses} create={create} inspect={inspect} edit={edit} setStatus={setStatus} onArchive={setArchiveTarget} />
-    <ModalShell open={modalOpen} title={editing ? 'Edit Disease Content' : 'Add Missing Class Record'} description={editing ? 'Saving changes returns verified content for agricultural re-review.' : 'Only validated model classes without an existing record are available.'} onClose={() => { if (!busy) setModalOpen(false); }} size="large">
-      <form className="admin-editor disease-editor modal-form" onSubmit={submit}><div><label>Model class key<select value={form.model_class_key} disabled={Boolean(editing)} onChange={(event) => setForm({ ...form, model_class_key: event.target.value, slug: event.target.value })} required><option value="">Select validated class</option>{(editing ? classes : availableClasses).map((label) => <option key={label}>{label}</option>)}</select></label><label>Accepted disease name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Scientific name<input value={form.scientific_name || ''} onChange={(event) => setForm({ ...form, scientific_name: event.target.value })} /></label><label>Causal agent<input value={form.causal_agent || ''} onChange={(event) => setForm({ ...form, causal_agent: event.target.value })} /></label><label>Pathogen type<select value={form.pathogen_type || ''} onChange={(event) => setForm({ ...form, pathogen_type: event.target.value })}><option value="">Not established</option>{['fungus', 'bacterium', 'virus', 'other'].map((value) => <option key={value}>{value}</option>)}</select></label><label>Curative status<select value={form.curative_status} onChange={(event) => setForm({ ...form, curative_status: event.target.value })}>{['unclear_evidence', 'manageable_not_curable', 'no_known_cure', 'curative_treatment_available'].map((value) => <option key={value}>{titleCase(value.replaceAll('_', '-'))}</option>)}</select></label><label>Evidence level<select value={form.evidence_level} onChange={(event) => setForm({ ...form, evidence_level: event.target.value })}>{['limited', 'moderate', 'high'].map((value) => <option key={value}>{titleCase(value)}</option>)}</select></label>{[['short_description','Short description'],['farmer_summary','Farmer summary'],['prevention','How to help prevent spread'],['professional_referral','When to seek expert help'],['image_only_limitations','Image-only limitations']].map(([field,label]) => <label key={field}>{label}<textarea value={form[field] || ''} onChange={(event) => setForm({ ...form, [field]: event.target.value })} /></label>)}</div>{error && <div className="form-error">{error}</div>}<footer><button type="button" className="secondary-button" disabled={busy} onClick={() => setModalOpen(false)}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save and Return for Review' : 'Create Draft'}</button></footer></form>
-    </ModalShell>
-    <ModalShell open={Boolean(selected)} title={selected?.disease?.name || 'Disease Details'} description="Research and farmer-facing content for this validated model class." onClose={() => setSelected(null)} variant="drawer" size="large">{selected && <div className="disease-detail"><section><h3>Farmer guidance</h3><p>{selected.disease.description || 'Insufficient verified evidence available.'}</p><h3>Management and prevention</h3><p>{selected.disease.management || 'Insufficient verified evidence available.'}</p><h3>Image-only limitations</h3><p>{selected.disease.image_only_limitations || 'Not yet documented.'}</p></section><section><h3>Research record</h3><dl><div><dt>Model class</dt><dd>{selected.disease.model_class_key}</dd></div><div><dt>Scientific name</dt><dd>{selected.disease.scientific_name || 'Pending'}</dd></div><div><dt>Causal agent</dt><dd>{selected.disease.causal_agent || 'Pending'}</dd></div><div><dt>Evidence level</dt><dd>{titleCase(selected.disease.evidence_level)}</dd></div><div><dt>Sources</dt><dd>{selected.disease.sources_count ?? 0}</dd></div></dl>{selected.regulatory_recheck_required && <div className="form-error">Regulatory re-check required.</div>}</section>{selected.evidence?.length > 0 && <section><h3>Mapped claims</h3><div className="claim-list">{selected.evidence.map((claim) => <article key={claim.id}><strong>{titleCase(claim.claim_type.replaceAll('_', '-'))}</strong><p>{claim.claim_text}</p></article>)}</div></section>}<div className="drawer-actions"><button className="secondary-button" onClick={() => { const item = selected.disease; setSelected(null); edit(item); }}>Edit Content</button><button className="danger-button" onClick={() => setArchiveTarget(selected.disease)}>Archive Record</button></div></div>}</ModalShell>
-    <ConfirmDialog open={Boolean(archiveTarget)} title="Archive disease record?" text={`Archive ${archiveTarget?.name || 'this record'} without deleting its historical evidence and review trail.`} confirmLabel="Archive Record" danger busy={busy} onCancel={() => setArchiveTarget(null)} onConfirm={archive} />
-  </div>;
-}
-
-function ResearchSourcesAdmin() {
-  const empty = { title: '', authors: '', year: '', journal_or_institution: '', source_type: 'peer_reviewed_article', doi: '', reference_url: '', country_or_region: '', peer_reviewed: true, philippines_specific: false, notes: '' };
-  const emptyFilters = { search: '', peer_reviewed: false, philippines_specific: false, institution: '', disease_id: '' };
-  const [items, setItems] = useState([]); const [form, setForm] = useState(empty); const [editing, setEditing] = useState(null); const [filters, setFilters] = useState(emptyFilters); const [appliedFilters, setAppliedFilters] = useState(emptyFilters); const [tab, setTab] = useState('sources'); const [modalOpen, setModalOpen] = useState(false); const [deleteTarget, setDeleteTarget] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
-  const load = useCallback(() => { const query = new URLSearchParams(Object.entries(appliedFilters).filter(([, value]) => value)); api(`/admin/research-sources?${query}`).then((payload) => { setItems(payload.data); setError(''); }).catch((exception) => setError(exception.message)); }, [appliedFilters]); useEffect(() => { load(); }, [load]);
-  const create = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
-  const submit = async (event) => { event.preventDefault(); setBusy(true); const body = { ...form, year: form.year ? Number(form.year) : null, doi: form.doi || null, reference_url: form.reference_url || null }; try { await api(`/admin/research-sources${editing ? `/${editing}` : ''}`, { method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) }); setModalOpen(false); setEditing(null); setForm(empty); setMessage(editing ? 'Source updated; affected verified content was returned for review.' : 'Research source added.'); setError(''); load(); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
-  const edit = (item) => { setEditing(item.id); setForm({ ...empty, ...item, year: item.year || '' }); setError(''); setModalOpen(true); };
-  const remove = async () => { if (!deleteTarget) return; setBusy(true); try { await api(`/admin/research-sources/${deleteTarget.id}`, { method: 'DELETE' }); setDeleteTarget(null); setMessage('Unused research source deleted.'); setError(''); load(); } catch (exception) { setError(exception.message); setDeleteTarget(null); } finally { setBusy(false); } };
-  const claims = items.flatMap((source) => (source.evidence || []).map((evidence) => ({ ...evidence, source })));
-  return <div className="role-stack"><Heading title="Research Sources" text="Maintain traceable evidence and inspect every disease claim that uses it." action={<button className="primary-button" onClick={create}><Plus size={17} />Add Source</button>} /><div className="admin-tabs" role="tablist" aria-label="Research source view"><button role="tab" aria-selected={tab === 'sources'} className={tab === 'sources' ? 'active' : ''} onClick={() => setTab('sources')}><Link2 size={17} />Sources</button><button role="tab" aria-selected={tab === 'claims'} className={tab === 'claims' ? 'active' : ''} onClick={() => setTab('claims')}><BookOpen size={17} />Claim Mappings <span>{claims.length}</span></button></div>
-    <form className="panel diagnosis-filters" onSubmit={(event) => { event.preventDefault(); setAppliedFilters({ ...filters }); }}><label>Search<input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></label><label>Institution<input value={filters.institution} onChange={(event) => setFilters({ ...filters, institution: event.target.value })} /></label><label>Disease record ID<input type="number" min="1" value={filters.disease_id} onChange={(event) => setFilters({ ...filters, disease_id: event.target.value })} /></label><label className="check-filter"><input type="checkbox" checked={filters.peer_reviewed} onChange={(event) => setFilters({ ...filters, peer_reviewed: event.target.checked })} /> Peer reviewed</label><label className="check-filter"><input type="checkbox" checked={filters.philippines_specific} onChange={(event) => setFilters({ ...filters, philippines_specific: event.target.checked })} /> Philippines-specific</label><div className="filter-actions"><button type="button" className="secondary-button" onClick={() => { setFilters(emptyFilters); setAppliedFilters(emptyFilters); }}>Clear</button><button className="primary-button">Apply Filters</button></div></form>
 function DiseaseKnowledgeGrid({ items, classes, availableClasses, create, inspect, edit, setStatus, onArchive }) {
   return <section className="knowledge-card-grid" aria-label="Disease knowledge records">
     {items.map((item) => {
@@ -1281,6 +1281,38 @@ function DiseaseKnowledgeGrid({ items, classes, availableClasses, create, inspec
   </section>;
 }
 
+function DiseasesAdmin() {
+  const empty = { slug: '', model_class_key: '', name: '', alternative_names: [], scientific_name: '', causal_agent: '', pathogen_type: '', short_description: '', farmer_summary: '', curative_status: 'unclear_evidence', evidence_level: 'limited', image_only_limitations: '', professional_referral: '', prevention: '' };
+  const [items, setItems] = useState([]); const [classes, setClasses] = useState([]); const [contentStatus, setContentStatus] = useState(''); const [form, setForm] = useState(empty); const [editing, setEditing] = useState(null); const [selected, setSelected] = useState(null); const [modalOpen, setModalOpen] = useState(false); const [archiveTarget, setArchiveTarget] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
+  const load = useCallback(async () => { try { const [knowledge, system] = await Promise.all([api('/admin/diseases'), api('/admin/system')]); setItems(knowledge.data); setClasses(system.data.classes); setContentStatus(system.data.disease_content_status); } catch (exception) { setError(exception.message); } }, []); useEffect(() => { load(); }, [load]);
+  const availableClasses = classes.filter((label) => !items.some((item) => item.model_class_key === label));
+  const create = () => { const modelClass = availableClasses[0] || ''; setEditing(null); setForm({ ...empty, model_class_key: modelClass, slug: modelClass }); setError(''); setModalOpen(true); };
+  const edit = (item) => { setEditing(item.id); setForm({ ...empty, ...item, alternative_names: item.alternative_names || [], farmer_summary: item.farmer_summary || item.description || '' }); setError(''); setModalOpen(true); };
+  const submit = async (event) => { event.preventDefault(); setBusy(true); try { await api(`/admin/diseases${editing ? `/${editing}` : ''}`, { method: editing ? 'PUT' : 'POST', body: JSON.stringify(form) }); setModalOpen(false); setForm(empty); setEditing(null); setMessage(editing ? 'Disease content updated and returned for review.' : 'Missing class record created as a draft.'); setError(''); load(); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
+  const setStatus = async (item, status) => { try { await api(`/admin/diseases/${item.id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }); setMessage(status === 'researched' ? 'Disease content submitted for agricultural review.' : 'Disease status updated.'); setError(''); load(); } catch (exception) { setError(exception.message); } };
+  const inspect = async (item) => { try { const payload = await api(`/admin/diseases/${item.id}`); setSelected(payload.data); } catch (exception) { setError(exception.message); } };
+  const archive = async () => { if (!archiveTarget) return; setBusy(true); try { await api(`/admin/diseases/${archiveTarget.id}`, { method: 'DELETE' }); setArchiveTarget(null); setSelected(null); setMessage('Disease knowledge record archived.'); setError(''); load(); } catch (exception) { setError(exception.message); setArchiveTarget(null); } finally { setBusy(false); } };
+  return <div className="role-stack"><Heading title="Disease Knowledge" text="Maintain one governed knowledge record for each validated model class, then submit researched content to an agriculturist." action={<button className="primary-button" disabled={!availableClasses.length} title={!availableClasses.length ? 'Every validated model class already has a knowledge record.' : undefined} onClick={create}><Plus size={17} />Add Missing Class Record</button>} /><div className={`development-note ${classes.length ? '' : 'warning'}`}><Info size={18} /><p>{contentStatus || 'Checking the final four-class label map...'}</p></div>{!availableClasses.length && classes.length > 0 && <div className="scope-note"><Check size={17} /><span>All {classes.length} validated model classes already have knowledge records. Edit an existing record instead of adding an unsupported disease.</span></div>}{message && <div className="success-message">{message}</div>}{error && <div className="form-error">{error}</div>}<DiseaseKnowledgeGrid items={items} classes={classes} availableClasses={availableClasses} create={create} inspect={inspect} edit={edit} setStatus={setStatus} onArchive={setArchiveTarget} />
+    <ModalShell open={modalOpen} title={editing ? 'Edit Disease Content' : 'Add Missing Class Record'} description={editing ? 'Saving changes returns verified content for agricultural re-review.' : 'Only validated model classes without an existing record are available.'} onClose={() => { if (!busy) setModalOpen(false); }} size="large">
+      <form className="admin-editor disease-editor modal-form" onSubmit={submit}><div><label>Model class key<select value={form.model_class_key} disabled={Boolean(editing)} onChange={(event) => setForm({ ...form, model_class_key: event.target.value, slug: event.target.value })} required><option value="">Select validated class</option>{(editing ? classes : availableClasses).map((label) => <option key={label}>{label}</option>)}</select></label><label>Accepted disease name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label><label>Scientific name<input value={form.scientific_name || ''} onChange={(event) => setForm({ ...form, scientific_name: event.target.value })} /></label><label>Causal agent<input value={form.causal_agent || ''} onChange={(event) => setForm({ ...form, causal_agent: event.target.value })} /></label><label>Pathogen type<select value={form.pathogen_type || ''} onChange={(event) => setForm({ ...form, pathogen_type: event.target.value })}><option value="">Not established</option>{['fungus', 'bacterium', 'virus', 'other'].map((value) => <option key={value}>{value}</option>)}</select></label><label>Curative status<select value={form.curative_status} onChange={(event) => setForm({ ...form, curative_status: event.target.value })}>{['unclear_evidence', 'manageable_not_curable', 'no_known_cure', 'curative_treatment_available'].map((value) => <option key={value}>{titleCase(value.replaceAll('_', '-'))}</option>)}</select></label><label>Evidence level<select value={form.evidence_level} onChange={(event) => setForm({ ...form, evidence_level: event.target.value })}>{['limited', 'moderate', 'high'].map((value) => <option key={value}>{titleCase(value)}</option>)}</select></label>{[['short_description','Short description'],['farmer_summary','Farmer summary'],['prevention','How to help prevent spread'],['professional_referral','When to seek expert help'],['image_only_limitations','Image-only limitations']].map(([field,label]) => <label key={field}>{label}<textarea value={form[field] || ''} onChange={(event) => setForm({ ...form, [field]: event.target.value })} /></label>)}</div>{error && <div className="form-error">{error}</div>}<footer><button type="button" className="secondary-button" disabled={busy} onClick={() => setModalOpen(false)}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save and Return for Review' : 'Create Draft'}</button></footer></form>
+    </ModalShell>
+    <ModalShell open={Boolean(selected)} title={selected?.disease?.name || 'Disease Details'} description="Research and farmer-facing content for this validated model class." onClose={() => setSelected(null)} variant="drawer" size="large">{selected && <div className="disease-detail"><section><h3>Farmer guidance</h3><p>{selected.disease.description || 'Insufficient verified evidence available.'}</p><h3>Management and prevention</h3><p>{selected.disease.management || 'Insufficient verified evidence available.'}</p><h3>Image-only limitations</h3><p>{selected.disease.image_only_limitations || 'Not yet documented.'}</p></section><section><h3>Research record</h3><dl><div><dt>Model class</dt><dd>{selected.disease.model_class_key}</dd></div><div><dt>Scientific name</dt><dd>{selected.disease.scientific_name || 'Pending'}</dd></div><div><dt>Causal agent</dt><dd>{selected.disease.causal_agent || 'Pending'}</dd></div><div><dt>Evidence level</dt><dd>{titleCase(selected.disease.evidence_level)}</dd></div><div><dt>Sources</dt><dd>{selected.disease.sources_count ?? 0}</dd></div></dl>{selected.regulatory_recheck_required && <div className="form-error">Regulatory re-check required.</div>}</section>{selected.evidence?.length > 0 && <section><h3>Mapped claims</h3><div className="claim-list">{selected.evidence.map((claim) => <article key={claim.id}><strong>{titleCase(claim.claim_type.replaceAll('_', '-'))}</strong><p>{claim.claim_text}</p></article>)}</div></section>}<div className="drawer-actions"><button className="secondary-button" onClick={() => { const item = selected.disease; setSelected(null); edit(item); }}>Edit Content</button><button className="danger-button" onClick={() => setArchiveTarget(selected.disease)}>Archive Record</button></div></div>}</ModalShell>
+    <ConfirmDialog open={Boolean(archiveTarget)} title="Archive disease record?" text={`Archive ${archiveTarget?.name || 'this record'} without deleting its historical evidence and review trail.`} confirmLabel="Archive Record" danger busy={busy} onCancel={() => setArchiveTarget(null)} onConfirm={archive} />
+  </div>;
+}
+
+function ResearchSourcesAdmin() {
+  const empty = { title: '', authors: '', year: '', journal_or_institution: '', source_type: 'peer_reviewed_article', doi: '', reference_url: '', country_or_region: '', peer_reviewed: true, philippines_specific: false, notes: '' };
+  const emptyFilters = { search: '', peer_reviewed: false, philippines_specific: false, institution: '', disease_id: '' };
+  const [items, setItems] = useState([]); const [form, setForm] = useState(empty); const [editing, setEditing] = useState(null); const [filters, setFilters] = useState(emptyFilters); const [appliedFilters, setAppliedFilters] = useState(emptyFilters); const [tab, setTab] = useState('sources'); const [modalOpen, setModalOpen] = useState(false); const [deleteTarget, setDeleteTarget] = useState(null); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [message, setMessage] = useState('');
+  const load = useCallback(() => { const query = new URLSearchParams(Object.entries(appliedFilters).filter(([, value]) => value)); api(`/admin/research-sources?${query}`).then((payload) => { setItems(payload.data); setError(''); }).catch((exception) => setError(exception.message)); }, [appliedFilters]); useEffect(() => { load(); }, [load]);
+  const create = () => { setEditing(null); setForm(empty); setError(''); setModalOpen(true); };
+  const submit = async (event) => { event.preventDefault(); setBusy(true); const body = { ...form, year: form.year ? Number(form.year) : null, doi: form.doi || null, reference_url: form.reference_url || null }; try { await api(`/admin/research-sources${editing ? `/${editing}` : ''}`, { method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) }); setModalOpen(false); setEditing(null); setForm(empty); setMessage(editing ? 'Source updated; affected verified content was returned for review.' : 'Research source added.'); setError(''); load(); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
+  const edit = (item) => { setEditing(item.id); setForm({ ...empty, ...item, year: item.year || '' }); setError(''); setModalOpen(true); };
+  const remove = async () => { if (!deleteTarget) return; setBusy(true); try { await api(`/admin/research-sources/${deleteTarget.id}`, { method: 'DELETE' }); setDeleteTarget(null); setMessage('Unused research source deleted.'); setError(''); load(); } catch (exception) { setError(exception.message); setDeleteTarget(null); } finally { setBusy(false); } };
+  const claims = items.flatMap((source) => (source.evidence || []).map((evidence) => ({ ...evidence, source })));
+  return <div className="role-stack"><Heading title="Research Sources" text="Maintain traceable evidence and inspect every disease claim that uses it." action={<button className="primary-button" onClick={create}><Plus size={17} />Add Source</button>} /><div className="admin-tabs" role="tablist" aria-label="Research source view"><button role="tab" aria-selected={tab === 'sources'} className={tab === 'sources' ? 'active' : ''} onClick={() => setTab('sources')}><Link2 size={17} />Sources</button><button role="tab" aria-selected={tab === 'claims'} className={tab === 'claims' ? 'active' : ''} onClick={() => setTab('claims')}><BookOpen size={17} />Claim Mappings <span>{claims.length}</span></button></div>
+    <form className="panel diagnosis-filters" onSubmit={(event) => { event.preventDefault(); setAppliedFilters({ ...filters }); }}><label>Search<input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /></label><label>Institution<input value={filters.institution} onChange={(event) => setFilters({ ...filters, institution: event.target.value })} /></label><label>Disease record ID<input type="number" min="1" value={filters.disease_id} onChange={(event) => setFilters({ ...filters, disease_id: event.target.value })} /></label><label className="check-filter"><input type="checkbox" checked={filters.peer_reviewed} onChange={(event) => setFilters({ ...filters, peer_reviewed: event.target.checked })} /> Peer reviewed</label><label className="check-filter"><input type="checkbox" checked={filters.philippines_specific} onChange={(event) => setFilters({ ...filters, philippines_specific: event.target.checked })} /> Philippines-specific</label><div className="filter-actions"><button type="button" className="secondary-button" onClick={() => { setFilters(emptyFilters); setAppliedFilters(emptyFilters); }}>Clear</button><button className="primary-button">Apply Filters</button></div></form>
     {message && <div className="success-message">{message}</div>}{error && <div className="form-error">{error}</div>}
     {tab === 'sources' ? <section className="panel admin-table-role source-table"><header><span>Reference</span><span>Year</span><span>Type</span><span>Quality</span><span>Claims</span><span>Actions</span></header>{items.map((item) => <div key={item.id}><span><strong>{item.authors} ({item.year || 'n.d.'}). {item.title}.</strong><small>{item.journal_or_institution}{item.doi ? ` · DOI: ${item.doi}` : ''}</small></span><span>{item.year || 'n.d.'}</span><span>{titleCase(item.source_type.replaceAll('_','-'))}</span><span>{item.peer_reviewed ? 'Peer reviewed' : 'Authoritative'}{item.philippines_specific ? ' · Philippines' : ''}</span><span>{item.evidence_count}</span><span><button onClick={() => edit(item)}>Edit</button>{item.reference_url && <a href={item.reference_url} target="_blank" rel="noreferrer">Open</a>}{item.evidence_count ? <span className="in-use-label" title="Remove or replace mapped claims before deleting this source.">In use</span> : <button className="danger-link" onClick={() => setDeleteTarget(item)}>Delete</button>}</span></div>)}{!items.length && <Empty icon={Link2} title="No research sources found." text={Object.values(appliedFilters).some(Boolean) ? 'Adjust the filters and try again.' : 'Add only sources checked against the original publication or authority.'} action={!Object.values(appliedFilters).some(Boolean) ? create : undefined} actionLabel="Add Source" />}</section> : <section className="panel evidence-audit"><h2>Claims using the filtered sources</h2>{claims.map((claim) => <article key={claim.id}><strong>{titleCase(claim.claim_type.replaceAll('_', '-'))} · {titleCase(claim.evidence_strength)}</strong><p>{claim.claim_text}</p><small>{claim.disease?.name || 'Disease record'} — {claim.source.authors} ({claim.source.year || 'n.d.'}). {claim.source.title}.{claim.source.doi ? ` DOI: ${claim.source.doi}` : ''}</small></article>)}{!claims.length && <Empty icon={BookOpen} title="No mapped claims found." text="Claims will appear after a source is mapped to disease knowledge." />}</section>}
     <ModalShell open={modalOpen} title={editing ? 'Edit Research Source' : 'Add Research Source'} description={editing ? 'Changing a source returns affected verified content for agricultural re-review.' : 'Record only sources checked against the original publication or issuing authority.'} onClose={() => { if (!busy) setModalOpen(false); }} size="large"><form className="admin-editor source-editor modal-form" onSubmit={submit}><div>{[['title','Title'],['authors','Authors'],['year','Publication year'],['journal_or_institution','Journal or institution'],['doi','DOI (leave blank if none)'],['reference_url','Reference URL'],['country_or_region','Country or region']].map(([field,label]) => <label key={field}>{label}<input type={field === 'year' ? 'number' : field === 'reference_url' ? 'url' : 'text'} value={form[field] || ''} onChange={(event) => setForm({ ...form, [field]: event.target.value })} required={['title','authors','journal_or_institution'].includes(field)} /></label>)}<label>Source type<select value={form.source_type} onChange={(event) => setForm({ ...form, source_type: event.target.value })}>{['peer_reviewed_article','systematic_review','review_article','government_guideline','FAO_guideline','university_extension','regulatory_document','academic_book_chapter','research_institute'].map((value) => <option key={value} value={value}>{titleCase(value.replaceAll('_','-'))}</option>)}</select></label><label>Notes<textarea value={form.notes || ''} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label><label className="check-filter"><input type="checkbox" checked={form.peer_reviewed} onChange={(event) => setForm({ ...form, peer_reviewed: event.target.checked })} /> Peer reviewed</label><label className="check-filter"><input type="checkbox" checked={form.philippines_specific} onChange={(event) => setForm({ ...form, philippines_specific: event.target.checked })} /> Philippines-specific</label></div>{error && <div className="form-error">{error}</div>}<footer><button type="button" className="secondary-button" disabled={busy} onClick={() => setModalOpen(false)}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save and Trigger Re-review' : 'Add Source'}</button></footer></form></ModalShell>
@@ -1683,6 +1715,25 @@ function DatasetCandidateCard({ item, note, onNote, onDecide, busy, user }) {
   </article>;
 }
 
+function ExpertDatasetCandidates({ base = '/expert', user }) {
+  const [items, setItems] = useState([]); const [filter, setFilter] = useState('pending'); const [notes, setNotes] = useState({}); const [error, setError] = useState(''); const [message, setMessage] = useState(''); const [busyId, setBusyId] = useState(null);
+  const load = useCallback(() => api(`${base}/dataset-candidates${filter ? `?status=${filter}` : ''}`).then((payload) => { setItems(payload.data); setError(''); }).catch((exception) => setError(exception.message)), [base, filter]);
+  useEffect(() => { load(); }, [load]);
+  const decide = async (item, status) => { setBusyId(item.id); try { await api(`${base}/dataset-candidates/${item.id}`, { method: 'PUT', body: JSON.stringify({ status, review_notes: notes[item.id] ?? item.review_notes ?? null }) }); setMessage('Dataset candidate decision recorded.'); setError(''); await load(); } catch (exception) { setError(exception.message); } finally { setBusyId(null); } };
+  const filters = [['pending', 'Needs decision'], ['', 'All'], ['approved', 'Approved'], ['uncertain', 'Uncertain'], ['rejected', 'Rejected']];
+  const emptyTitle = filter === 'pending' ? 'No candidates need a decision' : filter ? `No ${filter} candidates` : 'No dataset candidates yet';
+  return <div className="role-stack">
+    <Heading title="Dataset Candidates" text="Consented leaf photos enter this queue automatically after an agriculturist completes a review." />
+    {base === '/admin' && <AdminResearchImages />}
+    <div className="development-note"><Info size={18} /><p>Adding a candidate does not add it to training data. Approval keeps a private research copy; export and future training remain separate controlled steps.</p></div>
+    <nav className="candidate-filters" aria-label="Filter dataset candidates">{filters.map(([value, label]) => <button key={label} type="button" className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</nav>
+    {error && <div className="form-error" role="alert">{error}</div>}{message && <div className="success-message" role="status">{message}</div>}
+    <section className="dataset-candidate-grid" aria-label="Dataset candidate photo grid">
+      {items.map((item) => <DatasetCandidateCard key={item.id} item={item} note={notes[item.id]} onNote={(value) => setNotes((current) => ({ ...current, [item.id]: value }))} onDecide={(status) => decide(item, status)} busy={busyId === item.id} user={user} />)}
+      {!items.length && <div className="panel candidate-grid-empty"><Empty icon={Database} title={emptyTitle} text="A consented scan with a photo enters this grid after an agriculturist completes its review." /></div>}
+    </section>
+  </div>;
+}
 function ExpertSources() {
   const { data, error } = useAdmin('/expert/research-sources'); if (error) return <div className="form-error">{error}</div>; if (!data) return <Loading text="Loading research sources..." />;
   return <div className="role-stack"><Heading title="Research Sources" text="Review the evidence used for disease claims. Administrators retain source-management access." /><section className="panel admin-table-role source-table"><header><span>Reference</span><span>Year</span><span>Type</span><span>Quality</span><span>Claims</span><span>Link</span></header>{data.map((item) => <div key={item.id}><span><strong>{item.authors} ({item.year || 'n.d.'}). {item.title}.</strong><small>{item.journal_or_institution}</small></span><span>{item.year || 'n.d.'}</span><span>{titleCase(item.source_type.replaceAll('_','-'))}</span><span>{item.peer_reviewed ? 'Peer reviewed' : 'Authoritative'}{item.philippines_specific ? ' · Philippines' : ''}</span><span>{item.evidence_count}</span><span>{item.reference_url ? <a href={item.reference_url} target="_blank" rel="noreferrer">Open source</a> : 'No link'}</span></div>)}</section></div>;
@@ -1715,25 +1766,6 @@ function ModelComparisonAdmin() {
     setError('');
   };
 
-function ExpertDatasetCandidates({ base = '/expert', user }) {
-  const [items, setItems] = useState([]); const [filter, setFilter] = useState('pending'); const [notes, setNotes] = useState({}); const [error, setError] = useState(''); const [message, setMessage] = useState(''); const [busyId, setBusyId] = useState(null);
-  const load = useCallback(() => api(`${base}/dataset-candidates${filter ? `?status=${filter}` : ''}`).then((payload) => { setItems(payload.data); setError(''); }).catch((exception) => setError(exception.message)), [base, filter]);
-  useEffect(() => { load(); }, [load]);
-  const decide = async (item, status) => { setBusyId(item.id); try { await api(`${base}/dataset-candidates/${item.id}`, { method: 'PUT', body: JSON.stringify({ status, review_notes: notes[item.id] ?? item.review_notes ?? null }) }); setMessage('Dataset candidate decision recorded.'); setError(''); await load(); } catch (exception) { setError(exception.message); } finally { setBusyId(null); } };
-  const filters = [['pending', 'Needs decision'], ['', 'All'], ['approved', 'Approved'], ['uncertain', 'Uncertain'], ['rejected', 'Rejected']];
-  const emptyTitle = filter === 'pending' ? 'No candidates need a decision' : filter ? `No ${filter} candidates` : 'No dataset candidates yet';
-  return <div className="role-stack">
-    <Heading title="Dataset Candidates" text="Consented leaf photos enter this queue automatically after an agriculturist completes a review." />
-    {base === '/admin' && <AdminResearchImages />}
-    <div className="development-note"><Info size={18} /><p>Adding a candidate does not add it to training data. Approval keeps a private research copy; export and future training remain separate controlled steps.</p></div>
-    <nav className="candidate-filters" aria-label="Filter dataset candidates">{filters.map(([value, label]) => <button key={label} type="button" className={filter === value ? 'active' : ''} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</button>)}</nav>
-    {error && <div className="form-error" role="alert">{error}</div>}{message && <div className="success-message" role="status">{message}</div>}
-    <section className="dataset-candidate-grid" aria-label="Dataset candidate photo grid">
-      {items.map((item) => <DatasetCandidateCard key={item.id} item={item} note={notes[item.id]} onNote={(value) => setNotes((current) => ({ ...current, [item.id]: value }))} onDecide={(status) => decide(item, status)} busy={busyId === item.id} user={user} />)}
-      {!items.length && <div className="panel candidate-grid-empty"><Empty icon={Database} title={emptyTitle} text="A consented scan with a photo enters this grid after an agriculturist completes its review." /></div>}
-    </section>
-  </div>;
-}
   const compare = async () => {
     if (!file) return;
     setBusy(true);
@@ -1820,46 +1852,115 @@ const HOME_BENEFITS = [
   ['Disease guide', 'Signs, prevention and care for each disease, plus short articles.'],
 ];
 
+// Fades sections in as they scroll into view, and marks the header once the page has scrolled.
+function useLandingMotion(root) {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    const items = [...(root.current?.querySelectorAll('[data-reveal]') || [])];
+    if (!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      items.forEach((item) => item.classList.add('is-visible'));
+      return () => window.removeEventListener('scroll', onScroll);
+    }
+    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('is-visible');
+      observer.unobserve(entry.target);
+    }), { rootMargin: '0px 0px -8% 0px', threshold: .12 });
+    items.forEach((item) => observer.observe(item));
+    return () => { observer.disconnect(); window.removeEventListener('scroll', onScroll); };
+  }, [root]);
+  return scrolled;
+}
+// Moves the soft highlight on a card to follow the pointer.
+const trackSpotlight = (event) => { const box = event.currentTarget.getBoundingClientRect(); event.currentTarget.style.setProperty('--spot-x', `${event.clientX - box.left}px`); event.currentTarget.style.setProperty('--spot-y', `${event.clientY - box.top}px`); };
+const HOME_STEP_ICONS = [Camera, ScanLine, ShieldCheck];
+const HOME_BENEFIT_ICONS = [History, ShieldCheck, CloudOff, BookOpen];
+const HOME_LINKS = [['how', 'How it works'], ['conditions', 'Diseases'], ['scan', 'Try a scan'], ['features', 'Features']];
+
 function PublicLanding({ online, authMode, onAuthMode, onAuthenticated }) {
-  const goToScan = () => document.getElementById('scan')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  return <div className="public-app">
-    <header className="public-header"><a className="public-brand" href="/" onClick={(event) => { event.preventDefault(); onAuthMode(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><span><LogoMark /></span><div><strong>DahonMD</strong></div></a><div className="public-auth-actions"><select className="public-language" aria-label={tr('Language')} value={getLanguage()} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="fil">Filipino</option></select><button className="secondary-button" onClick={() => onAuthMode('login')}><CircleUserRound size={17} />{tr('Log in')}</button><button className="primary-button" onClick={() => onAuthMode('register')}><Plus size={17} />{tr('Sign up')}</button></div></header>
+  const root = useRef(null);
+  const scrolled = useLandingMotion(root);
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const goToScan = () => scrollTo('scan');
+  const sectionLinks = HOME_LINKS.map(([id, label]) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>{tr(label)}</a>);
+  return <div className="public-app landing" ref={root}>
+    <div className="landing-progress" aria-hidden="true" />
+    <header className={`public-header landing-header ${scrolled ? 'scrolled' : ''}`}>
+      <a className="public-brand" href="/" onClick={(event) => { event.preventDefault(); onAuthMode(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><span><LogoMark /></span><div><strong>DahonMD</strong></div></a>
+      <nav className="landing-nav" aria-label={tr('Page sections')}>{sectionLinks}</nav>
+      <div className="public-auth-actions"><select className="public-language" aria-label={tr('Language')} value={getLanguage()} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="fil">Filipino</option></select><button className="secondary-button" onClick={() => onAuthMode('login')}><CircleUserRound size={17} />{tr('Log in')}</button><button className="primary-button" onClick={() => onAuthMode('register')}><Plus size={17} />{tr('Sign up')}</button></div>
+    </header>
     <main>
       <section className="home-hero">
+        <div className="landing-backdrop" aria-hidden="true"><i className="blob one" /><i className="blob two" /><i className="blob three" /><i className="grid" /></div>
         <div className="home-hero-text">
+          <span className="landing-eyebrow"><Sparkles size={14} />{tr('AI leaf screening for banana farmers')}</span>
           <h1>{tr('Check your banana leaves with one photo.')}</h1>
           <p>{tr('DahonMD helps banana farmers spot common leaf diseases early. Take a photo, see the result in seconds, and ask an agriculturist when you need help.')}</p>
           <div className="home-hero-actions">
-            <button type="button" className="primary-button" onClick={goToScan}><ScanLine size={18} />{tr('Scan a leaf now')}</button>
+            <button type="button" className="primary-button landing-cta" onClick={goToScan}><ScanLine size={18} />{tr('Scan a leaf now')}<ArrowRight className="landing-cta-arrow" size={17} /></button>
             <button type="button" className="secondary-button" onClick={() => onAuthMode('register')}>{tr('Create a free account')}</button>
           </div>
           <small>{tr('Free to use. No account needed to try a scan.')}</small>
+          <dl className="landing-stats">
+            <div><dt>{tr('Leaf conditions')}</dt><dd>4</dd></div>
+            <div><dt>{tr('Photo needed')}</dt><dd>1</dd></div>
+            <div><dt>{tr('Price')}</dt><dd>{tr('Free')}</dd></div>
+          </dl>
         </div>
-        <img className="home-hero-image" src="/assets/disease-guide/sigatoka-2.webp" alt={tr('Banana leaf with Sigatoka spots')} />
+        <div className="landing-visual">
+          <div className="landing-photo">
+            <img className="home-hero-image" src="/assets/disease-guide/sigatoka-2.webp" alt={tr('Banana leaf with Sigatoka spots')} />
+            <span className="landing-scanline" aria-hidden="true" />
+            {['tl', 'tr', 'bl', 'br'].map((corner) => <span key={corner} className={`landing-corner ${corner}`} aria-hidden="true" />)}
+          </div>
+          <div className="landing-chip result" aria-hidden="true"><span><Leaf size={16} /></span><div><strong>Sigatoka</strong><small>{tr('Likely')}</small></div><span className="certainty-bars"><i className="on" /><i className="on" /><i /></span></div>
+          <div className="landing-chip expert" aria-hidden="true"><span><ShieldCheck size={16} /></span><div><strong>{tr('Expert review')}</strong><small>{tr('Ask an agriculturist')}</small></div></div>
+          <div className="landing-chip offline" aria-hidden="true"><span><CloudOff size={16} /></span><div><strong>{tr('Works offline')}</strong></div></div>
+        </div>
       </section>
 
-      <section className="home-section">
-        <h2>{tr('How it works')}</h2>
-        <ol className="home-steps">{HOME_STEPS.map(([title, text]) => <li key={title}><h3>{tr(title)}</h3><p>{tr(text)}</p></li>)}</ol>
+      <div className="landing-marquee" aria-hidden="true"><div>{[0, 1].map((copy) => <span key={copy}>{HOME_CONDITIONS.map(([key, name]) => <b key={key}><Leaf size={15} />{tr(name)}</b>)}<b><ShieldCheck size={15} />{tr('Answers from agriculturists')}</b><b><CloudOff size={15} />{tr('Works offline')}</b><b><BookOpen size={15} />{tr('Disease guide')}</b></span>)}</div></div>
+
+      <section className="home-section" id="how">
+        <header className="landing-section-head" data-reveal><span className="landing-kicker">01</span><h2>{tr('How it works')}</h2></header>
+        <ol className="home-steps">{HOME_STEPS.map(([title, text], index) => { const Icon = HOME_STEP_ICONS[index]; return <li key={title} data-reveal style={{ '--reveal-delay': `${index * 110}ms` }} onPointerMove={trackSpotlight}><span className="landing-step-icon"><Icon size={22} /></span><span className="landing-step-number">{String(index + 1).padStart(2, '0')}</span><h3>{tr(title)}</h3><p>{tr(text)}</p></li>; })}</ol>
       </section>
 
-      <section className="home-section">
-        <h2>{tr('What DahonMD can check')}</h2>
-        <p className="home-section-text">{tr('The scanner looks for these leaf conditions. More diseases are explained in the guide after you sign up.')}</p>
-        <div className="home-conditions">{HOME_CONDITIONS.map(([key, name, text]) => <article key={key}><img src={GUIDE_MEDIA[key].images[0]} alt="" loading="lazy" /><h3>{tr(name)}</h3><p>{tr(text)}</p></article>)}</div>
+      <section className="home-section" id="conditions">
+        <header className="landing-section-head" data-reveal><span className="landing-kicker">02</span><h2>{tr('What DahonMD can check')}</h2><p className="home-section-text">{tr('The scanner looks for these leaf conditions. More diseases are explained in the guide after you sign up.')}</p></header>
+        <div className="home-conditions">{HOME_CONDITIONS.map(([key, name, text], index) => <article key={key} data-reveal style={{ '--reveal-delay': `${index * 90}ms` }}><div className="landing-condition-photo"><img src={GUIDE_MEDIA[key].images[0]} alt="" loading="lazy" /></div><div className="landing-condition-copy"><h3>{tr(name)}</h3><p>{tr(text)}</p></div></article>)}</div>
       </section>
 
-      <section className="home-section" id="scan">
-        <FarmerScan onSaved={null} online={online} onAuthRequired={onAuthMode} navigate={() => onAuthMode('login')} autoStartCamera={false} />
+      <section className="home-section landing-try" id="scan">
+        <header className="landing-section-head" data-reveal><span className="landing-kicker">03</span></header>
+        <div className="landing-try-frame" data-reveal>
+          <FarmerScan onSaved={null} online={online} onAuthRequired={onAuthMode} navigate={() => onAuthMode('login')} autoStartCamera={false} />
+        </div>
       </section>
 
-      <section className="home-section">
-        <h2>{tr('With a free account')}</h2>
-        <dl className="home-benefits">{HOME_BENEFITS.map(([title, text]) => <div key={title}><dt>{tr(title)}</dt><dd>{tr(text)}</dd></div>)}</dl>
-        <button type="button" className="primary-button home-signup-button" onClick={() => onAuthMode('register')}>{tr('Sign up')}</button>
+      <section className="home-section" id="features">
+        <header className="landing-section-head" data-reveal><span className="landing-kicker">04</span><h2>{tr('With a free account')}</h2></header>
+        <dl className="home-benefits">{HOME_BENEFITS.map(([title, text], index) => { const Icon = HOME_BENEFIT_ICONS[index]; return <div key={title} data-reveal style={{ '--reveal-delay': `${index * 90}ms` }} onPointerMove={trackSpotlight}><span className="landing-benefit-icon"><Icon size={22} /></span><dt>{tr(title)}</dt><dd>{tr(text)}</dd></div>; })}</dl>
       </section>
 
-      <footer className="home-footer"><p>{tr('DahonMD gives screening support only. It cannot confirm a disease. Always ask your local agriculturist before spraying or removing plants.')}</p></footer>
+      <section className="landing-cta-band" data-reveal>
+        <div className="landing-backdrop" aria-hidden="true"><i className="blob one" /><i className="blob two" /></div>
+        <div><h2>{tr('Ready to check your leaves?')}</h2><p>{tr('Save your scans and keep them in sync across devices.')}</p></div>
+        <div className="landing-cta-actions"><button type="button" className="primary-button home-signup-button" onClick={() => onAuthMode('register')}>{tr('Sign up')}<ArrowRight size={17} /></button><button type="button" className="secondary-button" onClick={goToScan}><ScanLine size={17} />{tr('Scan a leaf now')}</button></div>
+      </section>
+
+      <footer className="home-footer">
+        <div className="landing-footer-top">
+          <a className="public-brand" href="/" onClick={(event) => { event.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><span><LogoMark /></span><div><strong>DahonMD</strong></div></a>
+          <nav aria-label={tr('Footer')}>{sectionLinks}<a href="/privacy" target="_blank" rel="noreferrer">{tr('Privacy Policy')}</a><a href="/api/terms" target="_blank" rel="noreferrer">{tr('Terms of Use')}</a></nav>
+        </div>
+        <p>{tr('DahonMD gives screening support only. It cannot confirm a disease. Always ask your local agriculturist before spraying or removing plants.')}</p>
+        <small>© {new Date().getFullYear()} DahonMD</small>
+      </footer>
     </main>
     <AuthModal mode={authMode} onClose={() => onAuthMode(null)} onMode={onAuthMode} onAuthenticated={onAuthenticated} />
     <AssistantWidget user={null} online={online} onLogin={() => onAuthMode('login')} />
