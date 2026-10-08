@@ -139,15 +139,6 @@ export function AgriculturistWorkspace({ scope = 'pending' }: { scope?: 'pending
     } catch (e) { setError(e instanceof Error ? e.message : 'Assessment was not saved. Please retry.'); }
     finally { setBusy(false); }
   };
-  const nominate = async () => {
-    if (!selected || busy) return;
-    setBusy(true); setError('');
-    try {
-      await api(`/expert/dataset-candidates/from-diagnosis/${selected.id}`, { method: 'POST' });
-      setSelected(null); setNotice('Image nominated for dataset review. Another agriculturist or an administrator records the decision.');
-    } catch (e) { setError(e instanceof Error ? e.message : 'The image could not be nominated.'); }
-    finally { setBusy(false); }
-  };
   const completed = selected?.review && selected.review.review_status !== 'pending';
   const photoAvailable = Boolean(selected?.image_url && !photoFailed);
   return <View style={uiStyles.stack}>
@@ -190,7 +181,7 @@ export function AgriculturistWorkspace({ scope = 'pending' }: { scope?: 'pending
           {selected.review?.farmer_message ? <View style={styles.contextCard}><Text style={styles.contextLabel}>MESSAGE TO FARMER</Text><Text style={styles.contextText}>{selected.review.farmer_message}</Text></View> : null}
           {selected.review?.notes ? <Text style={styles.detailText}>Internal note: {selected.review.notes}</Text> : null}
           <Text style={uiStyles.cardMeta}>{selected.review?.reviewer?.name ? `Reviewed by ${selected.review.reviewer.name}` : 'Reviewed'} · {formatDate(selected.review?.reviewed_at)}</Text>
-          {selected.image_url && selected.research_consent ? <ActionButton variant="secondary" icon="albums-outline" disabled={busy} onPress={nominate}>{busy ? 'Nominating...' : 'Nominate for dataset review'}</ActionButton> : null}
+          {selected.image_url && selected.research_consent ? <Text style={uiStyles.cardMeta}>This reviewed photo enters the dataset decision queue automatically. Another agriculturist or an administrator decides whether to approve it.</Text> : null}
         </View> : <View pointerEvents={busy ? 'none' : 'auto'} style={uiStyles.stack}>
           {claimNote ? <Notice tone="warning">{claimNote}</Notice> : null}
           <Text style={styles.sectionTitle}>Your assessment</Text>

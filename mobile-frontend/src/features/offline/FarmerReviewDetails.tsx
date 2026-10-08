@@ -11,13 +11,44 @@ import type { DiagnosticReview, LocalDiagnosis } from '../../storage/localDiagno
 import { formatDate, palette } from '../connected/ui';
 import { farmerReviewOutcome, needsClearerReviewPhoto } from './reviewOutcome';
 
-export function FarmerReviewDetails({ item, review, onBack, onOpenPhoto, onOpenGuide, onLocationChanged, reply }: {
+export function HistoryPhotoLink({ imageUri, label, onPress, standalone = false }: { imageUri: string | null; label: string; onPress: () => void; standalone?: boolean }) {
+  if (!imageUri) return null;
+  return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.photoLink, standalone && styles.photoLinkStandalone]}>
+    <Ionicons name="image-outline" size={23} color={palette.green} />
+    <Text style={styles.photoLinkText}>{label}</Text>
+    <Ionicons name="chevron-forward" size={20} color={palette.green} />
+  </Pressable>;
+}
+
+export function HistoryAiCard({ item, review, children }: { item: LocalDiagnosis; review?: DiagnosticReview | null; children?: ReactNode }) {
+  const { t, language } = useT();
+  const verified = review?.review_status === 'confirmed' ? review.verified_label || item.predicted_class : review?.verified_label;
+  const differs = Boolean(verified && verified in CLASS_DISPLAY_NAMES && verified !== item.predicted_class);
+  return <View style={styles.aiCard}>
+    <Text style={styles.aiEyebrow}>{t(review ? 'review.originalAi' : 'history.aiScreening')}</Text>
+    <View style={styles.aiRow}><Text style={styles.aiName}>{className(item.predicted_class, language)}</Text><Text style={styles.aiBadge}>{t('review.screeningOnly')}</Text></View>
+    <Text style={styles.aiScore}>{Math.round(item.confidence)}% {t('review.modelScore')}</Text>
+    {differs ? <View style={styles.aiNotice}><Ionicons name="information-circle-outline" size={20} color="#526475" /><Text style={styles.aiNoticeText}>{t('review.aiDiffers')}</Text></View> : null}
+    {children}
+  </View>;
+}
+
+export function HistoryLocationCard({ item, onChanged }: { item: LocalDiagnosis; onChanged: () => void }) {
+  const { t } = useT();
+  if (!item.owner_user_id) return null;
+  return <View style={styles.locationCard}>
+    <View style={styles.rowTop}><Ionicons name="location-outline" size={25} color={palette.green} /><View style={styles.locationCopy}><Text style={styles.cardTitle}>{t('review.locationTitle')}</Text><Text style={styles.locationText}>{t('review.locationHint')}</Text></View></View>
+    <ScanLocationControl key={`${item.local_id}-${item.latitude ?? 'none'}`} localId={item.local_id} onChanged={onChanged} />
+  </View>;
+}
+
+export function FarmerReviewDetails({ item, review, onOpenPhoto, onOpenGuide, onLocationChanged, aiDetails, reply }: {
   item: LocalDiagnosis;
   review: DiagnosticReview;
-  onBack: () => void;
   onOpenPhoto: () => void;
   onOpenGuide?: (classKey: ClassKey) => void;
   onLocationChanged: () => void;
+  aiDetails?: ReactNode;
   reply: ReactNode;
 }) {
   const { t, language } = useT();
@@ -25,24 +56,18 @@ export function FarmerReviewDetails({ item, review, onBack, onOpenPhoto, onOpenG
   const verified = review.review_status === 'confirmed' ? review.verified_label || item.predicted_class : review.verified_label;
   const guideClass = verified && verified in CLASS_DISPLAY_NAMES ? verified as ClassKey : null;
   const assessment = guideClass ? className(guideClass, language) : outcome.title;
-  const differs = Boolean(guideClass && guideClass !== item.predicted_class);
   const clearerPhoto = needsClearerReviewPhoto(review);
   const steps = clearerPhoto ? outcome.steps.filter((step) => step !== t('outcome.step.retake_photo')) : outcome.steps;
   const reviewerName = review.reviewer?.name ?? t('review.theReviewer');
 
   return <View style={styles.stack}>
-    <Pressable accessibilityRole="button" onPress={onBack} style={styles.back}>
-      <Ionicons name="arrow-back" size={25} color={palette.green} />
-      <Text style={styles.backText}>{t('review.detailsTitle')}</Text>
-    </Pressable>
-
     <View style={styles.hero}>
       <View style={styles.completePill}><Ionicons name="checkmark-circle" size={22} color="#fff" /><Text style={styles.completeText}>{t('review.complete')}</Text></View>
       <Text style={styles.eyebrow}>{t('review.assessment')}</Text>
       <View style={styles.assessmentRow}><Text style={styles.assessment}>{assessment}</Text>{guideClass ? <View style={styles.leafArt}><Ionicons name="leaf" size={55} color="#4c9c59" /></View> : null}</View>
       <Text style={styles.assessmentExplanation}>{outcome.message}</Text>
       <View style={styles.reviewer}><Ionicons name="person" size={17} color={palette.green} /><Text style={styles.reviewerText}>{reviewerName}{review.reviewed_at ? `  ·  ${formatDate(review.reviewed_at, true)}` : ''}</Text></View>
-      {item.image_uri ? <Pressable accessibilityRole="button" onPress={onOpenPhoto} style={styles.photoLink}><Ionicons name="image-outline" size={23} color={palette.green} /><Text style={styles.photoLinkText}>{t('review.viewSubmittedPhoto')}</Text><Ionicons name="chevron-forward" size={20} color={palette.green} /></Pressable> : null}
+      <HistoryPhotoLink imageUri={item.image_uri} label={t('review.viewSubmittedPhoto')} onPress={onOpenPhoto} />
     </View>
 
     {(review.farmer_message || clearerPhoto) ? <View style={styles.messageCard}>
@@ -57,26 +82,16 @@ export function FarmerReviewDetails({ item, review, onBack, onOpenPhoto, onOpenG
       {guideClass && onOpenGuide ? <Pressable accessibilityRole="button" onPress={() => onOpenGuide(guideClass)} style={styles.outlineButton}><Ionicons name="book-outline" size={21} color={palette.green} /><Text style={styles.outlineText}>{t('review.readGuide', { name: className(guideClass, language) })}</Text></Pressable> : null}
     </View> : null}
 
-    <View style={styles.aiCard}>
-      <Text style={styles.aiEyebrow}>{t('review.originalAi')}</Text>
-      <View style={styles.aiRow}><Text style={styles.aiName}>{className(item.predicted_class, language)}</Text><Text style={styles.aiBadge}>{t('review.screeningOnly')}</Text></View>
-      <Text style={styles.aiScore}>{Math.round(item.confidence)}% {t('review.modelScore')}</Text>
-      {differs ? <View style={styles.aiNotice}><Ionicons name="information-circle-outline" size={20} color="#526475" /><Text style={styles.aiNoticeText}>{t('review.aiDiffers')}</Text></View> : null}
-    </View>
+    <HistoryAiCard item={item} review={review}>{aiDetails}</HistoryAiCard>
 
-    {item.owner_user_id ? <View style={styles.locationCard}>
-      <View style={styles.rowTop}><Ionicons name="location-outline" size={25} color={palette.green} /><View style={styles.locationCopy}><Text style={styles.cardTitle}>{t('review.locationTitle')}</Text><Text style={styles.locationText}>{t('review.locationHint')}</Text></View></View>
-      <ScanLocationControl key={`${item.local_id}-${item.latitude ?? 'none'}`} localId={item.local_id} onChanged={onLocationChanged} />
-    </View> : null}
+    <HistoryLocationCard item={item} onChanged={onLocationChanged} />
 
     {!clearerPhoto ? <View style={styles.followUpCard}>{reply}</View> : null}
   </View>;
 }
 
 const styles = StyleSheet.create({
-  stack: { gap: 16, paddingTop: 8, paddingBottom: 24 },
-  back: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backText: { color: palette.ink, fontSize: 21, fontWeight: '800' },
+  stack: { gap: 14 },
   hero: { gap: 12, padding: 20, borderRadius: 20, borderWidth: 1, borderColor: '#cfe4d5', backgroundColor: '#f1f8f3' },
   completePill: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: '#2b9255' },
   completeText: { color: '#fff', fontSize: 15, fontWeight: '800' },
@@ -88,6 +103,7 @@ const styles = StyleSheet.create({
   reviewer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   reviewerText: { flex: 1, color: '#344740', fontSize: 14, lineHeight: 21 },
   photoLink: { minHeight: 52, marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#d4e5d9', flexDirection: 'row', alignItems: 'center', gap: 10 },
+  photoLinkStandalone: { marginTop: 0, paddingTop: 0, borderTopWidth: 0 },
   photoLinkText: { flex: 1, color: '#075849', fontSize: 15, fontWeight: '800' },
   messageCard: { gap: 12, padding: 18, borderRadius: 18, borderWidth: 1, borderColor: '#f5d494', backgroundColor: '#fff5df' },
   rowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },

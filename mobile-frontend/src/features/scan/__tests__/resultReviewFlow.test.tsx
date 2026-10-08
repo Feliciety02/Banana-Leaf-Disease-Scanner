@@ -97,6 +97,7 @@ it('keeps a guest note on the result while the farmer signs in', async () => {
   expect(requestAgriculturalReview).not.toHaveBeenCalled();
   await screen.rerender(<ScanScreen user={farmer} onSignIn={onSignIn} onStored={jest.fn()} onOpenGuide={jest.fn()} onDirtyChange={jest.fn()} modelStatus={{ status: 'real', fingerprints: null }} />);
   expect(screen.getByLabelText('Think the AI result is wrong? Tell the agriculturist what you noticed (optional).').props.value).toBe('Spots look different.');
+  expect(claimLocalOnlyDiagnoses).not.toHaveBeenCalled();
   await fireEvent.press(screen.getAllByText('Ask an expert').at(-1)!);
   await waitFor(() => expect(claimLocalOnlyDiagnoses).toHaveBeenCalledWith(7, 'leaf-1'));
   await waitFor(() => expect(requestAgriculturalReview).toHaveBeenCalledWith('leaf-1', 'Spots look different.'));

@@ -28,7 +28,7 @@ it('shows a different expert disease, the farmer message, original AI result, an
   const screen = await render(<FarmerReviewDetails
     item={item}
     review={review({ review_status: 'alternate_class', verified_label: 'panama-disease', image_quality: 'blurry', next_steps: ['retake_photo', 'seek_field_inspection'], farmer_message: 'The image is blurry. Please take a clearer photo.' })}
-    onBack={jest.fn()} onOpenPhoto={jest.fn()} onOpenGuide={jest.fn()} onLocationChanged={jest.fn()}
+    onOpenPhoto={jest.fn()} onOpenGuide={jest.fn()} onLocationChanged={jest.fn()}
     reply={<Text>Send a clearer photo</Text>}
   />);
   expect(screen.getByText('Panama Disease')).toBeTruthy();
@@ -46,7 +46,7 @@ it.each([
 ] as const)('shows the correct explanation for %s', async (status, title, explanation) => {
   const screen = await render(<FarmerReviewDetails
     item={item} review={review({ review_status: status, verified_label: null, next_steps: ['seek_field_inspection'] })}
-    onBack={jest.fn()} onOpenPhoto={jest.fn()} onLocationChanged={jest.fn()} reply={null}
+    onOpenPhoto={jest.fn()} onLocationChanged={jest.fn()} reply={null}
   />);
   expect(screen.getByText(title)).toBeTruthy();
   expect(screen.getByText(explanation)).toBeTruthy();

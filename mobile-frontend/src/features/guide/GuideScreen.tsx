@@ -40,21 +40,31 @@ export function GuideScreen({ initialClass = null, onScrollTop }: { initialClass
         })}
       </View>
       {view.name === 'library' ? <LibraryScreen key={view.disease} initialDisease={view.disease} onScrollTop={onScrollTop} /> : <>
-      <Text style={styles.subtitle}>{t('guide.subtitle')}</Text>
+      <View style={styles.intro}>
+        <View style={styles.introIcon}><Ionicons name="search-outline" size={24} color={palette.green} /></View>
+        <View style={styles.introCopy}>
+          <Text style={styles.introTitle}>{t('guide.compareTitle')}</Text>
+          <Text style={styles.subtitle}>{t('guide.subtitle')}</Text>
+        </View>
+      </View>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{t('guide.scanChecks')}</Text>
+        <Text style={styles.sectionCount}>{CLASS_KEYS.length}</Text>
+      </View>
 
       {CLASS_KEYS.map((classKey) => {
         const open = selected === classKey;
         const guide = getTreatmentGuide(classKey);
         return (
-          <View key={classKey} style={styles.card}>
+          <View key={classKey} style={[styles.card, open && styles.cardOpen]}>
             <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => { setSelected(open ? null : classKey); setSelectedExtra(null); }} style={styles.cardHeader}>
               {guide.leafImage ? <ViewableImage source={guide.leafImage} title={className(classKey, language)} style={styles.thumb} /> : <View style={styles.thumbPlaceholder}><Ionicons name="leaf-outline" size={22} color={palette.green} /></View>}
               <View style={styles.cardCopy}>
                 <Text style={styles.cardTitle}>{className(classKey, language)}</Text>
-                <Text style={styles.cardSummary} numberOfLines={open ? undefined : 2}>{guideSummary(classKey, language)}</Text>
-                {!open && <Text style={styles.cardHint}>{classKey === 'healthy' ? t('guide.seeCare') : t('guide.seeTreatment')}</Text>}
+                {!open && <Text style={styles.cardSummary} numberOfLines={2}>{guideSummary(classKey, language)}</Text>}
+                <Text style={styles.cardHint}>{open ? t('guide.hideDetails') : t('guide.seeSteps')}</Text>
               </View>
-              <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={palette.green} />
+              <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={20} color={palette.green} />
             </Pressable>
 
             {open && (
@@ -63,7 +73,6 @@ export function GuideScreen({ initialClass = null, onScrollTop }: { initialClass
                   <Text style={styles.subLabel}>{t('guide.spot')}</Text>
                   <Text style={styles.bodyText}>{guideSummary(classKey, language)}</Text>
                 </View>
-                <Text style={styles.subLabel}>{classKey === 'healthy' ? t('guide.care') : t('guide.treatment')}</Text>
                 <TreatmentGuide classKey={classKey} showHeader={false} />
                 {(articleCounts[classKey] ?? 0) > 0 && <Pressable accessibilityRole="button" onPress={() => openLibrary(classKey)} style={styles.libraryLink}>
                   <Ionicons name="library-outline" size={18} color={palette.green} />
@@ -75,30 +84,41 @@ export function GuideScreen({ initialClass = null, onScrollTop }: { initialClass
           </View>
         );
       })}
+      <View style={styles.otherSection}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>{t('guide.otherConditions')}</Text>
+          <Text style={styles.sectionCount}>{extraLeafConditions.length}</Text>
+        </View>
+        <Text style={styles.otherHint}>{t('guide.otherHint')}</Text>
+      </View>
       {extraLeafConditions.map((condition) => {
         const copy = condition.text[language];
         const open = selectedExtra === condition.id;
-        return <View key={condition.id} style={styles.card}>
+        return <View key={condition.id} style={[styles.card, open && styles.cardOpen]}>
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => { setSelected(null); setSelectedExtra(open ? null : condition.id); }} style={styles.cardHeader}>
             <ViewableImage source={condition.image} title={copy.name} style={styles.thumb} />
-            <View style={styles.cardCopy}><Text style={styles.cardTitle}>{copy.name}</Text><Text style={styles.cardSummary} numberOfLines={open ? undefined : 2}>{copy.summary}</Text>{!open && <Text style={styles.cardHint}>{t('guide.seeTreatment')}</Text>}<Text style={styles.guideOnly}>{t('guide.only')}</Text></View>
-            <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={palette.green} />
+            <View style={styles.cardCopy}>
+              <Text style={styles.cardTitle}>{copy.name}</Text>
+              <Text style={styles.guideOnly}>{t('guide.notScanned')}</Text>
+              {!open && <Text style={styles.cardSummary} numberOfLines={2}>{copy.summary}</Text>}
+              <Text style={styles.cardHint}>{open ? t('guide.hideDetails') : t('guide.seeSteps')}</Text>
+            </View>
+            <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={20} color={palette.green} />
           </Pressable>
           {open && <View style={styles.detail}>
             <View style={styles.group}>
               <Text style={styles.subLabel}>{t('guide.spot')}</Text>
               <Text style={styles.bodyText}>{copy.summary}</Text>
             </View>
-            <Text style={styles.subLabel}>{t('guide.treatment')}</Text>
             <TreatmentGuide showHeader={false} content={{
               heading: copy.name,
               leafImage: condition.image,
               tips: copy.steps,
               products: condition.product ? [{ name: condition.product.name, description: condition.product.description[language], sourceUrl: condition.product.sourceUrl }] : [],
             }} />
-            <Text style={styles.guideNote}>{copy.note}</Text>
+            <View style={styles.guideNoteBox}><Ionicons name="information-circle-outline" size={20} color="#87561b" /><Text style={styles.guideNote}>{copy.note}</Text></View>
             <Text style={styles.photoCredit}>{condition.imageSource}</Text>
-            <Pressable accessibilityRole="link" onPress={() => Linking.openURL(condition.sourceUrl)}><Text style={styles.sourceLink}>{t('guide.readDiseaseGuidance')}</Text></Pressable>
+            <Pressable accessibilityRole="link" onPress={() => Linking.openURL(condition.sourceUrl)} style={styles.sourceButton}><Ionicons name="open-outline" size={17} color={palette.green} /><Text style={styles.sourceLink}>{t('guide.readDiseaseGuidance')}</Text></Pressable>
           </View>}
         </View>;
       })}
@@ -110,7 +130,11 @@ export function GuideScreen({ initialClass = null, onScrollTop }: { initialClass
 const styles = StyleSheet.create({
   screen: { gap: 12, paddingTop: 14, paddingBottom: 24 },
   heading: { color: palette.ink, fontSize: 27, lineHeight: 33, fontWeight: '800', letterSpacing: -0.4 },
-  subtitle: { color: palette.muted, fontSize: 14, lineHeight: 20, marginBottom: 2 },
+  intro: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 16, borderRadius: 18, borderWidth: 1, borderColor: '#cfe5d6', backgroundColor: '#edf7ef' },
+  introIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#d9eddf' },
+  introCopy: { flex: 1, gap: 4 },
+  introTitle: { color: '#113e31', fontSize: 18, lineHeight: 24, fontWeight: '800' },
+  subtitle: { color: '#436052', fontSize: 14, lineHeight: 21 },
   segments: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 14, backgroundColor: palette.greenSoft },
   segment: { flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 11 },
   segmentActive: { backgroundColor: palette.green },
@@ -118,20 +142,28 @@ const styles = StyleSheet.create({
   segmentTextActive: { color: '#fff' },
   libraryLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff', paddingHorizontal: 12 },
   libraryLinkText: { flex: 1, color: palette.green, fontSize: 14, fontWeight: '800' },
-  card: { borderRadius: 14, borderWidth: 1, borderColor: palette.border, backgroundColor: '#fff', overflow: 'hidden' },
-  cardHeader: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13 },
-  thumb: { width: 60, height: 60, borderRadius: 9, backgroundColor: '#edf1ee' },
-  thumbPlaceholder: { width: 60, height: 60, borderRadius: 9, backgroundColor: '#edf1ee', alignItems: 'center', justifyContent: 'center' },
-  cardCopy: { flex: 1, gap: 2 },
-  cardTitle: { color: '#21382b', fontSize: 16, fontWeight: '800' },
-  cardSummary: { color: palette.muted, fontSize: 13, lineHeight: 18 },
-  cardHint: { color: palette.green, fontSize: 12, fontWeight: '800', marginTop: 2 },
-  guideOnly: { color: palette.muted, fontSize: 11, fontWeight: '700' },
-  detail: { gap: 12, borderTopWidth: 1, borderTopColor: palette.border, padding: 14, backgroundColor: '#f6f9f7' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 8 },
+  sectionTitle: { flex: 1, color: '#183e30', fontSize: 19, lineHeight: 25, fontWeight: '800' },
+  sectionCount: { minWidth: 28, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, overflow: 'hidden', backgroundColor: '#e2f0e6', color: palette.green, fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  otherSection: { gap: 4, marginTop: 12 },
+  otherHint: { color: palette.muted, fontSize: 14, lineHeight: 21 },
+  card: { borderRadius: 18, borderWidth: 1, borderColor: '#dce8df', backgroundColor: '#fff', overflow: 'hidden' },
+  cardOpen: { borderColor: '#a9d2b7' },
+  cardHeader: { minHeight: 112, flexDirection: 'row', alignItems: 'center', gap: 13, padding: 13 },
+  thumb: { width: 82, height: 82, borderRadius: 13, backgroundColor: '#edf1ee' },
+  thumbPlaceholder: { width: 82, height: 82, borderRadius: 13, backgroundColor: '#edf1ee', alignItems: 'center', justifyContent: 'center' },
+  cardCopy: { flex: 1, gap: 5 },
+  cardTitle: { color: '#173a2b', fontSize: 17, lineHeight: 22, fontWeight: '800' },
+  cardSummary: { color: '#54645a', fontSize: 14, lineHeight: 20 },
+  cardHint: { color: palette.green, fontSize: 14, fontWeight: '800', marginTop: 1 },
+  guideOnly: { alignSelf: 'flex-start', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, overflow: 'hidden', backgroundColor: '#fff1dc', color: '#88551c', fontSize: 11, fontWeight: '800' },
+  detail: { gap: 15, borderTopWidth: 1, borderTopColor: '#dce8df', padding: 16, backgroundColor: '#f8fbf8' },
   group: { gap: 6 },
   subLabel: { color: '#22372c', fontSize: 16, fontWeight: '800' },
-  bodyText: { color: '#3c4c43', fontSize: 14, lineHeight: 20 },
+  bodyText: { color: '#3c4c43', fontSize: 15, lineHeight: 22 },
   photoCredit: { color: palette.muted, fontSize: 11, lineHeight: 16 },
-  guideNote: { color: palette.muted, fontSize: 12, lineHeight: 18 },
-  sourceLink: { color: palette.green, fontSize: 13, fontWeight: '800', textDecorationLine: 'underline' },
+  guideNoteBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#fff4e3' },
+  guideNote: { flex: 1, color: '#715024', fontSize: 13, lineHeight: 19 },
+  sourceButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sourceLink: { color: palette.green, fontSize: 14, fontWeight: '800' },
 });
