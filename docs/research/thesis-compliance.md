@@ -35,9 +35,9 @@
 
 ## Optional connected review and data provenance
 
-The editable [complete user-flow diagram](../diagrams/dahonmd-complete-user-flows.drawio)
+The editable [current role-flow diagram](../diagrams/dahonmd-role-user-flows-2026-10-07.drawio)
 maps interactions for guests, farmers, agriculturists, and administrators across
-mobile and web. Its detailed pages trace offline scanning, account and session
+mobile and web. Its sixteen pages trace offline scanning, account and session
 transitions, connected review, sync recovery, privacy controls, content
 publication, administrator oversight, exception recovery, and record visibility.
 

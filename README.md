@@ -8,7 +8,7 @@ The Android app classifies a leaf photo on the phone, offline, as **Healthy**, *
 When a signed-in farmer requests review, the agriculturist's final verdict
 syncs into farmer history and appears in the admin record beside the original
 AI result. A private photo can be shared for history and review; research use
-requires a separate optional choice at account registration or in Account settings. Once enabled, future account scans are automatically marked for research consideration after expert review; turning it off withdraws existing consent. The optional web API records whether it can verify
+is included in the current account signup agreement and can be withdrawn in Account settings. Once enabled, future account scans are automatically marked for research consideration after expert review; turning it off withdraws existing consent. Existing accounts keep their current research preference. The optional web API records whether it can verify
 a saved prediction with its own inference receipt. Phone results remain
 client-reported to that API even when the on-device model ran successfully.
 
@@ -126,6 +126,12 @@ Created by `php artisan migrate --seed` (not in production). Password: `DahonMD@
 | `agriculturist@dahonmd.test` | Agriculturist |
 | `maria.santos@dahonmd.test` | Farmer |
 
+### Disease records and dataset candidates
+
+- Open **Admin → Disease Knowledge** for the disease record grid. The four model-class records come from `ScientificKnowledgeSeeder`; `start-free-test.ps1` seeds them when they are missing. Admins can edit a record and submit researched content for agriculturist verification.
+- Open **Admin or Agriculturist → Dataset Candidates** for the photo grid. A scan enters its **Needs decision** queue automatically when it has a retained photo, current research-photo consent, and a completed agriculturist review. The current signup agreement enables research consideration for future account scans; existing accounts retain their current preference and can enable it in Account settings.
+- A staff member still decides whether to approve, reject, or keep a candidate uncertain. Approval stores a private research copy; it does not train the AI. The new migration queues eligible older reviewed scans once when the backend is updated.
+
 ---
 
 ## 🤖 AI
@@ -173,7 +179,7 @@ npm --prefix mobile-frontend run typecheck
 | [`backend/`](backend/README.md) | API and database (Laravel, SQLite) |
 | [`ai/`](ai/README.md) | Training, evaluation and model conversion |
 | [`datasets/`](datasets/README.md) | Four-class dataset workspace |
-| `docs/` | [Architecture](docs/architecture/overview.md), [quality attributes](docs/architecture/quality-attributes.md), [content governance](docs/research/scientific-content-governance.md), [dataset/model checklist](docs/research/dataset-model-trainer-checklist.md) |
+| `docs/` | [Architecture](docs/architecture/overview.md), [current role flows](docs/diagrams/ROLE_USER_FLOWS.md), [detailed journeys](docs/diagrams/ROLE_JOURNEY_DETAILS.md), [editable draw.io](docs/diagrams/dahonmd-role-user-flows-2026-10-07.drawio), [quality attributes](docs/architecture/quality-attributes.md), [content governance](docs/research/scientific-content-governance.md), [dataset/model checklist](docs/research/dataset-model-trainer-checklist.md) |
 
 ## 🧬 Scientific limits
 

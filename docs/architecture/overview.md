@@ -18,7 +18,7 @@ database. After a genuine local prediction, the application stores history in
 app-private files and Expo SQLite. Signed-in users may optionally synchronize
 diagnosis metadata with the Laravel/Eloquent relational store and upload a
 private photo for shared history and agricultural review. Research use of that
-photo requires separate, explicit consent. These connected features are
+photo requires current consent, granted by the disclosed new-account agreement or enabled later in Account settings. These connected features are
 downstream of classification and never provide or replace the model result.
 
 The research pipeline is separate from mobile inference. Python,
