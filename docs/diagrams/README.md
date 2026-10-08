@@ -1,5 +1,13 @@
 # DahonMD user-flow diagrams
 
+## Current role flows (October 7, 2026)
+
+Open [dahonmd-role-user-flows-2026-10-07.drawio](dahonmd-role-user-flows-2026-10-07.drawio) in [diagrams.net](https://app.diagrams.net/) using **File → Open From → Device**. It has sixteen editable pages. Pages 1–8 cover the slide-ready overview, cross-role handoffs and major states. Pages 9–16 give the detailed guest, farmer, agriculturist and administrator journeys, including phone/web differences and retry branches.
+
+Read [ROLE_USER_FLOWS.md](ROLE_USER_FLOWS.md) for the role summary and [ROLE_JOURNEY_DETAILS.md](ROLE_JOURNEY_DETAILS.md) for the screen-by-screen checklist. Regenerate the diagram with `py -3 docs/diagrams/generate_role_user_flows.py` from the repository root. This map reflects the current direct Ask an expert action on the Android result, automatic dataset candidate creation, revised signup research disclosure, and simplified Account tab.
+
+## Previous 29-page reference
+
 Open [dahonmd-complete-user-flows.drawio](dahonmd-complete-user-flows.drawio) in
 [diagrams.net](https://app.diagrams.net/) with **File → Open From → Device**.
 The file has twenty-nine editable pages:
@@ -57,7 +65,7 @@ save a local scan without an account; the public website requires sign-in to
 save one. Mobile inference remains offline; web screening uses the optional
 connected inference service.
 
-This diagram reflects the currently implemented UI and API as of October 2026.
+This older diagram reflects the UI and API before the October 7 role-flow update. Use the current diagram above for implementation and presentation.
 It is generated from [generate_user_flows.py](generate_user_flows.py), which can
 be rerun after a workflow change. Source paths checked for the map include
 `mobile-frontend/src/app/navigation.ts`, the connected and history screens,

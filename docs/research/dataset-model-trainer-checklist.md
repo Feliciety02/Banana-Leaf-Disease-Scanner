@@ -1,26 +1,10 @@
 # Dataset and Model Trainer Thesis Checklist
 
-This is the working checklist for the DahonMD thesis member responsible for the
-dataset, model training, evaluation, TensorFlow Lite artifacts, and research
-evidence. Check an item only when its required evidence has been saved.
-
-## Current status
-
-Status reviewed on 2026-08-23 against the repository and automated tests.
-
-- Current count: **31 verified complete**, **232 remaining**.
-- `[x]` means the requirement is currently implemented and directly verifiable in the repository.
-- `[ ]` means it still needs real dataset work, adviser/domain approval, a completed experiment, generated artifacts, or retained evidence.
-- Completed implementation checks must be rechecked if the corresponding code or research protocol changes.
-- The virtual environment and required packages are present.
-- The fixed thesis outputs are Healthy, Sigatoka, Panama disease, and Cordana leaf spot.
-- The current 12,675-file inventory yields 12,670 canonical four-class images after five exact Cordana copies are reported and excluded without deletion. The former 745-image `dead` folder is removed and no longer appears in the active inventory. The audit found 1,011 perceptual pairs requiring review; only 16 images have explicit biological/acquisition group assignments, and all 12,670 active metadata entries remain incomplete. Formal split creation and retraining are therefore correctly blocked.
-- Existing baseline/enhanced artifacts and their reports use retired contracts. They remain historical evidence only and are rejected by current runtime label-map validation. No current-contract model is trained or deployable.
-
-The intended enhanced architecture remains Coordinate Attention-enhanced
-MobileNetV3-Small, and the research baseline remains standard supervised
-MobileNetV3-Small. Neither has a deployable artifact for the current taxonomy.
-Do not change either variant without an approved thesis protocol amendment.
+This checklist was last reviewed on 2026-08-23. Its checkboxes are historical
+planning notes and have not been re-audited against the current repository.
+Use [MODEL_EXPERIMENTS.md](../../MODEL_EXPERIMENTS.md) for current training and
+evaluation results and [architecture/overview.md](../architecture/overview.md)
+for the deployed model and runtime boundary.
 
 ## Fixed research contract
 

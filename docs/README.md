@@ -8,7 +8,8 @@ Current guidance and historical evidence are separated below.
 | --- | --- |
 | Runtime and repository boundary | [Architecture overview](architecture/overview.md) |
 | Engineering constraints | [Quality attributes](architecture/quality-attributes.md) |
-| Dataset and model work checklist | [Dataset/model trainer checklist](research/dataset-model-trainer-checklist.md) |
+| Current role flows | [Flow guide](diagrams/ROLE_USER_FLOWS.md), [detailed journeys](diagrams/ROLE_JOURNEY_DETAILS.md), and [editable draw.io](diagrams/dahonmd-role-user-flows-2026-10-07.drawio) |
+| Historical dataset and model checklist | [Dataset/model trainer checklist](research/dataset-model-trainer-checklist.md) |
 | Scientific content review | [Scientific content governance](research/scientific-content-governance.md) |
 | Thesis source-contract status | [Thesis compliance](research/thesis-compliance.md) |
 | Legacy Docker workflow | [Legacy stack setup](getting-started/legacy-stack.md) |
