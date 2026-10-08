@@ -1,15 +1,15 @@
 import { api } from './api';
 import { getHighestClass, normalizeClassProbabilities } from './classificationResults';
 
-const SAFE_DEVELOPMENT_RESULT = {
+const SCREENING_UNAVAILABLE_RESULT = {
   diseaseId: 'development-unconfigured',
   confidence: 0,
   latency: 0,
-  model: 'SIMULATED / DEVELOPMENT — trained model pending',
+  model: 'Screening service unavailable',
   probabilities: [],
   is_simulated: true,
   is_uncertain: true,
-  content_status: 'DISEASE CONTENT PENDING — a validated trained-model label map is not yet available.',
+  content_status: 'No classification returned because the screening service is unavailable.',
   service_status: 'unavailable',
   service_message: 'The normal screening service is not connected right now.',
 };
@@ -22,7 +22,7 @@ export async function analyzeLeaf(imageUrl) {
     body.append('image', image, 'banana-leaf.jpg');
     const payload = await api('/inference', { method: 'POST', body });
     if (!payload?.data || payload.data.diseaseId === 'development-unconfigured') {
-      return { ...SAFE_DEVELOPMENT_RESULT, ...payload?.data, service_status: 'unavailable' };
+      return { ...SCREENING_UNAVAILABLE_RESULT, ...payload?.data, service_status: 'unavailable' };
     }
     const probabilities = normalizeClassProbabilities(payload.data);
     const highest = getHighestClass(probabilities);
@@ -33,6 +33,6 @@ export async function analyzeLeaf(imageUrl) {
       probabilities,
     } : payload.data;
   } catch {
-    return SAFE_DEVELOPMENT_RESULT;
+    return SCREENING_UNAVAILABLE_RESULT;
   }
 }

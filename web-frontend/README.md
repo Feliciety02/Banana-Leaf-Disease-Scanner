@@ -114,9 +114,6 @@ decoded image → normalized orientation → RGB → 224 × 224 → float32 [0, 
 
 The file extension is not a model feature. Accuracy can still change with compression, phone processing, lighting, blur, framing, background, camera source, and disease stage. Deployment testing must use genuine farmer captures rather than converted copies of training files.
 
-> [!NOTE]
-> The normal classifier remains visibly marked as simulated until the validated production model and matching `label_map.json` are connected.
-
 ## Research Comparison
 
 When the optional service is configured, the interface can show baseline and enhanced FP32 predictions side by side. This panel is thesis research only:
