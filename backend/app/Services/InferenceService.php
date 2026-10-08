@@ -62,11 +62,11 @@ class InferenceService
             'diseaseId' => 'development-unconfigured',
             'confidence' => 0,
             'latency' => 0,
-            'model' => 'SIMULATED / DEVELOPMENT — trained model pending',
+            'model' => 'Screening service unavailable',
             'probabilities' => [],
             'is_simulated' => true,
             'is_uncertain' => true,
-            'content_status' => 'DISEASE CONTENT PENDING — a validated trained-model label map is not yet available.',
+            'content_status' => 'No classification returned because the screening service is unavailable.',
         ];
     }
 }
