@@ -10,7 +10,7 @@ interface DatasetCandidateRepositoryInterface
 {
     public function all(?string $status = null): Collection;
 
-    public function firstOrCreate(Diagnosis $diagnosis, int $proposerId): DatasetCandidate;
+    public function firstOrCreate(Diagnosis $diagnosis, ?int $proposerId): DatasetCandidate;
 
     public function update(DatasetCandidate $candidate, array $attributes): DatasetCandidate;
 

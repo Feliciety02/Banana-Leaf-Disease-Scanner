@@ -23,6 +23,7 @@ class DiagnosisService
         private readonly PrivateDiagnosisImageStorage $images,
         private readonly InferenceReceiptService $receipts,
         private readonly ResearchImageService $researchImages,
+        private readonly DatasetCandidateService $candidates,
     ) {}
 
     public function paginateForUser(User $user, array $filters, int $perPage): LengthAwarePaginator
@@ -206,7 +207,10 @@ class DiagnosisService
                     'research_consent_withdrawn_at' => null,
                 ]);
             }
-            return $locked->fresh();
+            $consented = $locked->fresh();
+            $this->candidates->nominateIfEligible($consented);
+
+            return $consented;
         });
     }
 

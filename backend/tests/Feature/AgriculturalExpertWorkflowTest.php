@@ -181,6 +181,7 @@ class AgriculturalExpertWorkflowTest extends TestCase
             'review_status' => 'confirmed', 'image_quality' => 'good',
             'next_steps' => ['monitor_plant'], 'expected_review_version' => 2,
         ])->assertOk();
+        $this->assertDatabaseHas('dataset_candidates', ['id' => $candidateId, 'status' => 'pending']);
         Sanctum::actingAs(User::factory()->admin()->create());
         $this->putJson("/api/admin/dataset-candidates/{$candidateId}", ['status' => 'approved'])
             ->assertOk();
@@ -350,6 +351,99 @@ class AgriculturalExpertWorkflowTest extends TestCase
             'image_quality' => 'insufficient_image',
             'next_steps' => ['retake_photo'],
         ])->assertOk()->assertJsonPath('data.review.review_status', 'cannot_determine');
+    }
+
+    public function test_consented_review_automatically_queues_one_candidate_without_approving_it(): void
+    {
+        $farmer = User::factory()->farmer()->create();
+        $diagnosis = $this->diagnosis($farmer);
+        $diagnosis->update([
+            'image_path' => 'diagnoses/automatic-candidate.jpg',
+            'research_consented_at' => now(),
+            'research_consent_version' => config('banana.research_consent_version'),
+        ]);
+        $expert = User::factory()->agriculturalExpert()->create();
+        Sanctum::actingAs($expert);
+
+        $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", [
+            'review_status' => 'confirmed', 'image_quality' => 'good', 'next_steps' => ['monitor_plant'],
+        ])->assertOk();
+        $this->assertDatabaseHas('dataset_candidates', [
+            'diagnosis_id' => $diagnosis->id, 'proposed_by' => $expert->id, 'status' => 'pending',
+        ]);
+        $this->assertDatabaseCount('dataset_candidates', 1);
+        $this->assertDatabaseCount('research_images', 0);
+
+        $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", [
+            'review_status' => 'confirmed', 'image_quality' => 'good', 'next_steps' => ['monitor_plant'],
+            'expected_review_version' => 1, 'revision_reason' => 'Clarified the advice.',
+        ])->assertOk();
+        $this->assertDatabaseCount('dataset_candidates', 1);
+    }
+
+    public function test_existing_consented_reviews_are_queued_once_during_migration(): void
+    {
+        $farmer = User::factory()->farmer()->create();
+        $expert = User::factory()->agriculturalExpert()->create();
+        $eligible = $this->diagnosis($farmer);
+        $eligible->update([
+            'image_path' => 'diagnoses/older-reviewed-leaf.jpg',
+            'research_consented_at' => now(),
+            'research_consent_version' => config('banana.research_consent_version'),
+        ]);
+        $eligible->review()->create([
+            'expert_id' => $expert->id, 'review_status' => 'confirmed', 'verified_label' => 'sigatoka',
+            'image_quality' => 'good', 'next_steps' => ['monitor_plant'], 'reviewed_at' => now(),
+        ]);
+        $withoutConsent = $this->diagnosis($farmer);
+        $withoutConsent->update(['image_path' => 'diagnoses/no-consent.jpg']);
+        $withoutConsent->review()->create([
+            'expert_id' => $expert->id, 'review_status' => 'confirmed', 'verified_label' => 'sigatoka',
+            'image_quality' => 'good', 'next_steps' => ['monitor_plant'], 'reviewed_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_10_07_000002_queue_existing_reviewed_research_candidates.php');
+        $migration->up();
+        $migration->up();
+
+        $this->assertDatabaseHas('dataset_candidates', [
+            'diagnosis_id' => $eligible->id, 'proposed_by' => $expert->id, 'status' => 'pending',
+        ]);
+        $this->assertDatabaseMissing('dataset_candidates', ['diagnosis_id' => $withoutConsent->id]);
+        $this->assertDatabaseCount('dataset_candidates', 1);
+        $this->assertDatabaseCount('research_images', 0);
+    }
+
+    public function test_latest_agriculturist_cannot_decide_on_their_own_assessment(): void
+    {
+        $farmer = User::factory()->farmer()->create();
+        $diagnosis = $this->diagnosis($farmer);
+        $diagnosis->update([
+            'image_path' => 'diagnoses/independent-review.jpg',
+            'research_consented_at' => now(),
+            'research_consent_version' => config('banana.research_consent_version'),
+        ]);
+        $first = User::factory()->agriculturalExpert()->create();
+        Sanctum::actingAs($first);
+        $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", [
+            'review_status' => 'confirmed', 'image_quality' => 'good', 'next_steps' => ['monitor_plant'],
+        ])->assertOk();
+        $candidateId = $diagnosis->datasetCandidate()->firstOrFail()->id;
+
+        $second = User::factory()->agriculturalExpert()->create();
+        Sanctum::actingAs($second);
+        $this->putJson("/api/expert/diagnosis-reviews/{$diagnosis->id}", [
+            'review_status' => 'confirmed', 'image_quality' => 'good', 'next_steps' => ['monitor_plant'],
+            'expected_review_version' => 1, 'revision_reason' => 'Corrected field observations.',
+        ])->assertOk();
+        $this->putJson("/api/expert/dataset-candidates/{$candidateId}", [
+            'status' => 'uncertain',
+        ])->assertUnprocessable()->assertJsonValidationErrors('status');
+
+        Sanctum::actingAs(User::factory()->admin()->create());
+        $this->putJson("/api/admin/dataset-candidates/{$candidateId}", [
+            'status' => 'uncertain', 'review_notes' => 'Needs more evidence.',
+        ])->assertOk();
     }
 
     public function test_reviewed_image_requires_manual_dataset_candidate_decision(): void
