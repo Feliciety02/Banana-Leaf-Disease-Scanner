@@ -3,14 +3,14 @@ import { Linking, Switch, Text, View } from 'react-native';
 
 import { deleteAccount, listResearchPhotos, removeResearchPhoto, privacyPolicyUrl, updateResearchPreference, type ResearchPhoto, type SessionUser } from '../../services/api';
 import { synchronizeDiagnoses, uploadUnsentPhotos } from '../../services/diagnosisSync';
-import { claimLocalOnlyDiagnoses, countAccountDiagnoses, countLocalOnlyDiagnoses, countPendingDiagnoses, deleteLocalAccountData, subscribeToLocalDiagnosisChanges } from '../../storage/localDiagnoses';
+import { claimLocalOnlyDiagnoses, countLocalOnlyDiagnoses, countPendingDiagnoses, deleteLocalAccountData, subscribeToLocalDiagnosisChanges } from '../../storage/localDiagnoses';
 import { EmailVerificationNotice, ListGroup, ListRow, ProfileHeader } from './AccountUI';
 import { ProfileEditor } from './ProfileEditor';
 import { ProfilePhotoModal } from './ProfilePhotoModal';
 import { useT } from '../../i18n';
 import { ActionButton, ConfirmSheet, Field, ModalSheet, Notice, uiStyles } from './ui';
 
-export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onChanged, onOpenHistory }: { user: SessionUser; onUser: (user: SessionUser) => void; onOpenHistory: () => void; onSignOut: () => Promise<void>; onAccountDeleted: (message: string) => void; onChanged: () => void }) {
+export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onChanged }: { user: SessionUser; onUser: (user: SessionUser) => void; onSignOut: () => Promise<void>; onAccountDeleted: (message: string) => void; onChanged: () => void }) {
   const [countsReady, setCountsReady] = useState(false);
   const [pending, setPending] = useState(0);
   const [localOnly, setLocalOnly] = useState(0);
@@ -25,19 +25,16 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
   const [researchBusy, setResearchBusy] = useState(false);
   const [claimOpen, setClaimOpen] = useState(false);
   const [signOutPending, setSignOutPending] = useState<number | null>(null);
-  const [totals, setTotals] = useState({ total: 0, reviewed: 0 });
   const [photoOpen, setPhotoOpen] = useState(false);
   const { t } = useT();
 
   const refreshCount = useCallback(async () => {
-    const [pendingCount, localOnlyCount, accountTotals] = await Promise.all([
+    const [pendingCount, localOnlyCount] = await Promise.all([
       countPendingDiagnoses(user.id),
       countLocalOnlyDiagnoses(),
-      countAccountDiagnoses(user.id),
     ]);
     setPending(pendingCount);
     setLocalOnly(localOnlyCount);
-    setTotals(accountTotals);
     setCountsReady(true);
   }, [user.id]);
   useEffect(() => { setCountsReady(false); refreshCount().catch(() => setError(t('account.scansLoadFailed'))); }, [refreshCount]);
@@ -87,9 +84,13 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
     setError('');
     try {
       const claimed = await claimLocalOnlyDiagnoses(user.id);
-      const result = await synchronizeDiagnoses(user.id);
+      const first = await synchronizeDiagnoses(user.id);
+      // If a background sync was already running, it may not have included
+      // the newly claimed scans. Run once more after it finishes.
+      const second = claimed > 0 && first.rejected === 0 && await countPendingDiagnoses(user.id) > 0
+        ? await synchronizeDiagnoses(user.id) : null;
       setClaimOpen(false);
-      setMessage(t('account.scansAdded', { count: claimed, uploaded: result.pushed }));
+      setMessage(t('account.scansAdded', { count: claimed, uploaded: first.pushed + (second?.pushed ?? 0) }));
       onChanged();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : t('account.scansRetry'));
@@ -178,6 +179,7 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
       ? { icon: 'cloud-upload-outline' as const, label: t('account.waitingSync', { count: pending }), tone: 'waiting' as const }
       : { icon: 'cloud-done-outline' as const, label: t('account.synced'), tone: 'ok' as const }
     : undefined;
+  const visibleResearchPhotos = researchPhotos.filter((photo) => !photo.revoked_at || photo.file_removal_pending);
 
   return <View style={uiStyles.stack}>
     <ProfileHeader
@@ -191,19 +193,16 @@ export function FarmerWorkspace({ user, onUser, onSignOut, onAccountDeleted, onC
     <EmailVerificationNotice user={user} />
     {message && <Notice tone="success">{message}</Notice>}
     {error && <Notice>{error}</Notice>}
-    <ListGroup title={t('account.yourScans')}>
-      <ListRow first icon="time-outline" title={t('account.scanHistory')} subtitle={countsReady ? t('account.scanCounts', { total: totals.total, reviewed: totals.reviewed }) : t('account.checking')} onPress={onOpenHistory} />
-      {localOnly > 0 && <ListRow icon="person-add-outline" title={t('account.addDeviceScans', { count: localOnly })} subtitle={t('account.addDeviceScansText')} disabled={syncing} onPress={claimLocalScans} />}
-    </ListGroup>
+    {localOnly > 0 && <ListGroup title={t('account.yourScans')}>
+      <ListRow first icon="person-add-outline" title={t('account.addDeviceScans', { count: localOnly })} subtitle={t('account.addDeviceScansText')} disabled={syncing} onPress={claimLocalScans} />
+    </ListGroup>}
     <ProfileEditor user={user} onUser={onUser} />
     <ProfilePhotoModal visible={photoOpen} user={user} onUser={onUser} onClose={() => setPhotoOpen(false)} />
     <ListGroup title={t('account.privacy')}>
       <View style={{ padding: 16, gap: 8 }}><Text style={{ fontWeight: '700' }}>{t('account.researchSharing')}</Text><Text>{t('account.researchSharingText')}</Text><View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><Switch accessibilityLabel={t('account.researchSharing')} value={Boolean(user.research_photo_consent)} disabled={researchBusy} onValueChange={(value) => { void changeResearchPreference(value); }} /><Text style={{ flex: 1 }}>{t(user.research_photo_consent ? 'account.researchOn' : 'account.researchOff')}</Text></View></View>
-      <ListRow first icon="image-outline" title={t('account.scanPhotos')} subtitle={t('account.scanPhotosText')} />
-      <ListRow icon="flask-outline" title={t('account.researchPhotos')} subtitle={t('account.researchPhotosText', { count: researchPhotos.filter((photo) => !photo.revoked_at).length })} onPress={() => listResearchPhotos().then(setResearchPhotos).catch(() => setError(t('account.researchPhotoFailed')))} />
-      {researchPhotos.filter((photo) => !photo.revoked_at || photo.file_removal_pending).map((photo) => <ListRow key={photo.id} icon="close-circle-outline" title={`#${photo.id} · ${photo.verified_label.replaceAll('-', ' ')}`} subtitle={t(photo.file_removal_pending ? 'account.retryResearchPhoto' : 'account.removeResearchPhoto')} danger onPress={() => setResearchTarget(photo)} />)}
-      <ListRow icon="location-outline" title={t('account.scanLocation')} subtitle={t('account.scanLocationText')} />
-      <ListRow icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), t('account.privacyPolicy'))} />
+      {visibleResearchPhotos.length > 0 && <ListRow icon="flask-outline" title={t('account.researchPhotos')} subtitle={t('account.researchPhotosText', { count: researchPhotos.filter((photo) => !photo.revoked_at).length })} />}
+      {visibleResearchPhotos.map((photo) => <ListRow key={photo.id} icon="close-circle-outline" title={`#${photo.id} · ${photo.verified_label.replaceAll('-', ' ')}`} subtitle={t(photo.file_removal_pending ? 'account.retryResearchPhoto' : 'account.removeResearchPhoto')} danger onPress={() => setResearchTarget(photo)} />)}
+      <ListRow first={visibleResearchPhotos.length === 0} icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), t('account.privacyPolicy'))} />
     </ListGroup>
     <ListGroup title={t('account.account')}>
       <ListRow first icon="log-out-outline" title={t('account.signOut')} disabled={syncing} onPress={secureSignOut} />

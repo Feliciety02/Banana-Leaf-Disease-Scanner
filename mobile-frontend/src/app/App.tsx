@@ -32,7 +32,7 @@ import { synchronizeDiagnoses } from '../services/diagnosisSync';
 import { configureBackgroundSync } from '../services/backgroundSync';
 import { checkConnection, subscribeConnection, currentServerUrl, loadServerUrl, restoreSession, serverUrlFromLink, setServerUrl, setSessionExpiredHandler, SessionUser } from '../services/api';
 import { useMobilePrivacyProtection } from '../services/mobileSecurity';
-import { claimLocalOnlyDiagnoses, initializeLocalDatabase } from '../storage/localDiagnoses';
+import { initializeLocalDatabase } from '../storage/localDiagnoses';
 
 const colors = { background: '#ffffff', green: '#236b4b', ink: '#1d2d24', muted: '#7b857f', border: '#e5eae7', activeTab: '#f0f6f2' };
 
@@ -188,12 +188,9 @@ export default function App() {
     });
     return () => setSessionExpiredHandler(null);
   }, [sessionUser?.id, sessionUser?.role, tab]);
-  // Scans made while signed out (or after a session expired) are added to the
-  // signed-in farmer's account automatically, then everything is synchronized.
-  const saveToAccount = async (userId: number) => {
-    await claimLocalOnlyDiagnoses(userId).catch(() => 0);
-    return synchronizeDiagnoses(userId);
-  };
+  // Guest scans remain on the device until the farmer chooses Add device scans
+  // or requests an expert review of that particular scan.
+  const syncAccountDiagnoses = (userId: number) => synchronizeDiagnoses(userId);
   // Farmers never sync by hand: scans sync when the connection returns, when
   // the app comes back to the foreground, and every minute while it is open.
   useEffect(() => {
@@ -202,7 +199,7 @@ export default function App() {
     let connected = false;
     const attempt = () => {
       if (!connected || AppState.currentState !== 'active') return;
-      saveToAccount(sessionUser.id).then(() => { if (active) setHistoryRefresh((value) => value + 1); }).catch(() => undefined);
+      syncAccountDiagnoses(sessionUser.id).then(() => { if (active) setHistoryRefresh((value) => value + 1); }).catch(() => undefined);
     };
     const onNetwork = (state: { isConnected: boolean | null; isInternetReachable: boolean | null }) => {
       const wasConnected = connected;
@@ -229,7 +226,7 @@ export default function App() {
   }, []);
   const stored = () => {
     setHistoryRefresh((value) => value + 1);
-    if (sessionUser?.role === 'farmer') saveToAccount(sessionUser.id).then(() => setHistoryRefresh((value) => value + 1)).catch(() => undefined);
+    if (sessionUser?.role === 'farmer') syncAccountDiagnoses(sessionUser.id).then(() => setHistoryRefresh((value) => value + 1)).catch(() => undefined);
   };
 
   return (
@@ -272,7 +269,7 @@ export default function App() {
           {sessionUser?.role === 'agricultural_expert' && tab === 'reviewed' && <AgriculturistWorkspace scope="reviewed" />}
           {sessionUser?.role === 'agricultural_expert' && tab === 'content' && <AgriculturistContentWorkspace />}
           {sessionUser?.role === 'admin' && (tab === 'accounts' || tab === 'diagnoses' || tab === 'knowledge') && <AdminWorkspace key={tab} section={tab} />}
-          {tab === 'account' && <ConnectedWorkspace onOpenHistory={() => openHistory()} user={sessionUser ?? null} restoring={sessionUser === undefined} onUser={(user) => { setSessionUser(user); if (!user) setTab('scan'); }} onOpenAuth={openAuth} onDataChanged={() => setHistoryRefresh((value) => value + 1)} onInfo={(title, message) => { setTab('scan'); setInfo({ title, message }); }} />}
+          {tab === 'account' && <ConnectedWorkspace user={sessionUser ?? null} restoring={sessionUser === undefined} onUser={(user) => { setSessionUser(user); if (!user) setTab('scan'); }} onOpenAuth={openAuth} onDataChanged={() => setHistoryRefresh((value) => value + 1)} onInfo={(title, message) => { setTab('scan'); setInfo({ title, message }); }} />}
           </FadeIn>
         </ScrollView>
         <View accessibilityRole="tablist" style={styles.bottomNav}>

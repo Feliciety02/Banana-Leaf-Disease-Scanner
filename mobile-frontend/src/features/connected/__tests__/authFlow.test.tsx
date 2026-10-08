@@ -45,7 +45,7 @@ it('keeps entered credentials across mode changes and asks before discarding', a
   alert.mockRestore();
 });
 
-it('requires account terms while leaving research sharing optional', async () => {
+it('requires the disclosed account agreement and enables research consideration for new signups', async () => {
   const onAuthenticated = jest.fn();
   const screen = await render(<AuthModal mode="register" onClose={jest.fn()} onMode={jest.fn()} onAuthenticated={onAuthenticated} onConnection={jest.fn()} />);
   await fireEvent.changeText(screen.getByLabelText('Full name'), 'Farmer Ana');
@@ -57,8 +57,8 @@ it('requires account terms while leaving research sharing optional', async () =>
   expect(screen.getByText('Please agree to the Terms of Use to create an account.')).toBeTruthy();
 
   (register as jest.Mock).mockResolvedValue({ id: 1, role: 'farmer', name: 'Farmer Ana', email: 'ana@example.test' });
-  await fireEvent.press(screen.getByLabelText('I agree to the Terms of Use and have read the Privacy Policy.'));
+  await fireEvent.press(screen.getByLabelText('I agree to the Terms of Use and have read the Privacy Policy. Future account scan photos may enter research review after an agriculturist assesses them. An approved private copy may remain after scan deletion. I can withdraw sharing in Account.'));
   await fireEvent.press(screen.getByText('Create account'));
-  await waitFor(() => expect(register).toHaveBeenCalledWith('Farmer Ana', 'ana@example.test', 'Correct123!', 'Correct123!', false));
+  await waitFor(() => expect(register).toHaveBeenCalledWith('Farmer Ana', 'ana@example.test', 'Correct123!', 'Correct123!', true));
   expect(onAuthenticated).toHaveBeenCalled();
 });

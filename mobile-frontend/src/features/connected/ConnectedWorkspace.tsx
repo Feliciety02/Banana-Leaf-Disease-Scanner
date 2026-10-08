@@ -1,28 +1,20 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Linking, StyleSheet, Text, View } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { ActivityIndicator, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { currentServerUrl, accountDeletionUrl, clearSession, hasConnectedConfiguration, logout, privacyPolicyUrl, refreshSession, SessionUser } from '../../services/api';
-import { countLocalOnlyDiagnoses } from '../../storage/localDiagnoses';
+import { currentServerUrl, clearSession, hasConnectedConfiguration, logout, privacyPolicyUrl, refreshSession, SessionUser } from '../../services/api';
 import { AuthMode } from './AuthModal';
 import { FarmerWorkspace } from './FarmerWorkspace';
 import { ServerAddress } from './ServerAddress';
-import { Benefit, EmailVerificationNotice, ListGroup, ListRow, ProfileHeader } from './AccountUI';
+import { EmailVerificationNotice, ListGroup, ListRow, ProfileHeader } from './AccountUI';
 import { ProfileEditor } from './ProfileEditor';
 import { ProfilePhotoModal } from './ProfilePhotoModal';
 import { useT } from '../../i18n';
 import { ActionButton, Notice, palette, titleCase, uiStyles } from './ui';
 
-export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onDataChanged, onInfo, onOpenHistory }: { user: SessionUser | null; restoring: boolean; onOpenHistory: () => void; onUser: (user: SessionUser | null) => void; onOpenAuth: (mode: AuthMode) => void; onDataChanged: () => void; onInfo: (title: string, message: string) => void }) {
+export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onDataChanged, onInfo }: { user: SessionUser | null; restoring: boolean; onUser: (user: SessionUser | null) => void; onOpenAuth: (mode: AuthMode) => void; onDataChanged: () => void; onInfo: (title: string, message: string) => void }) {
   const [error, setError] = useState('');
-  const [deviceScans, setDeviceScans] = useState<number | null>(null);
   const [photoOpen, setPhotoOpen] = useState(false);
   const { t } = useT();
-  useEffect(() => {
-    let active = true;
-    countLocalOnlyDiagnoses().then((count) => { if (active) setDeviceScans(count); }).catch(() => undefined);
-    return () => { active = false; };
-  }, [user?.id]);
   // Re-renders the screen after the server address changes.
   const [, setServerVersion] = useState(0);
   useEffect(() => {
@@ -46,7 +38,7 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
   };
 
   if (restoring) return <View style={styles.center}><ActivityIndicator color={palette.green} /><Text style={styles.muted}>{t('account.restoring')}</Text></View>;
-  if (user?.role === 'farmer') return <FarmerWorkspace onOpenHistory={onOpenHistory} user={user} onUser={onUser} onSignOut={signOut} onAccountDeleted={(message) => { onUser(null); onInfo(t('account.deletedTitle'), message); }} onChanged={onDataChanged} />;
+  if (user?.role === 'farmer') return <FarmerWorkspace user={user} onUser={onUser} onSignOut={signOut} onAccountDeleted={(message) => { onUser(null); onInfo(t('account.deletedTitle'), message); }} onChanged={onDataChanged} />;
   if (user) return <View style={uiStyles.stack}>
     <ProfileHeader name={user.name} email={user.email} role={user.role} avatarUrl={user.avatar_url} onPressAvatar={() => setPhotoOpen(true)} />
     <EmailVerificationNotice user={user} />
@@ -69,28 +61,13 @@ export function ConnectedWorkspace({ user, restoring, onUser, onOpenAuth, onData
       <Image source={require('../../../assets/dahonmd-logo-green.webp')} style={styles.logo} resizeMode="contain" accessibilityLabel="DahonMD logo" />
       <Text style={styles.welcomeTitle}>{t('guest.title')}</Text>
       <Text style={styles.intro}>{t('guest.intro')}</Text>
-      <View style={styles.welcomeActions}>
-        <ActionButton icon="log-in-outline" onPress={() => onOpenAuth('login')}>{t('auth.login')}</ActionButton>
-        <ActionButton variant="secondary" onPress={() => onOpenAuth('register')}>{t('auth.create')}</ActionButton>
-      </View>
+      <ActionButton icon="log-in-outline" onPress={() => onOpenAuth('login')}>{t('auth.login')}</ActionButton>
+      <View style={styles.signupRow}><Text style={styles.signupPrompt}>{t('guest.newFarmer')}</Text><Pressable accessibilityRole="button" onPress={() => onOpenAuth('register')}><Text style={styles.signupLink}>{t('auth.create')}</Text></Pressable></View>
       {!connected && <Notice tone="warning">{t('guest.notConnected')}</Notice>}
       <Text style={styles.footnote}>{t('guest.noAccountNeeded')}</Text>
     </View>
     {error && <Notice>{error}</Notice>}
-    <ListGroup title={t('guest.onPhone')}>
-      <ListRow first icon="phone-portrait-outline" title={deviceScans === null ? t('account.scanHistory') : t('guest.savedCount', { count: deviceScans })} subtitle={t('guest.onPhoneText')} onPress={onOpenHistory} />
-    </ListGroup>
-    <View style={styles.benefits}>
-      <Text style={styles.sectionTitle}>{t('guest.more')}</Text>
-      <Benefit icon="cloud-upload-outline" title={t('guest.historyTitle')} text={t('guest.historyText')} />
-      <Benefit icon="shield-checkmark-outline" title={t('guest.secondTitle')} text={t('guest.secondText')} />
-    </View>
-    <View style={styles.boundary}><Ionicons name="cloud-offline-outline" size={22} color={palette.green} /><Text style={styles.boundaryText}>{t('guest.offline')}</Text></View>
-    <ServerAddress onChanged={() => setServerVersion((value) => value + 1)} />
-    <ListGroup title={t('account.privacy')}>
-      <ListRow first icon="document-text-outline" title={t('account.privacyPolicy')} external onPress={() => openPage(privacyPolicyUrl(), t('account.privacyPolicy'))} />
-      <ListRow icon="trash-outline" title={t('guest.deleteAccount')} external onPress={() => openPage(accountDeletionUrl(), t('guest.deleteAccount'))} />
-    </ListGroup>
+    <Pressable accessibilityRole="link" onPress={() => openPage(privacyPolicyUrl(), t('account.privacyPolicy'))} style={styles.privacyLink}><Text style={styles.privacyLinkText}>{t('account.privacyPolicy')}</Text></Pressable>
   </View>;
 }
 
@@ -102,9 +79,10 @@ const styles = StyleSheet.create({
   intro: { color: '#496353', fontSize: 15, lineHeight: 23 },
   benefits: { gap: 20, paddingHorizontal: 6, paddingVertical: 8 },
   sectionTitle: { color: palette.ink, fontSize: 20, fontWeight: '800' },
-  welcomeActions: { gap: 10, marginTop: 4 },
+  signupRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 6 },
+  signupPrompt: { color: '#496353', fontSize: 13 },
+  signupLink: { color: palette.green, fontSize: 13, fontWeight: '800', textDecorationLine: 'underline' },
   footnote: { color: '#496353', fontSize: 12, textAlign: 'center' },
-  boundary: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 18, backgroundColor: '#f5f7f5', padding: 18 },
-  boundaryText: { flex: 1, color: palette.muted, fontSize: 13, lineHeight: 20 },
-  reviewerTabs: { flexDirection: 'row', gap: 10 },
+  privacyLink: { alignSelf: 'center', padding: 12 },
+  privacyLinkText: { color: palette.green, fontSize: 13, textDecorationLine: 'underline' },
 });

@@ -5,10 +5,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-import { CLASS_DISPLAY_NAMES } from '../classification/disease-data';
 import type { ClassKey } from '../classification/types';
 import {
   claimLocalOnlyDiagnoses,
+  getLocalDiagnosis,
   isNewReview,
   listLocalDiagnoses,
   parseDiagnosisReview,
@@ -20,13 +20,12 @@ import {
 import { synchronizeDiagnoses } from '../../services/diagnosisSync';
 import { hasLocalScanImage, markReviewSeen, sendReviewFollowUp, requestAgriculturalReview, uploadReviewImage, withdrawScanResearchConsent } from '../../services/diagnosisReview';
 import { ImageViewer } from '../../components/ImageViewer';
-import { ScanLocationControl } from '../../components/ScanLocationControl';
 import { askToNotifyAboutReviews } from '../../services/reviewNotifications';
 import { ViewableScanImage } from '../../components/ViewableImage';
 import { smoothLayout } from '../../components/motion';
 import { ActionButton, ConfirmSheet, formatDate, palette } from '../connected/ui';
 import { farmerReviewOutcome, needsClearerReviewPhoto, reviewStage } from './reviewOutcome';
-import { FarmerReviewDetails } from './FarmerReviewDetails';
+import { FarmerReviewDetails, HistoryAiCard, HistoryLocationCard, HistoryPhotoLink } from './FarmerReviewDetails';
 import { useT, type StringKey } from '../../i18n';
 import { className } from '../../i18n/content';
 import { certaintyLevel } from '../scan/ScanResult';
@@ -71,7 +70,10 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
     setBusyId(item.local_id); setError('');
     try {
       if (!item.owner_user_id) await claimLocalOnlyDiagnoses(ownerUserId, item.local_id);
-      await synchronizeDiagnoses(ownerUserId); await load(); onChanged?.(); setClaimCandidate(null);
+      await synchronizeDiagnoses(ownerUserId);
+      // A background sync may have started before this scan was claimed.
+      if ((await getLocalDiagnosis(item.local_id))?.sync_status !== 'synced') await synchronizeDiagnoses(ownerUserId);
+      await load(); onChanged?.(); setClaimCandidate(null);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not sync. Your scan is safe on this phone.'); setClaimCandidate(null); }
     finally { setBusyId(null); }
   };
@@ -240,25 +242,6 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
   // Failed only appears when something needs retrying.
   const shownFilters = filterOptions.filter((option) => option.key !== 'retry' || failedCount > 0 || filter === 'retry');
 
-  const detailItem = items.find((item) => item.local_id === expandedId);
-  const detailReview = parseDiagnosisReview(detailItem?.review_json ?? null);
-  if (detailItem && detailReview && detailReview.review_status !== 'pending') {
-    return <>
-      <FarmerReviewDetails
-        item={detailItem}
-        review={detailReview}
-        onBack={() => { smoothLayout(); setExpandedId(null); }}
-        onOpenPhoto={() => setViewerImage(detailItem.image_uri)}
-        onOpenGuide={onOpenGuide}
-        onLocationChanged={() => { void load(); onChanged?.(); }}
-        reply={detailItem.server_id && detailItem.sync_status === 'synced'
-          ? <ReviewReply localId={detailItem.local_id} photoSuggested={needsClearerReviewPhoto(detailReview)} onSent={() => { void load(); onChanged?.(); }} />
-          : null}
-      />
-      <ImageViewer uri={viewerImage} visible={viewerImage !== null} onClose={() => setViewerImage(null)} />
-    </>;
-  }
-
   return <View style={styles.stack}>
     <View style={styles.header}>
       <View style={styles.headerCopy}>
@@ -343,81 +326,51 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
           <View style={styles.details}>
             {item.last_error ? <Text style={styles.error}>{item.last_error}</Text> : null}
 
-            {/* The expert's answer comes first; the AI score is background. */}
-            {review &&<View style={[styles.note, review.review_status === 'pending' ? styles.noteWaiting : styles.noteDone]}>
-              {review.review_status === 'pending'
-                ? <>
-                  <Text style={styles.noteTitle}>{reviewStage(review) === 'in_progress' ? t('review.reviewingTitle') : t('review.waitingTitle')}</Text>
-                  <View style={styles.progress}>
-                    {(() => { const current = reviewStage(review) === 'in_progress' ? 1 : 0; return [t('review.stepSent'), t('review.stepReviewing'), t('review.stepReady')].map((label, index) => <View key={label} style={styles.progressStep}>
-                      <Ionicons name={index < current ? 'checkmark-circle' : index === current ? 'ellipse' : 'ellipse-outline'} size={18} color={index <= current ? palette.warning : palette.muted} />
-                      <Text style={[styles.progressLabel, index === current && styles.progressCurrent]}>{label}</Text>
-                    </View>); })()}
-                  </View>
-                  <Text style={styles.noteText}>{t('review.notify')}</Text>
-                  {review.farmer_reply ? <Text style={styles.noteText}>{t('review.yourReply', { text: review.farmer_reply })}</Text> : null}
-                  {review.requested_at ? <Text style={styles.noteMeta}>{t('review.sentAt', { date: formatDate(review.requested_at, true) })}</Text> : null}
-                </>
-                : (() => { const outcome = farmerReviewOutcome(review, item.predicted_class, language); return <>
-                  <View style={styles.outcomeHead}>
-                    <View style={styles.outcomeIcon}><Ionicons name="shield-checkmark" size={22} color={palette.success} /></View>
-                    <View style={styles.outcomeCopy}>
-                      <Text style={styles.outcomeTitle}>{outcome.title}</Text>
-                      <Text style={styles.outcomeText}>{outcome.message}</Text>
-                    </View>
-                  </View>
-                  {review.farmer_message ? <View style={styles.reviewBlock}>
-                    <View style={styles.reviewBlockHead}>
-                      <Ionicons name="chatbox-ellipses-outline" size={17} color={palette.green} />
-                      <Text style={styles.reviewBlockTitle}>{t('review.messageFrom', { name: review.reviewer?.name ?? t('review.theReviewer') })}</Text>
-                    </View>
-                    <Text style={styles.reviewBody}>{review.farmer_message}</Text>
-                  </View> : null}
-                  {outcome.steps.length > 0 ? <View style={styles.reviewBlock}>
-                    <View style={styles.reviewBlockHead}>
-                      <Ionicons name="list-outline" size={17} color={palette.green} />
-                      <Text style={styles.reviewBlockTitle}>{t('review.whatToDo')}</Text>
-                    </View>
-                    {outcome.steps.map((step, index) => <View key={step} style={styles.stepRow}>
-                      <View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View>
-                      <Text style={styles.reviewBody}>{step}</Text>
-                    </View>)}
-                  </View> : null}
-                  {(review.reviewer || review.reviewed_at) ? <View style={styles.checkedRow}>
-                    <Ionicons name="checkmark-circle-outline" size={15} color={palette.muted} />
-                    <Text style={styles.checkedText}>{review.reviewer ? t('review.checkedBy', { name: review.reviewer.name }) : t('review.checked')}{review.reviewed_at ? ` · ${formatDate(review.reviewed_at, true)}` : ''}</Text>
-                  </View> : null}
-                  <View style={styles.reviewActions}>
-                    {review.verified_label && onOpenGuide && review.verified_label in CLASS_DISPLAY_NAMES ? <ActionButton variant="secondary" icon="book-outline" onPress={() => onOpenGuide(review.verified_label as ClassKey)}>{t('review.readGuide', { name: className(review.verified_label as ClassKey, language) })}</ActionButton> : null}
-                    {item.server_id && item.sync_status === 'synced' ? <ReviewReply localId={item.local_id} onSent={() => { void load(); onChanged?.(); }} /> : null}
-                  </View>
-                </>; })()}
-            </View>}
+            {review && review.review_status !== 'pending' ? <FarmerReviewDetails
+              item={item}
+              review={review}
+              onOpenPhoto={() => setViewerImage(item.image_uri)}
+              onOpenGuide={onOpenGuide}
+              onLocationChanged={() => { void load(); onChanged?.(); }}
+              aiDetails={<>
+                {others.length > 0 && <DetailRow icon="git-compare-outline" label={t('history.alsoPossible')} value={others.map(({ classKey, probability }) => `${className(classKey, language)} ${wholePercent(probability * 100)}`).join(', ')} />}
+                {item.farmer_notes ? <DetailRow icon="create-outline" label={t('history.yourNote')} value={item.farmer_notes} /> : null}
+                {item.research_consent ? <DetailRow icon="flask-outline" label={t('history.research')} value={t('history.photoShared')} /> : null}
+              </>}
+              reply={item.server_id && item.sync_status === 'synced'
+                ? <ReviewReply localId={item.local_id} photoSuggested={needsClearerReviewPhoto(review)} onSent={() => { void load(); onChanged?.(); }} />
+                : null}
+            /> : <>
+              {review && <View style={styles.noteWaiting}>
+                <Text style={styles.noteTitle}>{reviewStage(review) === 'in_progress' ? t('review.reviewingTitle') : t('review.waitingTitle')}</Text>
+                <View style={styles.progress}>
+                  {(() => { const current = reviewStage(review) === 'in_progress' ? 1 : 0; return [t('review.stepSent'), t('review.stepReviewing'), t('review.stepReady')].map((label, index) => <View key={label} style={styles.progressStep}>
+                    <Ionicons name={index < current ? 'checkmark-circle' : index === current ? 'ellipse' : 'ellipse-outline'} size={18} color={index <= current ? palette.warning : palette.muted} />
+                    <Text style={[styles.progressLabel, index === current && styles.progressCurrent]}>{label}</Text>
+                  </View>); })()}
+                </View>
+                <Text style={styles.noteText}>{t('review.notify')}</Text>
+                {review.farmer_reply ? <Text style={styles.noteText}>{t('review.yourReply', { text: review.farmer_reply })}</Text> : null}
+                {review.requested_at ? <Text style={styles.noteMeta}>{t('review.sentAt', { date: formatDate(review.requested_at, true) })}</Text> : null}
+              </View>}
 
-            <View style={styles.panel}>
-              <View style={styles.meterHead}>
-                <Text style={styles.panelLabel}>{reviewedOutcome ? t('history.modelConfidence') : t('history.howSure')}</Text>
-                <Text style={[styles.meterLabel, { color: level.color }]}>{wholePercent(confidence)}</Text>
-              </View>
-              <View style={styles.meter}><View style={[styles.meterFill, { width: `${Math.min(100, Math.max(0, confidence))}%`, backgroundColor: level.color }]} /></View>
-              {others.length > 0 && <DetailRow icon="git-compare-outline" label={t('history.alsoPossible')} value={others.map(({ classKey, probability }) => `${className(classKey, language)} ${wholePercent(probability * 100)}`).join(', ')} />}
-              {item.farmer_notes ? <DetailRow icon="create-outline" label={t('history.yourNote')} value={item.farmer_notes} /> : null}
-              {!reviewedOutcome && <DetailRow icon={note.icon} label={t('history.status')} value={note.text} color={note.color} />}
-              {item.research_consent ? <DetailRow icon="flask-outline" label={t('history.research')} value={t('history.photoShared')} /> : null}
-            </View>
-            {item.image_uri ? <Pressable accessibilityRole="button" onPress={() => setViewerImage(item.image_uri)} style={({ pressed }) => [styles.photoButton, pressed && styles.dim]}>
-              <Ionicons name="image-outline" size={18} color={palette.green} />
-              <Text style={styles.photoButtonText}>{t('history.viewPhoto')}</Text>
-            </Pressable> : null}
+              <HistoryAiCard item={item} review={review}>
+                {others.length > 0 && <DetailRow icon="git-compare-outline" label={t('history.alsoPossible')} value={others.map(({ classKey, probability }) => `${className(classKey, language)} ${wholePercent(probability * 100)}`).join(', ')} />}
+                {item.farmer_notes ? <DetailRow icon="create-outline" label={t('history.yourNote')} value={item.farmer_notes} /> : null}
+                <DetailRow icon={note.icon} label={t('history.status')} value={note.text} color={note.color} />
+                {item.research_consent ? <DetailRow icon="flask-outline" label={t('history.research')} value={t('history.photoShared')} /> : null}
+              </HistoryAiCard>
 
-            {canRequestReview && <>
-              <TextInput style={styles.input} placeholder={t('history.explainPlaceholder')} placeholderTextColor="#8a9892" maxLength={1000} value={reviewDraft[item.local_id] ?? item.farmer_notes ?? ''} onChangeText={(text) => setReviewDraft((current) => ({ ...current, [item.local_id]: text }))} />
-              <ActionButton icon="shield-checkmark-outline" disabled={busy} onPress={() => setAppealCandidate(item)}>{busy ? t('history.sending') : t('history.askExpert')}</ActionButton>
+              {item.image_uri ? <View style={styles.photoCard}><HistoryPhotoLink standalone imageUri={item.image_uri} label={t('history.viewPhoto')} onPress={() => setViewerImage(item.image_uri)} /></View> : null}
+
+              {canRequestReview && <>
+                <TextInput style={styles.input} placeholder={t('history.explainPlaceholder')} placeholderTextColor="#8a9892" maxLength={1000} value={reviewDraft[item.local_id] ?? item.farmer_notes ?? ''} onChangeText={(text) => setReviewDraft((current) => ({ ...current, [item.local_id]: text }))} />
+                <ActionButton icon="shield-checkmark-outline" disabled={busy} onPress={() => setAppealCandidate(item)}>{busy ? t('history.sending') : t('history.askExpert')}</ActionButton>
+              </>}
+              {beforeUpload && <ActionButton variant="secondary" disabled={busy} onPress={() => !ownerUserId ? onSignIn?.() : !item.owner_user_id ? setClaimCandidate(item) : prepareReview(item)}>{busy ? t('history.pleaseWait') : !ownerUserId ? t('history.signInToAsk') : !item.owner_user_id ? t('history.addToAccount') : t('history.send')}</ActionButton>}
+
+              <HistoryLocationCard item={item} onChanged={() => { void load(); onChanged?.(); }} />
             </>}
-            {beforeUpload && <ActionButton variant="secondary" disabled={busy} onPress={() => !ownerUserId ? onSignIn?.() : !item.owner_user_id ? setClaimCandidate(item) : prepareReview(item)}>{busy ? t('history.pleaseWait') : !ownerUserId ? t('history.signInToAsk') : !item.owner_user_id ? t('history.addToAccount') : t('history.send')}</ActionButton>}
-
-            {ownerUserId && item.owner_user_id ? <ScanLocationControl key={`${item.local_id}-${item.latitude ?? 'none'}`} localId={item.local_id} onChanged={() => { void load(); }} /> : null}
-
             <View style={styles.links}>
               {onAskAssistant && item.server_id && item.sync_status === 'synced' && <LinkChip icon="chatbubbles-outline" onPress={() => onAskAssistant(item.server_id as number, name)}>{t('history.askDahon')}</LinkChip>}
               {needsRetry && <LinkChip icon="refresh" disabled={busy} onPress={() => retry(item)}>{t('history.tryAgain')}</LinkChip>}
@@ -584,32 +537,8 @@ const styles = StyleSheet.create({
   replyPhoto: { width: 72, height: 72, borderRadius: 10 },
   noteHeading: { color: palette.muted, fontWeight: '800' },
   details: { gap: 12, paddingHorizontal: 12, paddingBottom: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#eef2ef' },
-  panel: { gap: 10, padding: 12, borderRadius: 12, backgroundColor: '#f6f9f7' },
-  panelLabel: { color: palette.muted, fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
-  meterHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  meter: { height: 8, borderRadius: 999, backgroundColor: '#e3eae6', overflow: 'hidden' },
-  meterFill: { height: '100%', borderRadius: 999 },
-  meterLabel: { fontSize: 15, fontWeight: '900', fontVariant: ['tabular-nums'] },
-  photoButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 10, backgroundColor: palette.greenSoft },
-  photoButtonText: { color: palette.green, fontSize: 14, fontWeight: '800' },
-  note: { gap: 4, padding: 12, borderRadius: 10 },
-  noteWaiting: { backgroundColor: palette.warningSoft },
-  noteDone: { gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#cfe3d6', backgroundColor: palette.successSoft },
-  outcomeHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  outcomeIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  outcomeCopy: { flex: 1, gap: 4 },
-  outcomeTitle: { color: palette.ink, fontSize: 18, lineHeight: 24, fontWeight: '800' },
-  outcomeText: { color: '#3f5147', fontSize: 15, lineHeight: 22 },
-  reviewBlock: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#fff' },
-  reviewBlockHead: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  reviewBlockTitle: { flex: 1, color: palette.green, fontSize: 14, fontWeight: '800' },
-  reviewBody: { flex: 1, color: palette.ink, fontSize: 15, lineHeight: 22 },
-  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  stepNumber: { width: 24, height: 24, borderRadius: 12, marginTop: -1, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
-  stepNumberText: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  checkedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  checkedText: { flexShrink: 1, color: palette.muted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  reviewActions: { gap: 10 },
+  photoCard: { paddingHorizontal: 18, paddingVertical: 6, borderRadius: 18, borderWidth: 1, borderColor: '#d6eade', backgroundColor: '#eff8f1' },
+  noteWaiting: { gap: 10, padding: 18, borderRadius: 18, borderWidth: 1, borderColor: '#f5d494', backgroundColor: palette.warningSoft },
   noteTitle: { color: palette.ink, fontSize: 14, fontWeight: '800' },
   noteText: { color: palette.ink, fontSize: 13, lineHeight: 19 },
   progress: { flexDirection: 'row', justifyContent: 'space-between', gap: 6, paddingVertical: 4 },

@@ -115,7 +115,7 @@ function DatasetCandidates() {
     <Text style={uiStyles.cardMeta}>Approval marks research eligibility only. You cannot decide on an image you nominated; another agriculturist or an administrator does.</Text>
     <ActionButton variant="secondary" icon="refresh" disabled={loading} onPress={load}>{loading ? 'Loading...' : 'Refresh candidates'}</ActionButton>
     {error && <Notice>{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
-    {!loading && !items.length && !error && <Text style={uiStyles.cardMeta}>No research candidates yet. Nominate reviewed, consented images from a completed assessment in Reviewed.</Text>}
+    {!loading && !items.length && !error && <Text style={uiStyles.cardMeta}>No research candidates yet. Reviewed scans with a photo and current research consent appear here automatically.</Text>}
     {items.map((item) => <View key={item.id} style={uiStyles.card}>
       <View style={styles.row}>
         {item.diagnosis?.image_url ? <Pressable accessibilityRole="button" accessibilityLabel="Open candidate scan photo" onPress={() => setViewer(item.diagnosis?.image_url ?? null)}><ScanImage uri={item.diagnosis.image_url} style={styles.thumb} compact /></Pressable> : <ScanImage uri={null} style={styles.thumb} compact missingText="Photo not uploaded yet" />}
