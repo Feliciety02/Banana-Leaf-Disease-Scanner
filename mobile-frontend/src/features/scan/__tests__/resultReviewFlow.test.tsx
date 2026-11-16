@@ -77,7 +77,7 @@ async function scan(user: typeof farmer | null, onSignIn = jest.fn()) {
 
 it('sends a farmer note from the result and stays on the result after submission', async () => {
   const screen = await scan(farmer);
-  await fireEvent.changeText(screen.getByLabelText('Think the AI result is wrong? Tell the agriculturist what you noticed (optional).'), 'The stem is also yellow.');
+  await fireEvent.changeText(screen.getByLabelText('Tell the expert what you see (optional).'), 'The stem is also yellow.');
   await fireEvent.press(screen.getAllByText('Ask an expert').at(-1)!);
   await waitFor(() => expect(requestAgriculturalReview).toHaveBeenCalledWith('leaf-1', 'The stem is also yellow.'));
   expect(screen.getByText('Request sent to an agriculturist')).toBeTruthy();
@@ -90,13 +90,13 @@ it('sends a farmer note from the result and stays on the result after submission
 it('keeps a guest note on the result while the farmer signs in', async () => {
   const onSignIn = jest.fn();
   const screen = await scan(null, onSignIn);
-  const note = screen.getByLabelText('Think the AI result is wrong? Tell the agriculturist what you noticed (optional).');
+  const note = screen.getByLabelText('Tell the expert what you see (optional).');
   await fireEvent.changeText(note, 'Spots look different.');
   await fireEvent.press(screen.getAllByText('Ask an expert').at(-1)!);
   expect(onSignIn).toHaveBeenCalledTimes(1);
   expect(requestAgriculturalReview).not.toHaveBeenCalled();
   await screen.rerender(<ScanScreen user={farmer} onSignIn={onSignIn} onStored={jest.fn()} onOpenGuide={jest.fn()} onDirtyChange={jest.fn()} modelStatus={{ status: 'real', fingerprints: null }} />);
-  expect(screen.getByLabelText('Think the AI result is wrong? Tell the agriculturist what you noticed (optional).').props.value).toBe('Spots look different.');
+  expect(screen.getByLabelText('Tell the expert what you see (optional).').props.value).toBe('Spots look different.');
   expect(claimLocalOnlyDiagnoses).not.toHaveBeenCalled();
   await fireEvent.press(screen.getAllByText('Ask an expert').at(-1)!);
   await waitFor(() => expect(claimLocalOnlyDiagnoses).toHaveBeenCalledWith(7, 'leaf-1'));

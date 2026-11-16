@@ -24,19 +24,19 @@ function review(overrides: Partial<DiagnosticReview>): DiagnosticReview {
 
 afterEach(async () => { await cleanup(); });
 
-it('shows a different expert disease, the farmer message, original AI result, and clearer-photo action', async () => {
+it('shows a different expert disease, the farmer message, and clearer-photo action without extra AI details', async () => {
   const screen = await render(<FarmerReviewDetails
     item={item}
     review={review({ review_status: 'alternate_class', verified_label: 'panama-disease', image_quality: 'blurry', next_steps: ['retake_photo', 'seek_field_inspection'], farmer_message: 'The image is blurry. Please take a clearer photo.' })}
-    onOpenPhoto={jest.fn()} onOpenGuide={jest.fn()} onLocationChanged={jest.fn()}
+    onOpenPhoto={jest.fn()} onOpenGuide={jest.fn()}
     reply={<Text>Send a clearer photo</Text>}
   />);
   expect(screen.getByText('Panama Disease')).toBeTruthy();
   expect(screen.getByText('The expert thinks this is Panama Disease, not Black Sigatoka.')).toBeTruthy();
   expect(screen.getByText('The image is blurry. Please take a clearer photo.')).toBeTruthy();
   expect(screen.getByText('Send a clearer photo')).toBeTruthy();
-  expect(screen.getByText('Black Sigatoka')).toBeTruthy();
-  expect(screen.getByText('The agriculturist assessment differs from the original AI result.')).toBeTruthy();
+  // The original app score now waits under History's "More options".
+  expect(screen.queryByText('First app result')).toBeNull();
 });
 
 it.each([
@@ -46,9 +46,8 @@ it.each([
 ] as const)('shows the correct explanation for %s', async (status, title, explanation) => {
   const screen = await render(<FarmerReviewDetails
     item={item} review={review({ review_status: status, verified_label: null, next_steps: ['seek_field_inspection'] })}
-    onOpenPhoto={jest.fn()} onLocationChanged={jest.fn()} reply={null}
+    onOpenPhoto={jest.fn()} reply={null}
   />);
   expect(screen.getByText(title)).toBeTruthy();
   expect(screen.getByText(explanation)).toBeTruthy();
-  expect(screen.getByText('Black Sigatoka')).toBeTruthy();
 });

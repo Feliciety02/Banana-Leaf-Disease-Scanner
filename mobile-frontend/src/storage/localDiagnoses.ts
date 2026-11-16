@@ -791,6 +791,16 @@ export async function diagnosesWithNewReviews(ownerUserId: number) {
   return rows.filter((row) => isNewReview(parseDiagnosisReview(row.review_json)));
 }
 
+/** Scans whose expert review was requested but not answered yet; the app checks more often while any exist. */
+export async function countAwaitingReview(ownerUserId: number) {
+  const db = await database();
+  const row = await db.getFirstAsync<{ total: number }>(
+    `SELECT COUNT(*) AS total FROM local_diagnoses WHERE owner_user_id = ? AND review_json IS NOT NULL AND json_extract(review_json, '$.review_status') = 'pending' AND sync_status NOT IN ('pending_delete', 'delete_failed')`,
+    ownerUserId,
+  );
+  return row?.total ?? 0;
+}
+
 /** Stores a per-server/account choice without adding a schema migration. */
 export async function guestScanChoice(key: string, value?: string) {
   const db = await database();

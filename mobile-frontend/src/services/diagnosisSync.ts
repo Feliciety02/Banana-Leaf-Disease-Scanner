@@ -72,6 +72,9 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
   let pushed = 0;
   let rejected = 0;
   let deleted = 0;
+  // A failed upload must never block downloading: expert answers still arrive
+  // while a scan or deletion on this phone is waiting to be retried.
+  let pushError: unknown = null;
 
   if (pending.length || deletions.length) {
     await markDiagnosesSyncing(pending.map((item) => item.local_id));
@@ -149,7 +152,7 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
       for (const item of deletions) {
         await markDeletionFailed(item.local_id, messageOf(error));
       }
-      throw error;
+      pushError = error;
     }
   }
 
@@ -166,6 +169,7 @@ async function runSync(ownerUserId: number): Promise<SyncSummary> {
   await reconcileMissingPhotos(ownerUserId);
   // Also runs in the background task, so an answer can reach a farmer who is not in the app.
   await notifyNewReviews(ownerUserId).catch(() => 0);
+  if (pushError) throw pushError;
   return { pushed, rejected, pulled, deleted };
 }
 

@@ -38,6 +38,6 @@ const styles = StyleSheet.create({
   iconWrap: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1, gap: 1 },
   title: { fontSize: 13, fontWeight: '800' },
-  subtitle: { color: '#5e6d67', fontSize: 11, fontWeight: '600' },
-  version: { color: '#5e6d67', fontSize: 11, fontWeight: '700' },
+  subtitle: { color: '#5e6d67', fontSize: 13, fontWeight: '600' },
+  version: { color: '#5e6d67', fontSize: 13, fontWeight: '700' },
 });

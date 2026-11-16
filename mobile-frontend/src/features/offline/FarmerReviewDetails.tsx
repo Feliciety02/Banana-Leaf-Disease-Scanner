@@ -42,13 +42,11 @@ export function HistoryLocationCard({ item, onChanged }: { item: LocalDiagnosis;
   </View>;
 }
 
-export function FarmerReviewDetails({ item, review, onOpenPhoto, onOpenGuide, onLocationChanged, aiDetails, reply }: {
+export function FarmerReviewDetails({ item, review, onOpenPhoto, onOpenGuide, reply }: {
   item: LocalDiagnosis;
   review: DiagnosticReview;
   onOpenPhoto: () => void;
   onOpenGuide?: (classKey: ClassKey) => void;
-  onLocationChanged: () => void;
-  aiDetails?: ReactNode;
   reply: ReactNode;
 }) {
   const { t, language } = useT();
@@ -63,7 +61,6 @@ export function FarmerReviewDetails({ item, review, onOpenPhoto, onOpenGuide, on
   return <View style={styles.stack}>
     <View style={styles.hero}>
       <View style={styles.completePill}><Ionicons name="checkmark-circle" size={22} color="#fff" /><Text style={styles.completeText}>{t('review.complete')}</Text></View>
-      <Text style={styles.eyebrow}>{t('review.assessment')}</Text>
       <View style={styles.assessmentRow}><Text style={styles.assessment}>{assessment}</Text>{guideClass ? <View style={styles.leafArt}><Ionicons name="leaf" size={55} color="#4c9c59" /></View> : null}</View>
       <Text style={styles.assessmentExplanation}>{outcome.message}</Text>
       <View style={styles.reviewer}><Ionicons name="person" size={17} color={palette.green} /><Text style={styles.reviewerText}>{reviewerName}{review.reviewed_at ? `  ·  ${formatDate(review.reviewed_at, true)}` : ''}</Text></View>
@@ -81,10 +78,6 @@ export function FarmerReviewDetails({ item, review, onOpenPhoto, onOpenGuide, on
       {steps.map((step, index) => <View key={`${index}-${step}`} style={styles.stepRow}><View style={styles.stepNumber}><Text style={styles.stepNumberText}>{index + 1}</Text></View><Text style={styles.stepText}>{step}</Text></View>)}
       {guideClass && onOpenGuide ? <Pressable accessibilityRole="button" onPress={() => onOpenGuide(guideClass)} style={styles.outlineButton}><Ionicons name="book-outline" size={21} color={palette.green} /><Text style={styles.outlineText}>{t('review.readGuide', { name: className(guideClass, language) })}</Text></Pressable> : null}
     </View> : null}
-
-    <HistoryAiCard item={item} review={review}>{aiDetails}</HistoryAiCard>
-
-    <HistoryLocationCard item={item} onChanged={onLocationChanged} />
 
     {!clearerPhoto ? <View style={styles.followUpCard}>{reply}</View> : null}
   </View>;
@@ -121,7 +114,7 @@ const styles = StyleSheet.create({
   aiEyebrow: { color: '#59666d', fontSize: 14, fontWeight: '800' },
   aiRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   aiName: { flex: 1, color: '#0d2629', fontSize: 23, fontWeight: '900' },
-  aiBadge: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: '#e3e7e8', color: '#263137', fontSize: 11, fontWeight: '700' },
+  aiBadge: { paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: '#e3e7e8', color: '#263137', fontSize: 13, fontWeight: '700' },
   aiScore: { color: '#425059', fontSize: 16 },
   aiNotice: { flexDirection: 'row', alignItems: 'flex-start', gap: 9, padding: 11, borderRadius: 12, backgroundColor: '#e9eff0' },
   aiNoticeText: { flex: 1, color: '#455e6c', fontSize: 13, lineHeight: 20 },

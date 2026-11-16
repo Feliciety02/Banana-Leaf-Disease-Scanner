@@ -12,7 +12,7 @@ import { ProbabilityRow } from './ProbabilityRow';
 const LOW_CONFIDENCE = 0.7;
 const HIGH_CONFIDENCE = 0.85;
 
-/** How sure the result is, in words a farmer can act on, shown next to the headline percentage. */
+/** How sure the result is, in words a farmer can act on; the exact percentage stays under "How sure is the app?". */
 export function certaintyLevel(confidence: number): { key: StringKey; tone: 'sure' | 'likely' | 'unsure'; bars: number } {
   if (confidence >= HIGH_CONFIDENCE) return { key: 'result.sure', tone: 'sure', bars: 3 };
   if (confidence >= LOW_CONFIDENCE) return { key: 'result.likely', tone: 'likely', bars: 2 };
@@ -26,16 +26,18 @@ export function ScanResult({ result }: { result: PredictionResult }) {
   const unsure = level.tone === 'unsure';
   const color = unsure ? '#8a5a00' : '#1e6b47';
   const percent = Math.round(result.confidence * 100);
+  const healthy = result.predictedClass === 'healthy';
 
   return (
     <View style={styles.container}>
       <View style={styles.result}>
-        {/* The percentage leads on the left so it is the first thing a farmer reads. */}
-        <View style={[styles.percentBox, { borderColor: color }]} accessibilityLabel={`${percent}%`}>
-          <Text style={[styles.percent, { color }]} adjustsFontSizeToFit numberOfLines={1}>{percent}%</Text>
+        {/* Words lead: an unsure result is never shown as if it were a finding. */}
+        <View style={[styles.statusIcon, { backgroundColor: unsure ? '#fff3dc' : '#e6f3ea' }]}>
+          <Ionicons name={unsure ? 'help-circle-outline' : healthy ? 'checkmark-circle-outline' : 'leaf-outline'} size={34} color={color} />
         </View>
         <View style={styles.resultCopy}>
-          <Text style={styles.prediction}>{className(result.predictedClass, language)}</Text>
+          <Text style={styles.prediction}>{unsure ? t('result.unsure') : className(result.predictedClass, language)}</Text>
+          {unsure && <Text style={styles.closest}>{t('result.closest', { name: className(result.predictedClass, language) })}</Text>}
           <View style={styles.certainty} accessibilityLabel={t(level.key)}>
             <View style={styles.bars}>
               {[1, 2, 3].map((bar) => <View key={bar} style={[styles.bar, { height: 6 + bar * 5 }, bar <= level.bars && { backgroundColor: color }]} />)}
@@ -72,6 +74,7 @@ export function ScanResult({ result }: { result: PredictionResult }) {
               selected={classKey === result.predictedClass}
             />
           ))}
+          <Text style={styles.percentNote}>{t('result.percentNote', { percent })}</Text>
           <Text style={styles.note}>{t('result.calibrated')}</Text>
         </View>
       )}
@@ -82,8 +85,9 @@ export function ScanResult({ result }: { result: PredictionResult }) {
 const styles = StyleSheet.create({
   container: { gap: 10 },
   result: { flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#fff', borderColor: palette.border, borderRadius: 14, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 18 },
-  percentBox: { width: 104, height: 104, borderRadius: 52, borderWidth: 4, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  percent: { fontSize: 34, fontWeight: '900', letterSpacing: -1 },
+  statusIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  closest: { color: '#4e6157', fontSize: 16, marginTop: -4 },
+  percentNote: { color: '#1d3327', fontSize: 15, lineHeight: 21, fontWeight: '600' },
   resultCopy: { flex: 1, gap: 10 },
   prediction: { color: '#1d3327', fontSize: 24, fontWeight: '800', letterSpacing: -0.4 },
   certainty: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -96,5 +100,5 @@ const styles = StyleSheet.create({
   detailsButtonText: { color: '#325e47', fontSize: 15, fontWeight: '700' },
   pressed: { opacity: 0.6 },
   detailsPanel: { backgroundColor: '#f6f8f7', borderRadius: 10, gap: 12, padding: 14 },
-  note: { color: '#6a746e', fontSize: 11, lineHeight: 16 },
+  note: { color: '#6a746e', fontSize: 13, lineHeight: 18 },
 });

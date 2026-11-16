@@ -29,10 +29,11 @@ import { LocalHistory } from '../features/offline/LocalHistory';
 import { ScanScreen } from '../features/scan/ScanScreen';
 import { useModelStatus } from '../features/status/modelStatus';
 import { synchronizeDiagnoses } from '../services/diagnosisSync';
+import { clearStalePhotoCache } from '../services/cacheCleanup';
 import { configureBackgroundSync } from '../services/backgroundSync';
 import { checkConnection, subscribeConnection, currentServerUrl, loadServerUrl, restoreSession, serverUrlFromLink, setServerUrl, setSessionExpiredHandler, SessionUser } from '../services/api';
 import { useMobilePrivacyProtection } from '../services/mobileSecurity';
-import { initializeLocalDatabase } from '../storage/localDiagnoses';
+import { countAwaitingReview, initializeLocalDatabase } from '../storage/localDiagnoses';
 
 const colors = { background: '#ffffff', green: '#236b4b', ink: '#1d2d24', muted: '#7b857f', border: '#e5eae7', activeTab: '#f0f6f2' };
 
@@ -132,6 +133,8 @@ export default function App() {
     return () => subscription.remove();
   }, []);
   useEffect(() => { initializeLocalDatabase().catch((error) => setInfo({ title: 'Offline storage unavailable', message: error instanceof Error ? error.message : 'The local database could not be opened.' })); }, []);
+  // Old camera and gallery copies are not needed once a scan keeps its own photo.
+  useEffect(() => { const timer = setTimeout(() => { clearStalePhotoCache(); }, 5000); return () => clearTimeout(timer); }, []);
   useEffect(() => {
     let active = true;
     let pending = Promise.resolve();
@@ -192,26 +195,45 @@ export default function App() {
   // or requests an expert review of that particular scan.
   const syncAccountDiagnoses = (userId: number) => synchronizeDiagnoses(userId);
   // Farmers never sync by hand: scans sync when the connection returns, when
-  // the app comes back to the foreground, and every minute while it is open.
+  // the app comes back to the foreground, when Home or History opens, and on a
+  // timer while the app is open: every 15 seconds while an expert answer is
+  // awaited, otherwise every minute. Android's "internet reachable" probe is
+  // not trusted to skip a check, because it can report false on working Wi-Fi
+  // (for example a local server or a slow probe); the request itself decides.
+  const syncNow = useRef<() => void>(() => undefined);
   useEffect(() => {
-    if (sessionUser?.role !== 'farmer') return;
+    if (sessionUser?.role !== 'farmer') { syncNow.current = () => undefined; return; }
     let active = true;
-    let connected = false;
-    const attempt = () => {
-      if (!connected || AppState.currentState !== 'active') return;
-      syncAccountDiagnoses(sessionUser.id).then(() => { if (active) setHistoryRefresh((value) => value + 1); }).catch(() => undefined);
+    let connected = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = async () => {
+      if (!active) return;
+      if (timer) clearTimeout(timer);
+      const waiting = await countAwaitingReview(sessionUser.id).catch(() => 0);
+      if (active) timer = setTimeout(attempt, waiting > 0 ? 15000 : 60000);
     };
-    const onNetwork = (state: { isConnected: boolean | null; isInternetReachable: boolean | null }) => {
+    const attempt = () => {
+      if (!active) return;
+      if (!connected || AppState.currentState !== 'active') { void schedule(); return; }
+      syncAccountDiagnoses(sessionUser.id)
+        .then(() => { if (active) setHistoryRefresh((value) => value + 1); })
+        .catch(() => { if (active) setHistoryRefresh((value) => value + 1); })
+        .finally(() => { void schedule(); });
+    };
+    syncNow.current = attempt;
+    const onNetwork = (state: { isConnected: boolean | null }) => {
       const wasConnected = connected;
-      connected = Boolean(state.isConnected && state.isInternetReachable !== false);
+      connected = state.isConnected !== false;
       if (connected && !wasConnected) attempt();
     };
     const unsubscribe = NetInfo.addEventListener(onNetwork);
     NetInfo.fetch().then(onNetwork).catch(() => undefined);
     const foreground = AppState.addEventListener('change', (state) => { if (state === 'active') attempt(); });
-    const timer = setInterval(attempt, 60000);
-    return () => { active = false; unsubscribe(); foreground.remove(); clearInterval(timer); };
+    attempt();
+    return () => { active = false; syncNow.current = () => undefined; unsubscribe(); foreground.remove(); if (timer) clearTimeout(timer); };
   }, [sessionUser?.id, sessionUser?.role]);
+  // Opening Home or History always shows the newest expert answers.
+  useEffect(() => { if (tab === 'home' || tab === 'history') syncNow.current(); }, [tab]);
   // Keep the article library on the phone up to date for offline reading,
   // for every visitor, whenever a connection appears (at most once an hour).
   useEffect(() => {
@@ -327,7 +349,7 @@ const styles = StyleSheet.create({
   navPressed: { opacity: 0.7 },
   navBadge: { position: 'absolute', top: -5, right: -10, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: '#c2410c', alignItems: 'center', justifyContent: 'center' },
   navBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  navLabel: { color: colors.muted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  navLabel: { color: colors.muted, fontSize: 12, fontWeight: '600', textAlign: 'center' },
   navLabelActive: { color: colors.green, fontWeight: '800' },
   connectionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: '#fff6e5' },
   connectionNotice: { position: 'absolute', top: '100%', right: 12, width: '85%', maxWidth: 340, padding: 14, gap: 8, backgroundColor: '#fffaf0', borderColor: '#ead7ad', borderWidth: 1, borderRadius: 14, elevation: 12, shadowColor: '#30240e', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 5 } },

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { BISAYA } from './i18n.bisaya';
 
 // Farmer-facing website text in Filipino, keyed by the English sentence so a
 // missing entry simply shows English. Keep the wording in step with the phone
@@ -295,25 +296,170 @@ const FIL = {
   Diseases: 'Mga sakit', 'Try a scan': 'Subukang mag-scan', Features: 'Mga tampok',
   'Page sections': 'Mga bahagi ng pahina', Footer: 'Footer',
   'Ready to check your leaves?': 'Handa na bang suriin ang inyong mga dahon?',
+  'For banana farmers': 'Para sa mga magsasaka ng saging',
+  'Example: a banana leaf with Sigatoka spots': 'Halimbawa: dahon ng saging na may batik ng Sigatoka',
+  'Need help with a sick plant?': 'Kailangan ng tulong sa may sakit na halaman?',
+  'An agriculturist can look at your photo and tell you what to do.': 'Matitingnan ng agriculturist ang inyong litrato at masasabi kung ano ang gagawin.',
+  // Plain-language results, saved scans, guide and profile
+  'A leaf image cannot provide laboratory confirmation.': 'Hindi makukumpirma ng litrato ng dahon ang resulta ng laboratoryo.',
+  'About {name}': 'Tungkol sa {name}',
+  'An agriculturist looks at your photo and tells you what to do.': 'Titingnan ng agriculturist ang inyong litrato at sasabihin kung ano ang gagawin.',
+  'Answer from the expert': 'Sagot ng eksperto',
+  'App result: {name}': 'Resulta ng app: {name}',
+  'Articles summarise the listed references. Ask your agriculturist before acting on them.': 'Buod ng mga nakalistang sanggunian ang mga artikulo. Magtanong sa agriculturist bago kumilos.',
+  'Care for the plant': 'Alagaan ang halaman',
+  'Change password': 'Palitan ang password',
+  'Check FPA listing': 'Tingnan ang listahan ng FPA',
+  'Checked by the scanner': 'Sinusuri ng scanner',
+  'Choose a leaf condition': 'Pumili ng kondisyon ng dahon',
+  'Clear filters': 'Alisin ang mga filter',
+  Close: 'Isara',
+  'Closest match: {name}': 'Pinakamalapit: {name}',
+  'Cordana Leaf Spot': 'Cordana Leaf Spot',
+  'Delete My Account': 'Burahin ang aking account',
+  'Delete scan': 'Burahin ang scan',
+  'Delete this scan': 'Burahin ang scan na ito',
+  'Delete this scan?': 'Burahin ang scan na ito?',
+  'Discard your entered details?': 'Itapon ang inyong inilagay?',
+  'Example of {name}': 'Halimbawa ng {name}',
+  'Example photos': 'Mga halimbawang litrato',
+  'Example photos cannot confirm a disease.': 'Hindi makukumpirma ng mga halimbawang litrato ang sakit.',
+  'Example {number} of {name}': 'Halimbawa {number} ng {name}',
+  'Example: the spots spread after rain.': 'Halimbawa: kumalat ang mga batik pagkatapos umulan.',
+  'Filter scans': 'I-filter ang mga scan',
+  'First app result: {name}': 'Unang resulta ng app: {name}',
+  'First guess': 'Unang hula',
+  'Future account scans will be shared for research consideration.': 'Ibabahagi para sa pananaliksik ang mga susunod ninyong scan.',
+  'Guide only': 'Gabay lamang',
+  'Guide only · the scanner does not check this': 'Gabay lamang · hindi ito sinusuri ng scanner',
+  'Hide more details': 'Itago ang iba pang detalye',
+  'How closely the photo matched each condition': 'Gaano kalapit ang litrato sa bawat kondisyon',
+  'How sure is the app?': 'Gaano kasigurado ang app?',
+  'How to stop it spreading': 'Paano pigilan ang pagkalat',
+  'It does not look like one of the diseases this app checks.': 'Mukhang hindi ito isa sa mga sakit na sinusuri ng app.',
+  'It uploads by itself when you are online. You can ask an expert after that.': 'Kusa itong maa-upload kapag may internet. Makakapagtanong kayo sa eksperto pagkatapos.',
+  'Keep caring for the plant': 'Ituloy ang pag-aalaga sa halaman',
+  'Keep checking the plant and scan again if the leaf changes.': 'Patuloy na tingnan ang halaman at mag-scan ulit kapag nagbago ang dahon.',
+  'Keep up good routine care and check the plant regularly.': 'Ituloy ang maayos na pag-aalaga at regular na tingnan ang halaman.',
+  'Leaf looks healthy': 'Mukhang malusog ang dahon',
+  'Loading the leaf guide…': 'Binubuksan ang gabay…',
+  'Log in and send to an expert': 'Mag-log in at ipadala sa eksperto',
+  'Log out of DahonMD?': 'Mag-log out sa DahonMD?',
+  'More details': 'Iba pang detalye',
+  'My checked scan photos may help research. I can turn this off in Profile.': 'Maaaring makatulong sa pananaliksik ang mga nasuring litrato ko. Maaari ko itong patayin sa Profile.',
+  'Needed to change your email.': 'Kailangan para mapalitan ang email.',
+  'No product is listed for this. Follow the steps above and ask an agriculturist before using any pesticide.': 'Walang nakalistang produkto para dito. Sundin ang mga hakbang sa itaas at magtanong sa agriculturist bago gumamit ng pesticide.',
+  'No result': 'Walang resulta',
+  'No result yet': 'Wala pang resulta',
+  'Not applicable for a healthy leaf.': 'Hindi ito kailangan para sa malusog na dahon.',
+  'Not sure: maybe {name}': 'Hindi sigurado: baka {name}',
+  'Not uploaded': 'Hindi pa naipadala',
+  'Not uploaded yet': 'Hindi pa naipadala',
+  Off: 'Nakapatay',
+  'On: checked scan photos may help research.': 'Nakabukas: maaaring makatulong sa pananaliksik ang mga nasuring litrato.',
+  'Panama Disease': 'Panama Disease',
+  'Photos from': 'Mga litrato mula sa',
+  'Please wait…': 'Sandali lang…',
+  'Possible {name}': 'Posibleng {name}',
+  'Products used for this': 'Mga produktong ginagamit para dito',
+  'Read the signs and care steps below. Ask an expert if you are unsure or the spots spread.': 'Basahin ang mga palatandaan at hakbang sa ibaba. Magtanong sa eksperto kung hindi kayo sigurado o kumakalat ang mga batik.',
+  'Removes your account and scans for good.': 'Tuluyang buburahin ang inyong account at mga scan.',
+  'Research comparison (for researchers)': 'Paghahambing para sa pananaliksik (para sa mga mananaliksik)',
+  'Research photo sharing': 'Pagbabahagi ng litrato para sa pananaliksik',
+  'Research sharing is off. Existing consent has been withdrawn.': 'Nakapatay na ang pagbabahagi. Binawi na ang dating pahintulot.',
+  'Research sharing needs renewal': 'Kailangang i-renew ang pagbabahagi para sa pananaliksik',
+  'Research sources': 'Mga sanggunian',
+  Result: 'Resulta',
+  'Save and send to an expert': 'I-save at ipadala sa eksperto',
+  'Save changes': 'I-save ang mga pagbabago',
+  'Save without asking an expert': 'I-save nang hindi nagtatanong sa eksperto',
+  'Saved banana leaf': 'Naka-save na dahon ng saging',
+  'Saved on this device': 'Naka-save sa device na ito',
+  'Saved online': 'Naka-save online',
+  'Saved scan': 'Naka-save na scan',
+  'Scanned banana leaf': 'Na-scan na dahon ng saging',
+  'Search your scans': 'Hanapin ang inyong mga scan',
+  'Selected banana leaf': 'Napiling dahon ng saging',
+  'Sent {date}': 'Ipinadala {date}',
+  'Share my future scan photos for research': 'Ibahagi ang mga susunod kong litrato para sa pananaliksik',
+  'Shared for research': 'Ibinahagi para sa pananaliksik',
+  'Showing the saved guide': 'Ipinapakita ang naka-save na gabay',
+  'Signs to look for': 'Mga palatandaang dapat tingnan',
+  'Some scans are not uploaded yet': 'May mga scan na hindi pa naipapadala',
+  'Sources show when you are online.': 'Lalabas ang mga sanggunian kapag may internet.',
+  'Stop sharing this scan': 'Itigil ang pagbabahagi ng scan na ito',
+  'Take a new photo in daylight with the sick part of the leaf in focus, or ask an expert to look at it.': 'Kumuha ng bagong litrato sa liwanag ng araw na malinaw ang may sakit na bahagi, o magpatingin sa eksperto.',
+  'Take a photo of the leaf': 'Kunan ng litrato ang dahon',
+  'The Philippine FPA lists these products for banana and this condition. Ask an agriculturist to confirm the problem and the label before buying or spraying.': 'Nakalista sa Philippine FPA ang mga produktong ito para sa saging at kondisyong ito. Ipakumpirma sa agriculturist ang problema at ang label bago bumili o mag-spray.',
+  'The camera is still getting ready. Please try again.': 'Naghahanda pa ang camera. Subukan ulit.',
+  'The expert did not see Sigatoka, Panama disease, or Cordana leaf spot in this photo.': 'Walang nakitang Sigatoka, Panama disease, o Cordana leaf spot ang eksperto sa litratong ito.',
+  "The photo didn't clearly match any of the conditions this app checks.": 'Hindi malinaw na tumugma ang litrato sa alinmang kondisyong sinusuri ng app.',
+  'The scanner checks for 4 conditions: healthy leaf, Sigatoka, Panama disease and Cordana leaf spot. Other leaf problems are explained here too.': 'Apat na kondisyon ang sinusuri ng scanner: malusog na dahon, Sigatoka, Panama disease at Cordana leaf spot. Ipinapaliwanag din dito ang ibang problema sa dahon.',
+  'These numbers compare the conditions with each other. They are not a diagnosis.': 'Pinaghahambing ng mga numerong ito ang mga kondisyon. Hindi ito diagnosis.',
+  'This browser could not keep your scan. Log in first, then scan again.': 'Hindi naitabi ng browser ang inyong scan. Mag-log in muna, saka mag-scan ulit.',
+  'This is a first check, not a final diagnosis. Read what to do below.': 'Unang pagsusuri pa lang ito, hindi pinal na diagnosis. Basahin sa ibaba ang gagawin.',
+  'This leaf may have {name}': 'Maaaring may {name} ang dahong ito',
+  'This removes the scan and its photo from your history. An approved research copy stays until you remove it in Profile.': 'Buburahin nito ang scan at litrato sa inyong kasaysayan. Mananatili ang aprubadong kopya para sa pananaliksik hanggang alisin ninyo ito sa Profile.',
+  'Try again': 'Subukan ulit',
+  'Try again now, or come back later.': 'Subukan ulit ngayon, o bumalik mamaya.',
+  'Use this if you want a new password.': 'Gamitin ito kung gusto ninyo ng bagong password.',
+  'Use your phone camera, or choose a photo you already took.': 'Gamitin ang camera ng telepono, o pumili ng litratong nakuha na ninyo.',
+  'Waiting for expert': 'Naghihintay sa eksperto',
+  'Want an expert to check?': 'Gusto ninyong ipatingin sa eksperto?',
+  "We couldn't capture this photo. Please try again.": 'Hindi nakuha ang litrato. Subukan ulit.',
+  "We couldn't check this leaf right now": 'Hindi masuri ang dahon ngayon',
+  "We couldn't use this photo. Please choose another image.": 'Hindi magamit ang litratong ito. Pumili ng iba.',
+  'We did not find signs of Sigatoka, Panama disease or Cordana leaf spot.': 'Walang nakitang palatandaan ng Sigatoka, Panama disease o Cordana leaf spot.',
+  'We did not find signs of the diseases this app checks. Keep checking the plant, because a photo cannot prove a plant is free of disease.': 'Walang nakitang palatandaan ng mga sakit na sinusuri ng app. Patuloy na tingnan ang halaman, dahil hindi mapapatunayan ng litrato na walang sakit ang halaman.',
+  'We try again each time you are online.': 'Susubukan ulit tuwing may internet kayo.',
+  "We're not sure about this photo": 'Hindi kami sigurado sa litratong ito',
+  'What a photo cannot tell': 'Ang hindi kayang sabihin ng litrato',
+  'What causes it': 'Ano ang sanhi nito',
+  'What does this mean?': 'Ano ang ibig sabihin nito?',
+  'What it looks like': 'Ano ang itsura nito',
+  'What this means and what to do': 'Ano ang ibig sabihin nito at ano ang gagawin',
+  'What you can do': 'Ang maaari ninyong gawin',
+  'When on, your future scan photos may be used for research after an expert checks them. An approved private copy may stay after you delete a scan. Turning this off also stops sharing your existing scans.': 'Kapag nakabukas, maaaring gamitin sa pananaliksik ang mga susunod ninyong litrato matapos suriin ng eksperto. Maaaring manatili ang aprubadong pribadong kopya kahit burahin ang scan. Kapag pinatay ito, ititigil din ang pagbabahagi ng mga dati ninyong scan.',
+  'When to get expert help': 'Kailan dapat magpatulong sa eksperto',
+  'You are offline, so the guide built into this website is shown.': 'Walang internet, kaya ang gabay na nasa website na ito ang ipinapakita.',
+  'You can see them on any phone or computer where you log in.': 'Makikita ninyo ang mga ito sa kahit anong telepono o computer na pag-log in-an ninyo.',
+  'You will be asked to log in or sign up. Your scan is kept.': 'Hihilingin sa inyong mag-log in o mag-sign up. Itatabi ang inyong scan.',
+  'Your leaf looks healthy': 'Mukhang malusog ang inyong dahon',
+  'Your name and email': 'Pangalan at email',
+  'Your photo': 'Ang inyong litrato',
+  'Your photo is fine. The checking service is busy or offline. Please try again in a few minutes.': 'Maayos ang inyong litrato. Abala o offline ang serbisyong sumusuri. Subukan ulit pagkalipas ng ilang minuto.',
+  'Your saved scans stay in your account. You can log in again any time.': 'Mananatili sa inyong account ang mga naka-save na scan. Makakapag-log in ulit kayo kahit kailan.',
+  'Your scan is kept. It will be saved to your history after you log in or sign up.': 'Nakatabi ang inyong scan. Mase-save ito sa inyong kasaysayan pagka-log in o sign up ninyo.',
+  'Your scans': 'Ang inyong mga scan',
+  'More options': 'Iba pang opsyon',
+  'Your scans are saved online': 'Naka-save online ang inyong mga scan',
+  '{count} scan(s) not uploaded yet': '{count} scan ang hindi pa naipapadala',
+  '{count} scan(s) not uploaded yet. They upload by themselves when you are online.': '{count} scan ang hindi pa naipapadala. Kusa itong maipapadala kapag may internet.',
+  All: 'Lahat', General: 'Pangkalahatan', 'All topics': 'Lahat ng paksa',
+  'Panama disease': 'Panama disease', 'Cordana leaf spot': 'Cordana leaf spot',
+  'Field care': 'Pag-aalaga sa bukid', Prevention: 'Pag-iwas', Treatment: 'Paggamot', Varieties: 'Mga uri', Identifying: 'Pagkilala', Safety: 'Kaligtasan', Research: 'Pananaliksik',
 };
 
 const STORAGE_KEY = 'dahonmd-language';
+const TABLES = { fil: FIL, ceb: BISAYA };
+const supported = (language) => (language in TABLES ? language : 'en');
 let current = 'en';
-try { if (window.localStorage.getItem(STORAGE_KEY) === 'fil') current = 'fil'; } catch { /* English by default */ }
+try { current = supported(window.localStorage.getItem(STORAGE_KEY)); } catch { /* English by default */ }
+if (typeof document !== 'undefined') document.documentElement.lang = current;
 const listeners = new Set();
 
 export function getLanguage() { return current; }
 
 export function setLanguage(language) {
-  current = language === 'fil' ? 'fil' : 'en';
+  current = supported(language);
   try { window.localStorage.setItem(STORAGE_KEY, current); } catch { /* still applies until reload */ }
-  document.documentElement.lang = current === 'fil' ? 'fil' : 'en';
+  document.documentElement.lang = current;
   listeners.forEach((listener) => listener());
 }
 
 /** Translates an English sentence; {name}-style placeholders are filled in both languages. */
 export function tr(text, vars) {
-  const value = current === 'fil' ? (FIL[text] ?? text) : text;
+  const value = TABLES[current]?.[text] ?? text;
   return vars ? value.replace(/\{(\w+)\}/g, (match, key) => (key in vars ? String(vars[key]) : match)) : value;
 }
 

@@ -346,7 +346,7 @@ export const uiStyles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   flex: { flex: 1 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  pill: { alignSelf: 'flex-start', backgroundColor: palette.greenSoft, color: palette.green, borderRadius: 999, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 5, fontSize: 11, fontWeight: '800' },
+  pill: { alignSelf: 'flex-start', backgroundColor: palette.greenSoft, color: palette.green, borderRadius: 999, overflow: 'hidden', paddingHorizontal: 9, paddingVertical: 5, fontSize: 13, fontWeight: '800' },
   dangerText: { color: palette.danger },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   searchField: { flex: 1 },

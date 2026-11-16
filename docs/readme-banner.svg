@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">DahonMD banner</title>
+  <desc id="desc">Green banana leaves and a leaf inside a scan frame on a dark green background.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1">
+      <stop stop-color="#082f24"/>
+      <stop offset="1" stop-color="#176144"/>
+    </linearGradient>
+    <linearGradient id="leaf" x2=".8" y2="1">
+      <stop stop-color="#c7ed79"/>
+      <stop offset=".55" stop-color="#6ebd58"/>
+      <stop offset="1" stop-color="#27874e"/>
+    </linearGradient>
+    <linearGradient id="glow" x2="1" y2="0">
+      <stop stop-color="#b7e888" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#b7e888" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#ffffff" stroke-opacity=".055"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="320" rx="22" fill="url(#background)"/>
+  <rect width="1200" height="320" rx="22" fill="url(#grid)"/>
+  <circle cx="90" cy="265" r="210" fill="url(#glow)"/>
+  <circle cx="1090" cy="45" r="210" fill="url(#glow)"/>
+
+  <g opacity=".88" transform="translate(-18 12)">
+    <path d="M84 350C45 198 80 69 237 19c-8 132-44 233-153 331Z" fill="url(#leaf)"/>
+    <path d="M84 350C129 226 178 111 237 19" fill="none" stroke="#d9f5ae" stroke-width="3" opacity=".65"/>
+    <path d="M97 308c-40-42-73-54-95-60M114 269c-36-45-63-59-85-68M132 224c-30-40-47-52-67-62M153 181c-21-34-38-47-53-56M177 133c-16-26-27-36-39-44M106 305c53-33 82-38 109-38M123 264c55-38 83-45 108-45M141 221c53-35 79-41 103-40M159 178c43-27 67-30 89-29" fill="none" stroke="#0b5239" stroke-opacity=".35" stroke-width="2"/>
+    <path d="M32 350C-12 252 7 179 89 126c24 97 13 169-57 224Z" fill="#64b95b" opacity=".62"/>
+    <path d="M32 350c25-88 42-153 57-224" fill="none" stroke="#d9f5ae" stroke-opacity=".5" stroke-width="2"/>
+  </g>
+
+  <g font-family="Arial, Helvetica, sans-serif" fill="#f5fff0">
+    <text x="288" y="108" font-size="18" font-weight="700" letter-spacing="5" fill="#b9e887">BANANA LEAF SCREENING</text>
+    <text x="284" y="192" font-size="77" font-weight="700" letter-spacing="-3">DahonMD</text>
+    <text x="288" y="235" font-size="24" fill="#d6e9d5">Scan offline. Keep your history. Seek expert review.</text>
+  </g>
+
+  <g transform="translate(933 51)" fill="none" stroke="#c8f1a5" stroke-width="5" stroke-linecap="round" opacity=".95">
+    <path d="M0 43V12q0-12 12-12h31M175 0h31q12 0 12 12v31M218 174v31q0 12-12 12h-31M43 217H12q-12 0-12-12v-31"/>
+  </g>
+  <g transform="translate(956 71) rotate(-18 90 92)">
+    <path d="M89 185C21 128 24 34 142 0c14 93-3 154-53 185Z" fill="url(#leaf)"/>
+    <path d="M89 185C101 122 118 62 142 0" fill="none" stroke="#e4f7be" stroke-width="3"/>
+    <path d="M94 158c-24-23-40-30-54-34m60 5c-23-22-38-28-50-32m57 2c-18-18-30-24-40-28m46-1c-15-16-25-20-34-24m22 104c21-11 35-15 50-14m-44-15c22-13 37-16 52-16m-46-15c22-14 36-18 51-18m-44-14c18-13 31-17 45-18" fill="none" stroke="#175b3b" stroke-width="2" opacity=".38"/>
+  </g>
+</svg>

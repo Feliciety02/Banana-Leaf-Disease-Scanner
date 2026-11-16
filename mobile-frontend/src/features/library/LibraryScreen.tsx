@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   figure: { width: '85%', maxWidth: 360, alignSelf: 'center', gap: 5, marginVertical: 6 },
   photo: { width: '100%', borderRadius: 12, backgroundColor: '#edf1ee' },
   caption: { color: '#3c4c43', fontSize: 13, lineHeight: 18 },
-  credit: { color: palette.muted, fontSize: 11, lineHeight: 15 },
+  credit: { color: palette.muted, fontSize: 13, lineHeight: 15 },
   creditLink: { textDecorationLine: 'underline' },
   references: { gap: 10, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 12, marginTop: 4 },
   reference: { gap: 5 },

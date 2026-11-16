@@ -20,6 +20,7 @@ function messageOf(error: unknown) { return error instanceof Error ? error.messa
 export function AuthModal({ mode, onClose, onMode, onAuthenticated, onConnection }: { onConnection: () => void; mode: AuthMode | null; onClose: () => void; onMode: (mode: AuthMode) => void; onAuthenticated: (user: SessionUser) => void }) {
   const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirmation, setConfirmation] = useState(''); const [showPassword, setShowPassword] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const signup = mode === 'register';
   const { t } = useT();
   const [connectionFailed, setConnectionFailed] = useState(false);
@@ -31,8 +32,8 @@ export function AuthModal({ mode, onClose, onMode, onAuthenticated, onConnection
   const requestClose = () => {
     if (busy) return;
     if (name.trim() || email.trim() || password || confirmation || termsAccepted) {
-      Alert.alert('Discard entered details?', 'Your form has not been submitted.', [
-        { text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: onClose },
+      Alert.alert(t('auth.discardTitle'), t('auth.discardText'), [
+        { text: t('auth.keepEditing'), style: 'cancel' }, { text: t('auth.discard'), style: 'destructive', onPress: onClose },
       ]);
     } else onClose();
   };
@@ -78,6 +79,8 @@ export function AuthModal({ mode, onClose, onMode, onAuthenticated, onConnection
     {signup && <Field label={t('auth.confirmPassword')} placeholder={t('auth.confirmPlaceholder')} value={confirmation} onChangeText={setConfirmation} secureTextEntry={!showPassword} autoComplete="new-password" returnKeyType="done" onSubmitEditing={submit} style={styles.input} />}
     {signup && <View style={styles.consentGroup}>
       <Pressable accessibilityRole="checkbox" accessibilityLabel={t('auth.termsAgreement')} accessibilityState={{ checked: termsAccepted }} onPress={() => setTermsAccepted(!termsAccepted)} style={styles.consentRow}><Ionicons name={termsAccepted ? 'checkbox' : 'square-outline'} size={23} color={palette.green} /><Text style={styles.consentText}>{t('auth.termsAgreement')}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: termsOpen }} onPress={() => setTermsOpen((current) => !current)} style={styles.termsMore}><Text style={styles.link}>{t('auth.termsMore')}</Text><Ionicons name={termsOpen ? 'chevron-up' : 'chevron-down'} size={16} color={palette.green} /></Pressable>
+      {termsOpen && <Text style={styles.termsDetail}>{t('auth.termsDetail')}</Text>}
       <View style={styles.consentLinks}><Pressable onPress={() => { const url = termsOfUseUrl(); if (url) void Linking.openURL(url); }}><Text style={styles.link}>{t('auth.termsLink')}</Text></Pressable><Pressable onPress={() => { const url = privacyPolicyUrl(); if (url) void Linking.openURL(url); }}><Text style={styles.link}>{t('auth.privacyLink')}</Text></Pressable></View>
     </View>}
     {!signup && <Pressable accessibilityRole="button" disabled={busy} onPress={forgot} style={styles.forgot}><Text style={styles.link}>{t('auth.forgot')}</Text></Pressable>}
@@ -91,7 +94,7 @@ const styles = StyleSheet.create({
   profiles: { flexDirection: 'row', gap: 8 },
   profile: { flex: 1, minHeight: 78, gap: 8, padding: 10, borderRadius: 16, backgroundColor: palette.greenSoft, alignItems: 'center', justifyContent: 'center' },
   profileLabel: { color: palette.green, fontSize: 13, fontWeight: '700' },
-  profileEmail: { color: palette.muted, fontSize: 10, textAlign: 'center' },
+  profileEmail: { color: palette.muted, fontSize: 12, textAlign: 'center' },
   modeTabs: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: '#eef3ef', borderRadius: 14 },
   modeTab: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   modeTabActive: { backgroundColor: '#fff', shadowColor: '#173d2c', shadowOpacity: 0.08, shadowRadius: 5, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
@@ -100,5 +103,6 @@ const styles = StyleSheet.create({
   input: { minHeight: 52, backgroundColor: '#f8faf8', borderColor: '#d9e4db' },
   passwordField: { position: 'relative' }, passwordInput: { paddingRight: 54 }, eye: { position: 'absolute', right: 3, bottom: 2, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   forgot: { alignSelf: 'flex-end', minHeight: 48, justifyContent: 'center' }, link: { color: palette.green, fontSize: 14, fontWeight: '800' },
-  consentGroup: { gap: 10, paddingVertical: 8 }, consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, consentText: { flex: 1, color: palette.ink, fontSize: 13, lineHeight: 19 }, consentLinks: { flexDirection: 'row', gap: 20, paddingLeft: 33 },
+  consentGroup: { gap: 10, paddingVertical: 8 }, consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 }, consentText: { flex: 1, color: palette.ink, fontSize: 15, lineHeight: 22 }, consentLinks: { flexDirection: 'row', gap: 20, paddingLeft: 33 },
+  termsMore: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, paddingLeft: 33 }, termsDetail: { color: palette.muted, fontSize: 14, lineHeight: 20, paddingLeft: 33 },
 });

@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   recentCopy: { flex: 1, minWidth: 0, gap: 2 },
   recentTitle: { color: '#21382b', fontSize: 15, fontWeight: '700' },
   recentMeta: { color: palette.muted, fontSize: 12 },
-  recentDate: { color: '#758078', fontSize: 11 },
+  recentDate: { color: '#758078', fontSize: 13 },
   recentStatus: { maxWidth: 96, alignItems: 'flex-end', gap: 3 },
-  recentStatusText: { fontSize: 10, fontWeight: '700' },
+  recentStatusText: { fontSize: 12, fontWeight: '700' },
 });
