@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="#at-a-glance"><strong>At a glance</strong></a> &nbsp;·&nbsp;
+  <a href="#app-tour"><strong>App tour</strong></a> &nbsp;·&nbsp;
   <a href="#leaf-guide-preview"><strong>Leaf guide</strong></a> &nbsp;·&nbsp;
   <a href="#how-it-works"><strong>How it works</strong></a> &nbsp;·&nbsp;
   <a href="#quick-start"><strong>Quick start</strong></a> &nbsp;·&nbsp;
@@ -32,6 +33,25 @@ The Android app classifies a leaf photo **on the phone, without internet**, as *
     <td align="center" width="25%"><strong>04 · Connected workspace</strong><br><sub>Optional website, accounts, sync, and administration</sub></td>
   </tr>
 </table>
+
+## App tour
+
+These are **unedited 1080 × 2400 screenshots from the installed DahonMD Android app**, captured through USB debugging on a realme RMX2151 on November 17, 2026. They use the seeded demo farmer account connected to the local test server over USB. Select an image to open it at full size. The [capture archive](docs/screenshots/app-2026-11-17/README.md) records the device, method, and file hashes.
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/01-home.webp"><img src="docs/screenshots/app-2026-11-17/01-home.webp" width="190" alt="Home screen with a Start a scan button, saved scan counts, and a new expert review notice"></a><br><strong>1 · Home</strong><br><sub>Start a scan and see what needs attention</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/02-scan.webp"><img src="docs/screenshots/app-2026-11-17/02-scan.webp" width="190" alt="Scan screen with Camera and Gallery buttons and a photo tip"></a><br><strong>2 · Scan</strong><br><sub>Camera or gallery photo</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/03-history.webp"><img src="docs/screenshots/app-2026-11-17/03-history.webp" width="190" alt="Scan History listing Panama disease and Cordana results with their send and review status"></a><br><strong>3 · History</strong><br><sub>Saved results and send status</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/04-expert-review.webp"><img src="docs/screenshots/app-2026-11-17/04-expert-review.webp" width="190" alt="Completed expert review confirming Panama disease, with a message from the agriculturist asking for a clearer photo"></a><br><strong>4 · Expert review</strong><br><sub>An agriculturist's verdict and advice</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/05-guide.webp"><img src="docs/screenshots/app-2026-11-17/05-guide.webp" width="190" alt="Guide screen listing the leaf conditions the scan can check, starting with Healthy and Black Sigatoka"></a><br><strong>5 · Guide</strong><br><sub>Compare your leaf with each condition</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/06-library.webp"><img src="docs/screenshots/app-2026-11-17/06-library.webp" width="190" alt="Guide Library with searchable articles saved for offline reading"></a><br><strong>6 · Library</strong><br><sub>Practical articles, readable offline</sub></td>
+  </tr>
+</table>
+
+The [sign-in screen](docs/screenshots/app-2026-11-17/07-sign-in.webp) and the [Ask Dahon chat](docs/screenshots/app-2026-11-17/08-ask-dahon.webp) for general leaf questions are also available.
 
 ## Leaf guide preview
 
@@ -192,6 +212,7 @@ Open <http://127.0.0.1:4173>. Docker and the manual API setup both use port 8001
 | Model pipeline | [ai/](ai/README.md) · [experiments](MODEL_EXPERIMENTS.md) | Training, evaluation, and model conversion |
 | Dataset | [datasets/](datasets/README.md) | Four-class dataset workspace and provenance |
 | Documentation | [docs/](docs/README.md) | Architecture, role flows, scientific guidance, and deployment notes |
+| Screenshots | [phone capture archive](docs/screenshots/app-2026-11-17/README.md) | Installed Android app screens with device, method, and hashes |
 
 ## Updating and checking
 
