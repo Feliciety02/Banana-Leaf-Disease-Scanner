@@ -36,22 +36,54 @@ The Android app classifies a leaf photo **on the phone, without internet**, as *
 
 ## App tour
 
-These are **unedited 1080 × 2400 screenshots from the installed DahonMD Android app**, captured through USB debugging on a realme RMX2151 on November 17, 2026. They use the seeded demo farmer account connected to the local test server over USB. Select an image to open it at full size. The [capture archive](docs/screenshots/app-2026-11-17/README.md) records the device, method, and file hashes.
+These are **unedited 1080 × 2400 screenshots from the installed DahonMD Android app**, captured through USB debugging on a realme RMX2151 on November 17, 2026. Each role uses its seeded demo account, connected to the local test server over USB. Select an image to open it at full size. The [capture archive](docs/screenshots/app-2026-11-17/README.md) records the device, method, and file hashes.
+
+### Farmer
 
 <table>
   <tr>
-    <td align="center"><a href="docs/screenshots/app-2026-11-17/01-home.webp"><img src="docs/screenshots/app-2026-11-17/01-home.webp" width="190" alt="Home screen with a Start a scan button, saved scan counts, and a new expert review notice"></a><br><strong>1 · Home</strong><br><sub>Start a scan and see what needs attention</sub></td>
-    <td align="center"><a href="docs/screenshots/app-2026-11-17/02-scan.webp"><img src="docs/screenshots/app-2026-11-17/02-scan.webp" width="190" alt="Scan screen with Camera and Gallery buttons and a photo tip"></a><br><strong>2 · Scan</strong><br><sub>Camera or gallery photo</sub></td>
-    <td align="center"><a href="docs/screenshots/app-2026-11-17/03-history.webp"><img src="docs/screenshots/app-2026-11-17/03-history.webp" width="190" alt="Scan History listing Panama disease and Cordana results with their send and review status"></a><br><strong>3 · History</strong><br><sub>Saved results and send status</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/farmer/01-home.webp"><img src="docs/screenshots/app-2026-11-17/farmer/01-home.webp" width="190" alt="Farmer home screen with a Start a scan button, saved scan counts, and a new expert review notice"></a><br><strong>1 · Home</strong><br><sub>Start a scan and see what needs attention</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/farmer/02-scan.webp"><img src="docs/screenshots/app-2026-11-17/farmer/02-scan.webp" width="190" alt="Scan screen with Camera and Gallery buttons and a photo tip"></a><br><strong>2 · Scan</strong><br><sub>Camera or gallery photo</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/farmer/03-history.webp"><img src="docs/screenshots/app-2026-11-17/farmer/03-history.webp" width="190" alt="Scan History listing Panama disease and Cordana results with their send and review status"></a><br><strong>3 · History</strong><br><sub>Saved results and send status</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="docs/screenshots/app-2026-11-17/04-expert-review.webp"><img src="docs/screenshots/app-2026-11-17/04-expert-review.webp" width="190" alt="Completed expert review confirming Panama disease, with a message from the agriculturist asking for a clearer photo"></a><br><strong>4 · Expert review</strong><br><sub>An agriculturist's verdict and advice</sub></td>
-    <td align="center"><a href="docs/screenshots/app-2026-11-17/05-guide.webp"><img src="docs/screenshots/app-2026-11-17/05-guide.webp" width="190" alt="Guide screen listing the leaf conditions the scan can check, starting with Healthy and Black Sigatoka"></a><br><strong>5 · Guide</strong><br><sub>Compare your leaf with each condition</sub></td>
-    <td align="center"><a href="docs/screenshots/app-2026-11-17/06-library.webp"><img src="docs/screenshots/app-2026-11-17/06-library.webp" width="190" alt="Guide Library with searchable articles saved for offline reading"></a><br><strong>6 · Library</strong><br><sub>Practical articles, readable offline</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/farmer/04-expert-review.webp"><img src="docs/screenshots/app-2026-11-17/farmer/04-expert-review.webp" width="190" alt="Completed expert review confirming Panama disease, with a message from the agriculturist asking for a clearer photo"></a><br><strong>4 · Expert review</strong><br><sub>An agriculturist's verdict and advice</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/farmer/05-guide.webp"><img src="docs/screenshots/app-2026-11-17/farmer/05-guide.webp" width="190" alt="Guide screen listing the leaf conditions the scan can check"></a><br><strong>5 · Guide</strong><br><sub>Compare your leaf with each condition</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/farmer/06-library.webp"><img src="docs/screenshots/app-2026-11-17/farmer/06-library.webp" width="190" alt="Guide Library with searchable articles saved for offline reading"></a><br><strong>6 · Library</strong><br><sub>Practical articles, readable offline</sub></td>
   </tr>
 </table>
 
-The [sign-in screen](docs/screenshots/app-2026-11-17/07-sign-in.webp) and the [Ask Dahon chat](docs/screenshots/app-2026-11-17/08-ask-dahon.webp) for general leaf questions are also available.
+The [sign-in screen](docs/screenshots/app-2026-11-17/farmer/07-sign-in.webp) and the [Ask Dahon chat](docs/screenshots/app-2026-11-17/farmer/08-ask-dahon.webp) for general leaf questions are also available.
+
+### Agriculturist
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/agriculturist/01-review-requests.webp"><img src="docs/screenshots/app-2026-11-17/agriculturist/01-review-requests.webp" width="190" alt="Agriculturist home listing farmer scans waiting for review"></a><br><strong>1 · Review requests</strong><br><sub>Farmer scans waiting for a verdict</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/agriculturist/02-review-scan.webp"><img src="docs/screenshots/app-2026-11-17/agriculturist/02-review-scan.webp" width="190" alt="Review sheet with the leaf photo, the farmer's note, and assessment options"></a><br><strong>2 · Review a scan</strong><br><sub>Farmer's note and assessment choices</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/agriculturist/03-reviewed.webp"><img src="docs/screenshots/app-2026-11-17/agriculturist/03-reviewed.webp" width="190" alt="List of reviewed scans marked Confirmed or Alternate Class"></a><br><strong>3 · Reviewed</strong><br><sub>Completed assessments</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/agriculturist/04-disease-records.webp"><img src="docs/screenshots/app-2026-11-17/agriculturist/04-disease-records.webp" width="190" alt="Content review screen listing verified disease records"></a><br><strong>4 · Disease records</strong><br><sub>Verify content before farmers see it</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/agriculturist/05-dataset-candidates.webp"><img src="docs/screenshots/app-2026-11-17/agriculturist/05-dataset-candidates.webp" width="190" alt="Dataset candidate with Approve, Uncertain, and Reject buttons"></a><br><strong>5 · Dataset candidates</strong><br><sub>Approve research-eligible images</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/agriculturist/06-account.webp"><img src="docs/screenshots/app-2026-11-17/agriculturist/06-account.webp" width="190" alt="Agriculturist account screen with profile, website link, and server status"></a><br><strong>6 · Account</strong><br><sub>Profile, website, and server</sub></td>
+  </tr>
+</table>
+
+### Administrator
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/admin/01-overview.webp"><img src="docs/screenshots/app-2026-11-17/admin/01-overview.webp" width="190" alt="Administrator home with farmer, diagnosis, and scan counts"></a><br><strong>1 · Overview</strong><br><sub>Live system counts</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/admin/02-accounts.webp"><img src="docs/screenshots/app-2026-11-17/admin/02-accounts.webp" width="190" alt="Accounts screen listing agriculturist accounts with Edit and Delete"></a><br><strong>2 · Accounts</strong><br><sub>Farmers and agriculturists</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/admin/03-diagnoses.webp"><img src="docs/screenshots/app-2026-11-17/admin/03-diagnoses.webp" width="190" alt="Diagnoses list with class and source filters"></a><br><strong>3 · Diagnoses</strong><br><sub>Filter all scans by class and source</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/admin/04-disease-knowledge.webp"><img src="docs/screenshots/app-2026-11-17/admin/04-disease-knowledge.webp" width="190" alt="Disease knowledge records with verified status"></a><br><strong>4 · Disease knowledge</strong><br><sub>One governed record per class</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/admin/05-articles.webp"><img src="docs/screenshots/app-2026-11-17/admin/05-articles.webp" width="190" alt="Articles list with published Library articles"></a><br><strong>5 · Articles</strong><br><sub>Write the Library content</sub></td>
+    <td align="center"><a href="docs/screenshots/app-2026-11-17/admin/06-account.webp"><img src="docs/screenshots/app-2026-11-17/admin/06-account.webp" width="190" alt="Administrator account screen with profile, website link, and server status"></a><br><strong>6 · Account</strong><br><sub>Profile, website, and server</sub></td>
+  </tr>
+</table>
 
 ## Leaf guide preview
 
@@ -212,7 +244,7 @@ Open <http://127.0.0.1:4173>. Docker and the manual API setup both use port 8001
 | Model pipeline | [ai/](ai/README.md) · [experiments](MODEL_EXPERIMENTS.md) | Training, evaluation, and model conversion |
 | Dataset | [datasets/](datasets/README.md) | Four-class dataset workspace and provenance |
 | Documentation | [docs/](docs/README.md) | Architecture, role flows, scientific guidance, and deployment notes |
-| Screenshots | [phone capture archive](docs/screenshots/app-2026-11-17/README.md) | Installed Android app screens with device, method, and hashes |
+| Screenshots | [phone capture archive](docs/screenshots/app-2026-11-17/README.md) | Farmer, agriculturist, and administrator app screens with device, method, and hashes |
 
 ## Updating and checking
 
