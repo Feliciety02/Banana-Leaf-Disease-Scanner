@@ -48,14 +48,19 @@ it('expands reviewed and unreviewed scans inside the same History list with shar
   expect(screen.getByText('Scan History')).toBeTruthy();
   expect(screen.getByLabelText(/Healthy.*Show details/)).toBeTruthy();
   expect(screen.getByText('Expert review complete')).toBeTruthy();
-  expect(screen.getByText('Original AI screening')).toBeTruthy();
+  // Secondary details stay folded until the farmer asks for them.
+  expect(screen.queryByText('First app result')).toBeNull();
+  await fireEvent.press(screen.getByText('More options'));
+  expect(screen.getByText('First app result')).toBeTruthy();
   expect(screen.getByText('Help track possible spread')).toBeTruthy();
 
   await fireEvent.press(screen.getByLabelText(/Panama Disease.*Hide details/));
   expect(screen.queryByText('Expert review complete')).toBeNull();
   await fireEvent.press(screen.getByLabelText(/Healthy.*Show details/));
   expect(screen.getByText('Scan History')).toBeTruthy();
-  expect(screen.getByText('AI screening')).toBeTruthy();
   expect(screen.getByText('View photo')).toBeTruthy();
+  expect(screen.queryByText('App result')).toBeNull();
+  await fireEvent.press(screen.getByText('More options'));
+  expect(screen.getByText('App result')).toBeTruthy();
   expect(screen.getByText('Help track possible spread')).toBeTruthy();
 });

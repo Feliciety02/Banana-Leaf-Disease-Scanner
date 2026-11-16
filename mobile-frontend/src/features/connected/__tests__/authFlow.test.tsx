@@ -33,7 +33,7 @@ it('keeps entered credentials across mode changes and asks before discarding', a
   const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
   await fireEvent.press(screen.getByLabelText('Close form'));
   expect(onClose).not.toHaveBeenCalled();
-  expect(alert).toHaveBeenCalledWith('Discard entered details?', expect.any(String), expect.any(Array));
+  expect(alert).toHaveBeenCalledWith('Discard what you typed?', expect.any(String), expect.any(Array));
   const buttons = alert.mock.calls[0][2]!;
   expect(buttons[0].text).toBe('Keep editing');
   buttons[1].onPress?.();
@@ -57,7 +57,7 @@ it('requires the disclosed account agreement and enables research consideration 
   expect(screen.getByText('Please agree to the Terms of Use to create an account.')).toBeTruthy();
 
   (register as jest.Mock).mockResolvedValue({ id: 1, role: 'farmer', name: 'Farmer Ana', email: 'ana@example.test' });
-  await fireEvent.press(screen.getByLabelText('I agree to the Terms of Use and have read the Privacy Policy. Future account scan photos may enter research review after an agriculturist assesses them. An approved private copy may remain after scan deletion. I can withdraw sharing in Account.'));
+  await fireEvent.press(screen.getByLabelText('I agree to the Terms of Use and have read the Privacy Policy. My checked scan photos may help research. I can turn this off in Account.'));
   await fireEvent.press(screen.getByText('Create account'));
   await waitFor(() => expect(register).toHaveBeenCalledWith('Farmer Ana', 'ana@example.test', 'Correct123!', 'Correct123!', true));
   expect(onAuthenticated).toHaveBeenCalled();

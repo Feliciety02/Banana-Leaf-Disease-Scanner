@@ -1,94 +1,150 @@
-# DahonMD — Banana Leaf Disease Scanner
+﻿<p align="center">
+  <img src="docs/readme-banner.svg" width="1200" alt="DahonMD banner with banana leaves and a leaf in a scan frame">
+</p>
+
+<h1 align="center">DahonMD · Banana Leaf Disease Scanner</h1>
+
+<p align="center">Scan a banana leaf on an Android phone, keep a local history, and optionally connect with an agriculturist for review.</p>
+
+<p align="center"><code>Android</code> &nbsp; <code>Offline TFLite inference</code> &nbsp; <code>Optional web + API</code> &nbsp; <code>Four leaf classes</code></p>
+
+<p align="center">
+  <a href="#at-a-glance"><strong>At a glance</strong></a> &nbsp;·&nbsp;
+  <a href="#leaf-guide-preview"><strong>Leaf guide</strong></a> &nbsp;·&nbsp;
+  <a href="#how-it-works"><strong>How it works</strong></a> &nbsp;·&nbsp;
+  <a href="#quick-start"><strong>Quick start</strong></a> &nbsp;·&nbsp;
+  <a href="#android-app"><strong>Android app</strong></a> &nbsp;·&nbsp;
+  <a href="#explore-the-repository"><strong>Explore the repository</strong></a>
+</p>
 
 > [!IMPORTANT]
 > DahonMD is a screening and research tool, not laboratory confirmation. Model confidence is not the probability that a plant is diseased.
 
-The Android app classifies a leaf photo on the phone, offline, as **Healthy**, **Sigatoka**, **Panama disease** or **Cordana leaf spot**. Accounts, sync, expert review and the website are optional.
+The Android app classifies a leaf photo **on the phone, without internet**, as **Healthy**, **Sigatoka**, **Panama disease**, or **Cordana leaf spot**. An account, the website, and the API are optional. Signed-in farmers can sync scan records and request expert review; an agriculturist's verdict appears alongside the original AI result. Research use of a private photo requires separate consent.
 
-When a signed-in farmer requests review, the agriculturist's final verdict
-syncs into farmer history and appears in the admin record beside the original
-AI result. A private photo can be shared for history and review; research use
-is included in the current account signup agreement and can be withdrawn in Account settings. Once enabled, future account scans are automatically marked for research consideration after expert review; turning it off withdraws existing consent. Existing accounts keep their current research preference. The optional web API records whether it can verify
-a saved prediction with its own inference receipt. Phone results remain
-client-reported to that API even when the on-device model ran successfully.
+## At a glance
 
-All commands use **Windows PowerShell** from the project folder.
+<table>
+  <tr>
+    <td align="center" width="25%"><strong>01 · Offline scanning</strong><br><sub>Camera or gallery photo → bundled four-class model</sub></td>
+    <td align="center" width="25%"><strong>02 · Local history</strong><br><sub>Completed scans stay on the phone</sub></td>
+    <td align="center" width="25%"><strong>03 · Expert review</strong><br><sub>Optional farmer requests and agriculturist verdicts</sub></td>
+    <td align="center" width="25%"><strong>04 · Connected workspace</strong><br><sub>Optional website, accounts, sync, and administration</sub></td>
+  </tr>
+</table>
 
----
+## Leaf guide preview
 
-## 🚀 Quick start: website + phone test link
+The disease guide includes representative leaf images for the four classes. These are educational examples, not a diagnosis of a new photo. [Image sources and licenses](web-frontend/public/assets/disease-guide/README.md) are recorded beside the assets.
 
-For the **first APK installation**, connect and authorize the Android phone over USB, then run:
+<table>
+  <tr>
+    <td align="center"><a href="web-frontend/public/assets/disease-guide/healthy-1.webp"><img src="web-frontend/public/assets/disease-guide/healthy-1.webp" width="180" alt="Representative healthy banana leaf"></a><br><strong>Healthy</strong></td>
+    <td align="center"><a href="web-frontend/public/assets/disease-guide/sigatoka-1.webp"><img src="web-frontend/public/assets/disease-guide/sigatoka-1.webp" width="180" alt="Representative banana leaf with Sigatoka symptoms"></a><br><strong>Sigatoka</strong></td>
+    <td align="center"><a href="web-frontend/public/assets/disease-guide/panama-stages/02-expanding-chlorosis/panama-leaf-stage-2.webp"><img src="web-frontend/public/assets/disease-guide/panama-stages/02-expanding-chlorosis/panama-leaf-stage-2.webp" width="180" alt="Representative banana leaf yellowing associated with Panama disease"></a><br><strong>Panama disease</strong></td>
+    <td align="center"><a href="web-frontend/public/assets/disease-guide/cordana-1.webp"><img src="web-frontend/public/assets/disease-guide/cordana-1.webp" width="180" alt="Representative banana leaf with Cordana leaf spot symptoms"></a><br><strong>Cordana leaf spot</strong></td>
+  </tr>
+</table>
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Camera or gallery photo"] --> B["Android app"]
+    B --> C["Bundled TFLite model"]
+    C --> D["Four-class screening result"]
+    D --> E["Private on-device history"]
+    E -->|Optional sign-in and sync| F["Laravel API + SQLite"]
+    F --> G["Farmer history and expert review"]
+    F --> H["Optional web workspace"]
+    classDef phone fill:#e6f5dd,stroke:#458c45,color:#173c28
+    classDef connected fill:#eaf3fa,stroke:#467c9a,color:#18394a
+    class A,B,C,D,E phone
+    class F,G,H connected
+```
+
+The classification path runs entirely on Android. Connected services handle accounts, shared history, review, and administration **after** a local prediction. A phone result remains client-reported to the API even when the on-device model ran successfully; the optional web inference route can attach a separate server-verifiable receipt. The [architecture overview](docs/architecture/overview.md) explains both paths.
+
+## Quick start
+
+Run these commands in **Windows PowerShell** from the project folder:
 
 ```powershell
 Set-Location 'C:\Users\feann\OneDrive\Documents\Banana-Leaf-Disease-Scanner'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1
+```
+
+This starts the test backend and website. With an authorized USB-debugging phone connected, it installs the test APK and connects the app directly over USB. Without a phone, it creates a temporary Cloudflare HTTPS link and shows a QR code. Open the link on the phone and tap **Open DahonMD app**; the offline scanner itself does not need a server.
+
+| Command | What it does |
+| --- | --- |
+| `.\start-free-test.ps1` | Start or restart; use USB when a phone is connected, otherwise Cloudflare |
+| `.\start-free-test.ps1 -Stop` | Stop the tunnel, website, and backend |
+| `.\start-free-test.ps1 -NoOpen` | Leave the browser and QR code closed |
+| `.\start-free-test.ps1 -SkipPhone` | Start the website without touching the phone |
+| `.\start-free-test.ps1 -ForceApkBuild` | Rebuild the test APK even if mobile code is unchanged |
+| `.\start-free-test.ps1 -UsbOnly` | Require a direct USB phone connection |
+| `.\start-free-test.ps1 -Cloudflare` | Request a public HTTPS link even when a USB phone is connected |
+
+### USB phone connection
+
+Keep the phone unlocked and authorize USB debugging. The script builds and installs a test APK, sets up ADB reverse, and sends `http://127.0.0.1:4174` to the app. Wait for **Server connected**, then sign in again. Keep the cable attached for connected features; offline scanning continues after disconnecting. This loopback HTTP address is accepted only by the USB test APK.
+
+To require USB mode:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1 -UsbOnly
+```
+
+### Restart a Cloudflare link
+
+The free link changes on every run and stops working when the tunnel stops. The app signs out when the server address changes.
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1 -Stop
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1 -Cloudflare
 ```
 
-For **repeat demos with the app already installed**, use this when ADB can detect
-the phone. It sends a new HTTPS link after USB reconnects:
+Wait for the printed `Website and phone server: https://…` line. If port 8002 or 4174 is busy, inspect it with `Get-NetTCPConnection -LocalPort 8002,4174 -State Listen | Select-Object LocalPort, OwningProcess`. The script retries Cloudflare over HTTP/2 and QUIC and checks the public API. Tunnel errors are in `.dahonmd\free-test\tunnel-*.err.log`.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\start-free-test.ps1 -Cloudflare -SkipPhone -AutoConnectPhone
-```
+Test data stays in `.dahonmd\free-test\` between runs. Startup applies pending backend migrations to this isolated database; emails are written only to the log. Keep the computer on while using the link. See the [automation guide](AUTOMATION_README.md) and [demo walkthrough](DEMO_WALKTHROUGH.md) for more detail.
 
-If ADB does **not** detect the phone, the watcher cannot send a link. Open
-`<printed-link>/connect.html` on the phone and tap **Open DahonMD app**. The
-offline scanner does not need the website.
+## Android app
 
-See [AUTOMATION_README.md](AUTOMATION_README.md) for every startup option, reconnection behavior, and troubleshooting.
-
-For a presentation, follow the [step-by-step demo speaking script](DEMO_WALKTHROUGH.md). It pairs each phone and website action with the words to say while showing it.
-
----
-
-## 📱 Android app (development)
-
-First time:
+First build (Node.js 22.13+ and an Android emulator or USB-debugging phone required):
 
 ```powershell
 cd mobile-frontend
 npm install
-npm run release:status                          # checks the bundled model
+npm run release:status
 npx expo prebuild --clean --platform android
 npm run android
 ```
 
-Next time:
+For later runs, use `npm run android` from `mobile-frontend/`. Expo Go cannot load the custom on-device model module. After an Expo upgrade or native configuration change, repeat `npm install` and `npx expo prebuild --clean --platform android`.
 
-```powershell
-cd mobile-frontend
-npm run android
-```
-
-Needs Node.js 22.13+, and an emulator or a phone with USB debugging. **Expo Go won't work**: it can't load the custom on-device model module.
-
-Rebuild after an Expo upgrade or native config change: `npm install`, `npx expo prebuild --clean --platform android`, then `npm run android`.
-
-### Build a shareable APK
+To build a shareable test APK:
 
 ```powershell
 cd mobile-frontend\android
 .\gradlew.bat assembleRelease
 ```
 
-Output: `mobile-frontend\android\app\build\outputs\apk\release\app-release.apk` (debug-signed; for testing and demos, not the Play Store).
+Output: `mobile-frontend\android\app\build\outputs\apk\release\app-release.apk`. It is debug-signed for testing and demos, not for the Play Store. The APK includes only `arm64-v8a` and `armeabi-v7a`, about 70 MB instead of about 130 MB. Because `android/` is regenerated by `expo prebuild --clean`, set `reactNativeArchitectures=armeabi-v7a,arm64-v8a` in `android/gradle.properties` again afterward. For an emulator, build with `.\gradlew.bat assembleRelease -PreactNativeArchitectures=x86_64`.
 
----
+## Website and API
 
-## 🌐 Website + API (local demo)
-
-**With Docker:**
+The website and Laravel API are optional connected utilities. With Docker:
 
 ```powershell
-docker compose up --build     # first time
-docker compose up             # next time
-docker compose down           # stop
+docker compose up --build  # first time
+docker compose up          # later
+docker compose down        # stop
 ```
 
-Open http://localhost:4173.
+Open <http://localhost:4173>.
 
-**Without Docker** (PHP 8.2+, Composer, Node.js). First time:
+Without Docker, install PHP 8.2+, Composer, and Node.js. Set up the API once:
 
 ```powershell
 cd backend
@@ -99,26 +155,26 @@ if (-not (Test-Path database/database.sqlite)) { New-Item database/database.sqli
 php artisan migrate --seed
 ```
 
-Then run in two terminals:
+Then run these in separate terminals:
 
 ```powershell
-# Terminal 1 — API
+# Terminal 1: API
 cd backend
 php artisan serve --host=0.0.0.0 --port=8001
 ```
 
 ```powershell
-# Terminal 2 — website
+# Terminal 2: website
 cd web-frontend
 npm install
 npm run dev -- --host 127.0.0.1 --port 4173
 ```
 
-Open http://127.0.0.1:4173. Don't run Docker and this at the same time (both use port 8001).
+Open <http://127.0.0.1:4173>. Docker and the manual API setup both use port 8001, so run one at a time.
 
 ### Demo accounts
 
-Created by `php artisan migrate --seed` (not in production). Password: `DahonMD@2026` (or `DEV_USER_PASSWORD`).
+`php artisan migrate --seed` creates these accounts for local demos. The password is `DahonMD@2026` unless `DEV_USER_PASSWORD` overrides it. They are not production accounts.
 
 | Email | Role |
 | --- | --- |
@@ -126,63 +182,50 @@ Created by `php artisan migrate --seed` (not in production). Password: `DahonMD@
 | `agriculturist@dahonmd.test` | Agriculturist |
 | `maria.santos@dahonmd.test` | Farmer |
 
-### Disease records and dataset candidates
+## Explore the repository
 
-- Open **Admin → Disease Knowledge** for the disease record grid. The four model-class records come from `ScientificKnowledgeSeeder`; `start-free-test.ps1` seeds them when they are missing. Admins can edit a record and submit researched content for agriculturist verification.
-- Open **Admin or Agriculturist → Dataset Candidates** for the photo grid. A scan enters its **Needs decision** queue automatically when it has a retained photo, current research-photo consent, and a completed agriculturist review. The current signup agreement enables research consideration for future account scans; existing accounts retain their current preference and can enable it in Account settings.
-- A staff member still decides whether to approve, reject, or keep a candidate uncertain. Approval stores a private research copy; it does not train the AI. The new migration queues eligible older reviewed scans once when the backend is updated.
+| Area | Start here | What you will find |
+| --- | --- | --- |
+| Android app | [mobile-frontend/](mobile-frontend/README.md) | Expo / React Native UI, local history, and on-device TFLite inference |
+| Website | [web-frontend/](web-frontend/README.md) | React / Vite farmer and staff experiences |
+| API and database | [backend/](backend/README.md) | Laravel, SQLite, accounts, sync, and review |
+| Model pipeline | [ai/](ai/README.md) · [experiments](MODEL_EXPERIMENTS.md) | Training, evaluation, and model conversion |
+| Dataset | [datasets/](datasets/README.md) | Four-class dataset workspace and provenance |
+| Documentation | [docs/](docs/README.md) | Architecture, role flows, scientific guidance, and deployment notes |
 
----
+## Updating and checking
 
-## 🤖 AI
+The deployed phone model is `ca_mobilenetv3_small_fp32.tflite` (PILOT-06 seed 42). Its locked-test macro-F1 is **0.96645** and accuracy is **0.96644**. See the [AI guide](ai/README.md) and [GPU training guide](ai/training/GPU_TRAINING_GUIDE.md) for the evaluation contract and training history.
+
+For the optional thesis comparison panel, start the service with:
 
 ```powershell
-# Optional model-comparison service (thesis comparison panel only)
 .venv\Scripts\python.exe -m uvicorn ai.deployment.comparison_service:app --host 127.0.0.1 --port 8100
 ```
 
-Deployed model: `ca_mobilenetv3_small_fp32.tflite` (PILOT-06 seed 42, locked-test macro-F1 **0.96645**, accuracy **0.96644**). Setup, training and pilot history: [AI guide](ai/README.md), [GPU training guide](ai/training/GPU_TRAINING_GUIDE.md), [experiment roadmap](MODEL_EXPERIMENTS.md).
-
----
-
-## ✅ Tests
+Run the local checks from the repository root:
 
 ```powershell
-cd backend; php artisan test; cd ..            # backend
-npm --prefix web-frontend run build             # website
-npm --prefix mobile-frontend test               # mobile
+cd backend; php artisan test; cd ..
+npm --prefix web-frontend run build
+npm --prefix mobile-frontend test
 npm --prefix mobile-frontend run typecheck
-.venv\Scripts\python.exe -m unittest discover -s ai\tests -v   # AI
+.venv\Scripts\python.exe -m unittest discover -s ai\tests -v
 ```
 
----
-
-## 🧯 Common problems
+### Common problems
 
 | Problem | Fix |
 | --- | --- |
-| `.\start-free-test.ps1` "running scripts is disabled" | Run `Set-ExecutionPolicy -Scope Process Bypass` first |
-| Phone says "request could not be completed" | The link changed. Restart Cloudflare (above) and reconnect the phone |
-| Port already in use | Stop the other process using it, or run `.\start-free-test.ps1 -Stop` |
-| Expo Go opens but can't classify | Expected; use `npm run android` |
-| No Android device found | Start an emulator or plug in a phone with USB debugging |
-| Website says `Failed to fetch` | Check the API is running and only one of Docker / local servers is on |
+| PowerShell says running scripts is disabled | Run `Set-ExecutionPolicy -Scope Process Bypass` first |
+| Phone says the request could not be completed | Restart Cloudflare and reconnect the phone; the link may have changed |
+| Port already in use | Stop the other process or run `.\start-free-test.ps1 -Stop` |
+| Expo Go opens but cannot classify | Build the native app with `npm run android` |
+| No Android device found | Start an emulator or connect and authorize a USB-debugging phone |
+| Website says `Failed to fetch` | Check that the API is running and only one local server setup is active |
 
----
+## Scientific limits
 
-## 📂 Project layout
-
-| Folder | What's inside |
-| --- | --- |
-| [`mobile-frontend/`](mobile-frontend/README.md) | Android app (Expo / React Native, on-device TFLite) |
-| [`web-frontend/`](web-frontend/README.md) | Website (React / Vite) |
-| [`backend/`](backend/README.md) | API and database (Laravel, SQLite) |
-| [`ai/`](ai/README.md) | Training, evaluation and model conversion |
-| [`datasets/`](datasets/README.md) | Four-class dataset workspace |
-| `docs/` | [Architecture](docs/architecture/overview.md), [current role flows](docs/diagrams/ROLE_USER_FLOWS.md), [detailed journeys](docs/diagrams/ROLE_JOURNEY_DETAILS.md), [editable draw.io](docs/diagrams/dahonmd-role-user-flows-2026-10-07.drawio), [quality attributes](docs/architecture/quality-attributes.md), [content governance](docs/research/scientific-content-governance.md), [dataset/model checklist](docs/research/dataset-model-trainer-checklist.md) |
-
-## 🧬 Scientific limits
-
-- `sigatoka` covers Black and Yellow Sigatoka; the model doesn't tell them apart.
-- `healthy` is not proof a plant is disease-free; Panama disease needs field or lab confirmation.
+- `sigatoka` covers Black and Yellow Sigatoka; the model does not distinguish them.
+- `healthy` is not proof that a plant is disease-free. Panama disease needs field or laboratory confirmation.
 - Chemical advice is shown only with current Philippine regulatory evidence.

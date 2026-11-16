@@ -56,6 +56,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<LocalDiagnosis | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(focusId ?? null);
+  const [moreId, setMoreId] = useState<string | null>(null);
   const [claimCandidate, setClaimCandidate] = useState<LocalDiagnosis | null>(null);
   const [appealCandidate, setAppealCandidate] = useState<LocalDiagnosis | null>(null);
   const [researchCandidate, setResearchCandidate] = useState<LocalDiagnosis | null>(null);
@@ -276,6 +277,7 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
       const review = parseDiagnosisReview(item.review_json);
       const canRequestReview = !review && item.server_id != null && item.sync_uuid != null && item.sync_status === 'synced';
       const expanded = expandedId === item.local_id;
+      const moreOpen = moreId === item.local_id;
       const needsRetry = item.sync_status === 'failed' || item.sync_status === 'delete_failed';
       const confidence = enhanced ? enhanced.confidence * 100 : item.confidence;
       const level = confidenceLevel(confidence);
@@ -331,12 +333,6 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
               review={review}
               onOpenPhoto={() => setViewerImage(item.image_uri)}
               onOpenGuide={onOpenGuide}
-              onLocationChanged={() => { void load(); onChanged?.(); }}
-              aiDetails={<>
-                {others.length > 0 && <DetailRow icon="git-compare-outline" label={t('history.alsoPossible')} value={others.map(({ classKey, probability }) => `${className(classKey, language)} ${wholePercent(probability * 100)}`).join(', ')} />}
-                {item.farmer_notes ? <DetailRow icon="create-outline" label={t('history.yourNote')} value={item.farmer_notes} /> : null}
-                {item.research_consent ? <DetailRow icon="flask-outline" label={t('history.research')} value={t('history.photoShared')} /> : null}
-              </>}
               reply={item.server_id && item.sync_status === 'synced'
                 ? <ReviewReply localId={item.local_id} photoSuggested={needsClearerReviewPhoto(review)} onSent={() => { void load(); onChanged?.(); }} />
                 : null}
@@ -351,16 +347,9 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
                 </View>
                 <Text style={styles.noteText}>{t('review.notify')}</Text>
                 {review.farmer_reply ? <Text style={styles.noteText}>{t('review.yourReply', { text: review.farmer_reply })}</Text> : null}
-                {review.requested_at ? <Text style={styles.noteMeta}>{t('review.sentAt', { date: formatDate(review.requested_at, true) })}</Text> : null}
               </View>}
 
-              <HistoryAiCard item={item} review={review}>
-                {others.length > 0 && <DetailRow icon="git-compare-outline" label={t('history.alsoPossible')} value={others.map(({ classKey, probability }) => `${className(classKey, language)} ${wholePercent(probability * 100)}`).join(', ')} />}
-                {item.farmer_notes ? <DetailRow icon="create-outline" label={t('history.yourNote')} value={item.farmer_notes} /> : null}
-                <DetailRow icon={note.icon} label={t('history.status')} value={note.text} color={note.color} />
-                {item.research_consent ? <DetailRow icon="flask-outline" label={t('history.research')} value={t('history.photoShared')} /> : null}
-              </HistoryAiCard>
-
+              {item.farmer_notes ? <DetailRow icon="create-outline" label={t('history.yourNote')} value={item.farmer_notes} /> : null}
               {item.image_uri ? <View style={styles.photoCard}><HistoryPhotoLink standalone imageUri={item.image_uri} label={t('history.viewPhoto')} onPress={() => setViewerImage(item.image_uri)} /></View> : null}
 
               {canRequestReview && <>
@@ -368,16 +357,28 @@ export function LocalHistory({ ownerUserId, refreshKey = 0, onChanged, focusId, 
                 <ActionButton icon="shield-checkmark-outline" disabled={busy} onPress={() => setAppealCandidate(item)}>{busy ? t('history.sending') : t('history.askExpert')}</ActionButton>
               </>}
               {beforeUpload && <ActionButton variant="secondary" disabled={busy} onPress={() => !ownerUserId ? onSignIn?.() : !item.owner_user_id ? setClaimCandidate(item) : prepareReview(item)}>{busy ? t('history.pleaseWait') : !ownerUserId ? t('history.signInToAsk') : !item.owner_user_id ? t('history.addToAccount') : t('history.send')}</ActionButton>}
-
-              <HistoryLocationCard item={item} onChanged={() => { void load(); onChanged?.(); }} />
             </>}
-            <View style={styles.links}>
-              {onAskAssistant && item.server_id && item.sync_status === 'synced' && <LinkChip icon="chatbubbles-outline" onPress={() => onAskAssistant(item.server_id as number, name)}>{t('history.askDahon')}</LinkChip>}
+
+            {/* Only actions that fix a problem stay visible; everything else waits under More options. */}
+            {(needsRetry || review?.review_status === 'pending' && hasLocalScanImage(item)) && <View style={styles.links}>
               {needsRetry && <LinkChip icon="refresh" disabled={busy} onPress={() => retry(item)}>{t('history.tryAgain')}</LinkChip>}
               {review?.review_status === 'pending' && hasLocalScanImage(item) && <LinkChip icon="cloud-upload-outline" disabled={busy} onPress={() => resendImage(item)}>{t('history.resendPhoto')}</LinkChip>}
-              {canWithdraw && <LinkChip icon="close-circle-outline" disabled={busy} onPress={() => setResearchCandidate(item)}>{t('history.stopSharing')}</LinkChip>}
-              <LinkChip icon="trash-outline" danger disabled={busy || item.sync_status === 'pending_delete'} onPress={() => remove(item)}>{item.sync_status === 'pending_delete' ? t('history.deleting') : t('history.delete')}</LinkChip>
-            </View>
+            </View>}
+
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => { smoothLayout(); setMoreId(moreOpen ? null : item.local_id); }} style={({ pressed }) => [styles.moreToggle, pressed && styles.cardPressed]}>
+              <Ionicons name="ellipsis-horizontal-circle-outline" size={20} color={palette.green} />
+              <Text style={styles.moreToggleText}>{moreOpen ? t('history.fewerOptions') : t('history.moreOptions')}</Text>
+              <Ionicons name={moreOpen ? 'chevron-up' : 'chevron-down'} size={18} color={palette.green} />
+            </Pressable>
+            {moreOpen && <View style={styles.moreSection}>
+              <HistoryAiCard item={item} review={review} />
+              <HistoryLocationCard item={item} onChanged={() => { void load(); onChanged?.(); }} />
+              <View style={styles.links}>
+                {onAskAssistant && item.server_id && item.sync_status === 'synced' && <LinkChip icon="chatbubbles-outline" onPress={() => onAskAssistant(item.server_id as number, name)}>{t('history.askDahon')}</LinkChip>}
+                {canWithdraw && <LinkChip icon="close-circle-outline" disabled={busy} onPress={() => setResearchCandidate(item)}>{t('history.stopSharing')}</LinkChip>}
+                <LinkChip icon="trash-outline" danger disabled={busy || item.sync_status === 'pending_delete'} onPress={() => remove(item)}>{item.sync_status === 'pending_delete' ? t('history.deleting') : t('history.delete')}</LinkChip>
+              </View>
+            </View>}
           </View>
         )}
       </View>;
@@ -495,6 +496,9 @@ function ReviewReply({ localId, onSent, photoSuggested = false }: { localId: str
 }
 
 const styles = StyleSheet.create({
+  moreToggle: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: '#d5e2d8' },
+  moreToggleText: { color: palette.green, fontSize: 15, fontWeight: '800' },
+  moreSection: { gap: 12 },
   stack: { gap: 14 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 2 },
   headerCopy: { flex: 1 },
@@ -543,7 +547,7 @@ const styles = StyleSheet.create({
   noteText: { color: palette.ink, fontSize: 13, lineHeight: 19 },
   progress: { flexDirection: 'row', justifyContent: 'space-between', gap: 6, paddingVertical: 4 },
   progressStep: { flex: 1, alignItems: 'center', gap: 3 },
-  progressLabel: { color: palette.muted, fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  progressLabel: { color: palette.muted, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   progressCurrent: { color: palette.ink, fontWeight: '800' },
   input: { minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: '#cbd7d0', backgroundColor: '#fff', paddingHorizontal: 12, color: palette.ink, fontSize: 14 },
   links: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 2 },

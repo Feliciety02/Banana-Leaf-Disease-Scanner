@@ -191,6 +191,21 @@ test('uploads the photo of every synced scan and retries when the upload fails',
   expect(markDiagnosisSynced).not.toHaveBeenCalled();
 });
 
+test('still downloads expert answers when uploading a scan from this phone fails', async () => {
+  mockedPending.mockResolvedValue([{ local_id: 'stuck-1', sync_uuid: 'b3b0c1d2-3333-4a57-9d59-2a1d7f0b6c11', predicted_class: 'sigatoka', confidence: 52 }] as never);
+  const answered = { id: 90, sync_uuid: 'c3b0c1d2-4444-4a57-9d59-2a1d7f0b6c11', image_url: null, review: { review_status: 'confirmed' } };
+  mockedApi.mockImplementation(async (path, options) => {
+    if (path === '/sync' && options?.method === 'POST') throw new Error('Server error');
+    return { success: true, message: '', data: { changes: [{ type: 'upsert', diagnosis: answered }], next_cursor: 'next', has_more: false } } as never;
+  });
+
+  await expect(synchronizeDiagnoses(86)).rejects.toThrow('Server error');
+
+  // The failed upload is kept for retry, and the expert answer still reached the phone.
+  expect(upsertRemoteDiagnosis).toHaveBeenCalledWith(expect.objectContaining({ id: 90 }), 86);
+  expect(setSyncCursor).toHaveBeenCalledWith(86, 'next');
+});
+
 test('rejects a stalled server cursor instead of looping forever', async () => {
   mockedCursor.mockResolvedValue('same-cursor');
   mockedApi.mockResolvedValue({ success: true, message: '', data: {

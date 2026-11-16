@@ -35,7 +35,8 @@ export async function configureBackgroundSync(enabled: boolean) {
   const status = await BackgroundTask.getStatusAsync();
   if (status !== BackgroundTask.BackgroundTaskStatus.Available) return false;
   if (!registered) {
-    await BackgroundTask.registerTaskAsync(BACKGROUND_SYNC_TASK, { minimumInterval: 60 });
+    // 15 minutes is the shortest interval Android allows for background work.
+    await BackgroundTask.registerTaskAsync(BACKGROUND_SYNC_TASK, { minimumInterval: 15 });
   }
   return true;
 }

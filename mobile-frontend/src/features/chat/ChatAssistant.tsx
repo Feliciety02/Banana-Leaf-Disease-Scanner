@@ -202,5 +202,5 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 42, maxHeight: 105, paddingHorizontal: 8, paddingVertical: 10, color: palette.ink, fontSize: 15, textAlignVertical: 'top' },
   sendButton: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.green },
   disabled: { opacity: 0.4 },
-  note: { color: palette.muted, fontSize: 10, lineHeight: 14, textAlign: 'center' },
+  note: { color: palette.muted, fontSize: 12, lineHeight: 14, textAlign: 'center' },
 });

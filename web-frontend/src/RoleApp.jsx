@@ -1,6 +1,6 @@
 import { tr, useLanguage, setLanguage, getLanguage } from './i18n';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, AlertTriangle, Bell, ArrowLeft, ArrowRight, ArrowRightLeft, BarChart3, BookOpen, Camera, Check, ChevronDown, ChevronRight, CircleUserRound, Cloud, CloudOff, Database, Eye, EyeOff, FileImage, GitCompareArrows, History, Home, ImagePlus, Info, Leaf, Library, Lightbulb, Link2, LockKeyhole, LogOut, Mail, Menu, MessageCircle, Plus, RefreshCw, ScanLine, Search, Send, Settings, ShieldCheck, Sparkles, Trash2, Upload, Users, X } from 'lucide-react';
+import { Activity, AlertTriangle, Bell, ArrowLeft, ArrowRight, ArrowRightLeft, BarChart3, BookOpen, Camera, Check, ChevronDown, ChevronRight, CircleUserRound, Cloud, CloudOff, Database, Eye, EyeOff, FileImage, GitCompareArrows, History, Home, ImagePlus, Info, Leaf, Library, Lightbulb, Link2, LockKeyhole, LogOut, Mail, Menu, MessageCircle, Plus, RefreshCw, ScanLine, Search, Send, Settings, ShieldCheck, Trash2, Upload, Users, X } from 'lucide-react';
 import { analyzeLeaf } from './services/inferenceService';
 import { CLASS_NAMES, getHighestClass, normalizeClassProbabilities } from './services/classificationResults';
 import { AUTH_EXPIRED_EVENT, api, apiFileUrl, authenticate, logout, requestPasswordReset, setToken } from './services/api';
@@ -26,6 +26,60 @@ const GUIDE_PRODUCTS = {
   sigatoka: [{ name: 'Leader 500 SC', description: 'Chlorothalonil fungicide listed by the Philippine FPA for banana Sigatoka. It protects new growth; it does not heal dead tissue.', sourceUrl: FPA_PRODUCTS_URL }],
   'banana-freckle': [{ name: 'Leader 500 SC', description: 'Chlorothalonil fungicide listed by the Philippine FPA for banana freckles. Confirm the diagnosis and current label before use.', sourceUrl: FPA_PRODUCTS_URL }],
 };
+// Interface-testing tools (the built-in sample photo) stay out of the farmer website.
+const SHOW_TEST_TOOLS = import.meta.env.DEV || import.meta.env.VITE_TEST_PROFILES === 'true';
+// Built-in copies of the four scanner guides, from the server's audited seed text, so the
+// guide still works offline. The server copy replaces these when it loads.
+const OFFLINE_SCAN_GUIDES = [
+  {
+    id: 'offline-sigatoka', slug: 'sigatoka', model_class_key: 'sigatoka', name: 'Sigatoka', scientific_name: 'Pseudocercospora fijiensis / Pseudocercospora musae',
+    short_description: 'Streaks that grow into brown or dark spots',
+    description: 'A fungal leaf disease. Small streaks grow into longer spots, and the leaf can dry out when spots join together.',
+    symptoms: ['Small pale, yellowish, brown, or dark streaks may first appear on the leaf.', 'The streaks may grow into longer brown or dark spots.', 'Older spots can develop a gray center, dark edge, and yellowing around the damaged area.', 'When spots join together, larger sections of the leaf may dry out.'],
+    management: 'Remove heavily diseased or dead leaf tissue following proper farm sanitation practices. Keep good drainage and crop nutrition, and ask an agriculturist when spotting keeps spreading.',
+    prevention: 'Improve drainage and crop nutrition, reduce very humid conditions in the field, and check new leaves and nearby plants often.',
+    professional_referral: 'Ask an agriculturist when spotting is severe, spreading, or uncertain, especially before using any chemical.',
+    causal_agent: 'Pseudocercospora fijiensis or Pseudocercospora musae (fungi).',
+    image_only_limitations: 'Black Sigatoka, Yellow Sigatoka, Cordana and other leaf spots can look alike. A photo cannot identify the exact fungus.',
+    sources: [],
+  },
+  {
+    id: 'offline-panama-disease', slug: 'panama-disease', model_class_key: 'panama-disease', name: 'Panama Disease', scientific_name: 'Fusarium oxysporum f. sp. cubense',
+    short_description: 'A soil-borne wilt that starts with yellowing old leaves',
+    description: 'A fungus in the soil enters through the roots and blocks the water channels of the plant. Leaves wilt from the oldest upward and the plant can collapse.',
+    symptoms: ['The oldest leaves turn yellow and dry out first.', 'Wilted leaves bend and hang down around the stem like a skirt.', 'Newer leaves are affected next and the whole plant can collapse.', 'Inside the stem, the water channels show reddish-brown streaks or dots.'],
+    management: 'There is no cure once the fungus is in the soil. Keep it out of clean areas, stop soil and plant material from moving off affected spots, and use resistant varieties where the disease is present.',
+    prevention: 'Use disease-free planting material, clean soil off tools, footwear and equipment, and do not move soil or water from affected areas.',
+    professional_referral: 'Report a suspected case to your municipal or provincial agriculturist promptly. Do not move soil, suckers or plant material from the affected plant while waiting.',
+    causal_agent: 'Fusarium oxysporum f. sp. cubense (Foc), including tropical race 4 (TR4).',
+    image_only_limitations: 'Yellowing can also come from drought, poor nutrition or root damage. Only a stem check and laboratory test can confirm Panama disease.',
+    sources: [],
+  },
+  {
+    id: 'offline-cordana-leaf-spot', slug: 'cordana-leaf-spot', model_class_key: 'cordana-leaf-spot', name: 'Cordana Leaf Spot', scientific_name: 'Neocordana musae',
+    short_description: 'Fungal leaf spots that look different on each variety',
+    description: 'A fungal leaf spot. How the spots look depends on the banana variety.',
+    symptoms: ['Spots may appear small, oval, or elongated.', 'Spots may expand and show different colors depending on the banana variety.', 'Expanding spots may join into larger damaged areas of the leaf.'],
+    management: 'Watch affected and nearby leaves and ask an agriculturist when spotting spreads or becomes severe.',
+    prevention: 'Keep the field clean and check leaves regularly.',
+    professional_referral: 'Have the plant checked by an agriculturist if spotting spreads or becomes severe, before using any treatment.',
+    causal_agent: 'Neocordana musae (formerly Cordana musae), a fungus.',
+    image_only_limitations: 'Spot size, shape and color differ between varieties. A photo cannot confirm the fungus.',
+    sources: [],
+  },
+  {
+    id: 'offline-healthy', slug: 'healthy', model_class_key: 'healthy', name: 'Healthy Leaf', scientific_name: null,
+    short_description: 'No signs of the diseases the scanner checks',
+    description: 'The scanner did not find signs of Sigatoka, Panama disease or Cordana leaf spot. Keep checking the plant, because a photo cannot prove a plant is free of disease.',
+    symptoms: ['Green leaf without spots, streaks or yellowing.'],
+    management: 'Keep up good routine care and check the plant regularly.',
+    prevention: 'Use good farm practices and look for changes on new leaves.',
+    professional_referral: 'Ask an agriculturist if spots, yellowing, wilting or fast changes appear.',
+    causal_agent: null,
+    image_only_limitations: 'A healthy result only means none of the checked diseases was found in that photo.',
+    sources: [],
+  },
+];
 const ADDITIONAL_LEAF_GUIDES = [
   {
     id: 'guide-banana-freckle', slug: 'banana-freckle', model_class_key: null, name: 'Banana Freckle', scientific_name: 'Phyllosticta spp.',
@@ -184,7 +238,7 @@ function ModalShell({ open, title, description, onClose, children, size = 'mediu
 function ConfirmDialog({ open, title, text, confirmLabel = 'Confirm', danger = false, busy = false, confirmDisabled = false, onCancel, onConfirm, children }) {
   return <ModalShell open={open} title={title} description={text} onClose={() => { if (!busy) onCancel(); }} size="small">
     {children}
-    <div className="confirm-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onCancel}>Cancel</button><button type="button" className={danger ? 'danger-button' : 'primary-button'} disabled={busy || confirmDisabled} onClick={onConfirm}>{busy ? 'Please wait…' : confirmLabel}</button></div>
+    <div className="confirm-actions"><button type="button" className="secondary-button" disabled={busy} onClick={onCancel}>{tr('Cancel')}</button><button type="button" className={danger ? 'danger-button' : 'primary-button'} disabled={busy || confirmDisabled} onClick={onConfirm}>{busy ? tr('Please wait…') : confirmLabel}</button></div>
   </ModalShell>;
 }
 const userInitials = (name = '') => name.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
@@ -195,10 +249,14 @@ function AvatarContent({ user }) {
   return user?.avatar_url && !failed ? <img className="user-avatar-img" src={user.avatar_url} alt="" onError={() => setFailed(true)} /> : userInitials(user?.name);
 }
 
-function ReviewRequestForm({ initialNotes = '', hasPhoto = true, onSubmit }) { const [notes, setNotes] = useState(initialNotes); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const send = async () => { if (busy) return; setBusy(true); setError(''); try { await onSubmit(notes); } catch (exception) { setError(exception.message || tr('Your request was not sent. Please try again.')); } finally { setBusy(false); } }; return <div className="review-request-form"><h3>{tr('Think this result is wrong?')}</h3><p>{tr('An expert will look at your {item} and tell you what to do.', { item: hasPhoto ? tr('photo') : tr('note') })}</p><label>{tr('Tell the expert what you see (optional)')}<textarea value={notes} maxLength={1000} onChange={(event) => setNotes(event.target.value)} placeholder="Example: the spots spread after rain." /></label>{!hasPhoto && <p>{tr('This scan has no photo, so the expert can only read your note.')}</p>}{error && <p className="form-error" role="alert">{error}</p>}<button type="button" className="primary-button full" disabled={busy} onClick={send}><ShieldCheck size={17} />{busy ? tr('Sending…') : tr('Ask an expert')}</button></div>; }
+function ReviewRequestForm({ initialNotes = '', hasPhoto = true, onSubmit }) { const [notes, setNotes] = useState(initialNotes); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const send = async () => { if (busy) return; setBusy(true); setError(''); try { await onSubmit(notes); } catch (exception) { setError(exception.message || tr('Your request was not sent. Please try again.')); } finally { setBusy(false); } }; return <div className="review-request-form"><h3>{tr('Think this result is wrong?')}</h3><p>{tr('An expert will look at your {item} and tell you what to do.', { item: hasPhoto ? tr('photo') : tr('note') })}</p><label>{tr('Tell the expert what you see (optional)')}<textarea value={notes} maxLength={1000} onChange={(event) => setNotes(event.target.value)} placeholder={tr('Example: the spots spread after rain.')} /></label>{!hasPhoto && <p>{tr('This scan has no photo, so the expert can only read your note.')}</p>}{error && <p className="form-error" role="alert">{error}</p>}<button type="button" className="primary-button full" disabled={busy} onClick={send}><ShieldCheck size={17} />{busy ? tr('Sending…') : tr('Ask an expert')}</button></div>; }
 
 // Plain-language wording for farmers; the server keeps the original status codes.
-const FARMER_CLASS_NAMES = { healthy: 'Healthy', sigatoka: 'Black Sigatoka', 'panama-disease': 'Panama Disease', 'cordana-leaf-spot': 'Cordana' };
+// One name per condition everywhere a farmer reads it (scan result, history, expert answer, guide).
+const FARMER_CLASS_NAMES = { healthy: 'Healthy', sigatoka: 'Sigatoka', 'panama-disease': 'Panama Disease', 'cordana-leaf-spot': 'Cordana Leaf Spot' };
+const farmerName = (classKey, fallback = '') => tr(FARMER_CLASS_NAMES[classKey] || fallback || titleCase(classKey || ''));
+// The app's first guess for a scan; the server's disease name can be longer than the farmer label.
+const scanName = (record) => record.diseaseId === 'development-unconfigured' ? tr('No result') : farmerName(record.predictedClass || record.diseaseId, record.disease?.name);
 const FARMER_STEP_TEXT = {
   retake_photo: 'Take a new, clear photo of the leaf in daylight.',
   monitor_plant: 'Check the plant again over the next few days.',
@@ -209,13 +267,13 @@ function farmerReviewOutcome(review, predictedClass) {
   const steps = (review.next_steps || []).map((step) => FARMER_STEP_TEXT[step]).filter(Boolean).map((text) => tr(text));
   const isClass = review.review_status === 'confirmed' || review.review_status === 'alternate_class';
   const label = review.review_status === 'confirmed' ? review.verified_label || predictedClass : review.verified_label;
-  if (isClass && label === 'healthy') return { title: tr('Expert says: no disease seen'), message: tr('The expert did not see Black Sigatoka, Panama disease, or Cordana leaf spot in this photo.'), steps };
+  if (isClass && label === 'healthy') return { title: tr('Expert says: no disease seen'), message: tr('The expert did not see Sigatoka, Panama disease, or Cordana leaf spot in this photo.'), steps };
   if (isClass) {
-    const name = FARMER_CLASS_NAMES[label] || tr('a different result'); const scanName = FARMER_CLASS_NAMES[predictedClass];
-    return { title: tr('Expert says: {name}', { name }), message: review.review_status === 'confirmed' || !scanName ? tr('The expert agrees with your scan.') : tr('The expert thinks this is {name}, not {scan}.', { name, scan: scanName }), steps };
+    const name = FARMER_CLASS_NAMES[label] ? tr(FARMER_CLASS_NAMES[label]) : tr('a different result'); const predictedName = FARMER_CLASS_NAMES[predictedClass] ? tr(FARMER_CLASS_NAMES[predictedClass]) : null;
+    return { title: tr('Expert says: {name}', { name }), message: review.review_status === 'confirmed' || !predictedName ? tr('The expert agrees with your scan.') : tr('The expert thinks this is {name}, not {scan}.', { name, scan: predictedName }), steps };
   }
   if (review.review_status === 'cannot_determine') return { title: tr('The expert could not tell from this photo'), message: tr('The photo was not clear enough to decide.'), steps };
-  if (review.review_status === 'possible_outside_supported_classes') return { title: tr('This may be a different problem'), message: tr('It does not look like one of the 3 diseases this app checks.'), steps };
+  if (review.review_status === 'possible_outside_supported_classes') return { title: tr('This may be a different problem'), message: tr('It does not look like one of the diseases this app checks.'), steps };
   return { title: tr('The plant needs to be checked in person'), message: tr('The photo alone is not enough to decide.'), steps: steps.length ? steps : [tr(FARMER_STEP_TEXT.seek_field_inspection)] };
 }
 function agriculturistVerdict(review, predictedClass) {
@@ -234,7 +292,7 @@ function agriculturistVerdict(review, predictedClass) {
 const reviewInProgress = (record) => Boolean(record.reviewInProgressUntil && Date.parse(record.reviewInProgressUntil) > Date.now());
 function FarmerReviewProgress({ inProgress = false }) { return <ol className="farmer-review-progress"><li className="done"><Check size={14} />{tr('Sent')}</li><li className={inProgress ? 'current' : ''}>{inProgress ? <>{tr('Expert reviewing')}</> : tr('Expert review')}</li><li>{tr('Answer ready')}</li></ol>; }
 
-function AuthPanel({ mode, onAuthenticated, onMode, onDirtyChange }) {
+function AuthPanel({ mode, onAuthenticated, onMode, onDirtyChange, pendingScan = false }) {
   const signup = mode === 'register'; const [form, setForm] = useState({ name: '', email: '', password: '', password_confirmation: '' }); const [error, setError] = useState(''); const [errors, setErrors] = useState({}); const [busy, setBusy] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showPassword, setShowPassword] = useState(false); const [remember, setRemember] = useState(true); const [notice, setNotice] = useState('');
@@ -254,6 +312,7 @@ function AuthPanel({ mode, onAuthenticated, onMode, onDirtyChange }) {
       <div className="auth-brand-row"><span className="auth-modal-mark"><LogoMark /></span><span>DahonMD</span></div>
       <h3>{signup ? tr('Create your account') : tr('Log in to your account')}</h3>
       <p>{signup ? tr('Save your scans and keep them in sync across devices.') : tr('Your scans and account are ready when you are.')}</p>
+      {pendingScan && <p className="auth-pending-scan" role="status"><Check size={16} />{tr('Your scan is kept. It will be saved to your history after you log in or sign up.')}</p>}
     </div>
     <form className="auth-form" onSubmit={submit}>
       {!signup && import.meta.env.VITE_TEST_PROFILES === 'true' && <div className="auth-test-profiles">
@@ -263,7 +322,7 @@ function AuthPanel({ mode, onAuthenticated, onMode, onDirtyChange }) {
       <label>{tr('Email address')}<div className="auth-field"><Mail size={18} /><input type="email" autoComplete="email" placeholder="you@example.com" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></div>{errors.email && <small>{errors.email[0]}</small>}</label>
       <label>{tr('Password')}<div className="auth-field"><LockKeyhole size={18} /><input type={showPassword ? 'text' : 'password'} autoComplete={signup ? 'new-password' : 'current-password'} placeholder="Enter your password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required /><button type="button" className="auth-eye" aria-label={showPassword ? tr('Hide password') : tr('Show password')} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{errors.password && <small>{errors.password[0]}</small>}</label>
       {signup && <label>{tr('Confirm password')}<div className="auth-field"><LockKeyhole size={18} /><input type={showPassword ? 'text' : 'password'} autoComplete="new-password" placeholder="Repeat your password" value={form.password_confirmation} onChange={(event) => setForm({ ...form, password_confirmation: event.target.value })} required /></div></label>}
-      {signup && <div className="auth-consent"><label><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} required /> {tr('I agree to the')} <a href="/api/terms" target="_blank" rel="noreferrer">{tr('Terms of Use')}</a> {tr('and have read the')} <a href="/privacy" target="_blank" rel="noreferrer">{tr('Privacy Policy')}</a>. {tr('Future account scan photos may enter research review after an agriculturist assesses them. An approved private copy may remain after scan deletion. I can withdraw sharing in Profile.')}</label></div>}
+      {signup && <div className="auth-consent"><label><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} required /><span>{tr('I agree to the')} <a href="/api/terms" target="_blank" rel="noreferrer">{tr('Terms of Use')}</a> {tr('and have read the')} <a href="/privacy" target="_blank" rel="noreferrer">{tr('Privacy Policy')}</a>. {tr('My checked scan photos may help research. I can turn this off in Profile.')}</span></label><details><summary>{tr('What does this mean?')}</summary><p>{tr('Future account scan photos may enter research review after an agriculturist assesses them. An approved private copy may remain after scan deletion. I can withdraw sharing in Profile.')}</p></details></div>}
       <div className="auth-options"><label className="remember-control"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /><span><Check size={12} /></span>{tr('Remember me')}</label>{!signup && <button type="button" disabled={busy} onClick={forgotPassword}>{tr('Forgot password?')}</button>}</div>
       {(error || notice) && <div className={error ? 'form-error' : 'auth-notice'} role="status">{error || notice}</div>}
       <button className="primary-button auth-submit" disabled={busy}>{busy ? <RefreshCw className="spin" size={17} /> : <Leaf size={18} />}{busy ? tr('Please wait') : signup ? tr('Create account') : tr('Log in')}</button>
@@ -272,12 +331,12 @@ function AuthPanel({ mode, onAuthenticated, onMode, onDirtyChange }) {
   </div>;
 }
 
-function AuthModal({ mode, onClose, onMode, onAuthenticated }) {
+function AuthModal({ mode, onClose, onMode, onAuthenticated, pendingScan = false }) {
   const signup = mode === 'register';
   const dirty = useRef(false);
   const onDirtyChange = useCallback((value) => { dirty.current = value; }, []);
-  const close = () => { if (!dirty.current || window.confirm('Discard your entered details?')) { dirty.current = false; onClose(); } };
-  return <ModalShell open={Boolean(mode)} title={signup ? 'Sign up' : 'Log in'} onClose={close} size="small" variant="auth"><AuthPanel onDirtyChange={onDirtyChange} mode={mode || 'login'} onMode={onMode} onAuthenticated={onAuthenticated} /></ModalShell>;
+  const close = () => { if (!dirty.current || window.confirm(tr('Discard your entered details?'))) { dirty.current = false; onClose(); } };
+  return <ModalShell open={Boolean(mode)} title={signup ? tr('Sign up') : tr('Log in')} onClose={close} size="small" variant="auth"><AuthPanel onDirtyChange={onDirtyChange} mode={mode || 'login'} onMode={onMode} onAuthenticated={onAuthenticated} pendingScan={pendingScan} /></ModalShell>;
 }
 
 const CHAT_INTRO = { id: 'intro', role: 'assistant', content: 'Ask me about banana leaf symptoms, care, or taking a clear photo.' };
@@ -367,7 +426,7 @@ function AssistantWidget({ user, online, onLogin, scanTopic = null }) {
           {messages.map((message) => <div key={message.id} className={`ai-message-row ${message.role}`}>
             <p>{normalizeChatText(message.content)}</p>
           </div>)}
-          {messages.length === 1 && <div className="ai-assistant-starters">{(topic ? TOPIC_STARTERS : CHAT_STARTERS).map((starter) => <button type="button" key={starter} disabled={!online} onClick={(event) => send(event, starter)}><span>{starter}</span><ChevronRight size={15} /></button>)}</div>}
+          {messages.length === 1 && <div className="ai-assistant-starters">{(topic ? TOPIC_STARTERS : CHAT_STARTERS).map((starter) => <button type="button" key={starter} disabled={!online} onClick={(event) => send(event, tr(starter))}><span>{tr(starter)}</span><ChevronRight size={15} /></button>)}</div>}
           {busy && <div className="ai-message-row assistant"><p className="ai-thinking"><i /><i /><i /></p></div>}
           {error && <div className="ai-assistant-error" role="alert">{error}</div>}
           <span ref={end} />
@@ -454,7 +513,8 @@ function Shell({ role, user, path, navigate, onSignedOut, children, online, badg
 
 function FarmerShell({ user, path, navigate, onSignedOut, online, children, badges = {}, chatTopic = null }) {
   const items = FARMER_NAV.filter(([route]) => !route.endsWith('/profile'));
-  const signOut = async () => { await onSignedOut(); };
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const signOut = async () => { setConfirmLogout(false); await onSignedOut(); };
   const page = usePageTransition(path);
   const scrolled = useScrolled();
   const isActive = (route) => path === route || (route === '/farmer/diseases' && path === '/farmer/library');
@@ -468,7 +528,7 @@ function FarmerShell({ user, path, navigate, onSignedOut, online, children, badg
         {items.map(([route, label, Icon]) => <a key={route} href={route} className={isActive(route) ? 'active' : ''} aria-current={isActive(route) ? 'page' : undefined} onClick={(event) => { event.preventDefault(); navigate(route); }}><Icon size={17} />{tr(label)}{badges[route] > 0 && <b className="nav-badge" aria-label={`${badges[route]} new`}>{badges[route] > 9 ? '9+' : badges[route]}</b>}</a>)}
       </nav>
       <div className="farmer-header-actions">
-        <IconButton label={tr('Log out')} title={tr('Log out')} onClick={signOut}><LogOut size={18} /></IconButton>
+        <button type="button" className="farmer-logout-button" onClick={() => setConfirmLogout(true)}><LogOut size={17} /><span>{tr('Log out')}</span></button>
         <button className="farmer-header-avatar" aria-label={tr('Open profile')} title={tr('Profile')} onClick={() => navigate('/farmer/profile')}><AvatarContent user={user} /></button>
       </div>
     </header>
@@ -483,23 +543,28 @@ function FarmerShell({ user, path, navigate, onSignedOut, online, children, badg
       })}
     </nav>
     <AssistantWidget user={user} online={online} scanTopic={chatTopic} />
+    <ConfirmDialog open={confirmLogout} title={tr('Log out of DahonMD?')} text={tr('Your saved scans stay in your account. You can log in again any time.')} confirmLabel={tr('Log out')} onCancel={() => setConfirmLogout(false)} onConfirm={signOut} />
   </div>;
 }
 
+// Where a saved scan is, in words that do not assume the farmer knows what syncing is.
+const saveStatusText = (record) => record.synced ? tr('Saved online') : record.syncStatus === 'failed' ? tr('Not uploaded yet') : tr('Saved on this device');
+// The first line of a saved scan: the expert's answer, or what the app found.
+const scanTitle = (record) => {
+  if (record.review && record.review.review_status !== 'pending') return farmerReviewOutcome(record.review, record.predictedClass).title;
+  if (record.diseaseId === 'development-unconfigured') return tr('No result');
+  if (record.confidence < THRESHOLD) return tr('Not sure: maybe {name}', { name: scanName(record) });
+  return record.diseaseId === 'healthy' ? tr('Leaf looks healthy') : tr('Possible {name}', { name: scanName(record) });
+};
 function RecentCard({ record, onOpen }) {
-  const name = record.disease?.name || (record.diseaseId === 'development-unconfigured' ? 'Development result' : titleCase(record.diseaseId));
-  const reviewed = record.review && record.review.review_status !== 'pending';
-  const reviewTitle = reviewed ? farmerReviewOutcome(record.review, record.predictedClass).title : null;
-
   return <button className="recent-scan-card" onClick={() => onOpen(record)}>
-    <span className="recent-thumb">{record.image ? <img src={record.image} alt="Saved banana leaf" /> : <Leaf size={24} />}</span>
+    <span className="recent-thumb">{record.image ? <img src={record.image} alt={tr('Saved banana leaf')} /> : <Leaf size={24} />}</span>
     <span className="recent-copy">
-      <strong>{reviewTitle || (record.confidence < THRESHOLD ? tr('Uncertain result') : record.diseaseId === 'healthy' ? tr('No supported pattern detected') : name)}</strong>
-      <small>{reviewed ? tr('Original AI result: {name}', { name }) : confidenceText(record.confidence)}</small>
+      <strong>{scanTitle(record)}</strong>
       <small>{formatDate(record.date, true)}{record.review?.review_status === 'pending' ? (reviewInProgress(record) ? tr(' · Expert reviewing now') : tr(' · Waiting for an expert')) : ''}</small>
       {isNewReview(record.review) && <small className="new-review-label">{tr('New expert review')}</small>}
     </span>
-    <span className={`recent-status ${record.synced ? 'synced' : record.syncStatus === 'failed' ? 'failed' : 'waiting'}`}>{record.synced ? <><Cloud size={15} />{tr('Synced')}</> : record.syncStatus === 'failed' ? <><CloudOff size={15} />{tr('Needs retry')}</> : <><CloudOff size={15} />{tr('Waiting to sync')}</>}</span>
+    {!record.synced && <span className={`recent-status ${record.syncStatus === 'failed' ? 'failed' : 'waiting'}`}><CloudOff size={15} />{saveStatusText(record)}</span>}
     <ChevronRight size={18} />
   </button>;
 }
@@ -527,8 +592,8 @@ function historyPhotoPreview(uri) {
 function FarmerHome({ user, records, online, navigate, onOpen, pendingChanges }) {
   const uncertain = records.filter((record) => record.confidence < THRESHOLD && (!record.review || record.review.review_status === 'pending')).length;
   const newReviews = records.filter((record) => isNewReview(record.review)).length;
-  const nextTitle = newReviews ? tr('{count} new expert review(s)', { count: newReviews }) : uncertain ? tr('Review an uncertain result') : pendingChanges ? tr('Keep your scans in sync') : records.length ? tr('Keep an eye on your leaves') : tr('Start with your first leaf');
-  const nextText = newReviews ? tr('An agriculturist has assessed your scan. Open History to read the result and next steps.') : uncertain ? tr('{count} saved result(s) were not sure. Compare visible signs in the guide or ask an expert.', { count: uncertain }) : pendingChanges ? tr('{count} browser change(s) waiting. They upload automatically when you are online.', { count: pendingChanges }) : records.length ? tr('Check your saved results or scan a new leaf if its appearance changes.') : tr('Scan one clear leaf photo to create your first saved result.');
+  const nextTitle = newReviews ? tr('{count} new expert review(s)', { count: newReviews }) : uncertain ? tr('Review an uncertain result') : pendingChanges ? tr('Some scans are not uploaded yet') : records.length ? tr('Keep an eye on your leaves') : tr('Start with your first leaf');
+  const nextText = newReviews ? tr('An agriculturist has assessed your scan. Open History to read the result and next steps.') : uncertain ? tr('{count} saved result(s) were not sure. Compare visible signs in the guide or ask an expert.', { count: uncertain }) : pendingChanges ? tr('{count} scan(s) not uploaded yet. They upload by themselves when you are online.', { count: pendingChanges }) : records.length ? tr('Check your saved results or scan a new leaf if its appearance changes.') : tr('Scan one clear leaf photo to create your first saved result.');
 
   return <div className="role-stack farmer-dashboard">
     <Welcome user={user} text={tr('Scan a leaf or check your saved results below.')} />
@@ -542,10 +607,10 @@ function FarmerHome({ user, records, online, navigate, onOpen, pendingChanges })
       <div className="farmer-dashboard-hero-art" aria-hidden="true"><LogoMark inverse /></div>
     </section>
 
-    <section className="farmer-dashboard-stats" aria-label="Your scan overview">
+    <section className="farmer-dashboard-stats" aria-label={tr('Your scans')}>
       <div><span><History size={19} /></span><strong>{records.length}</strong><small>{tr('Saved scans')}</small></div>
       <div><span className="warm"><AlertTriangle size={19} /></span><strong>{uncertain}</strong><small>{tr('Uncertain')}</small></div>
-      <div><span><Cloud size={19} /></span><strong>{pendingChanges}</strong><small>{tr('To sync')}</small></div>
+      <div><span><Cloud size={19} /></span><strong>{pendingChanges}</strong><small>{tr('Not uploaded')}</small></div>
     </section>
 
     <section className="farmer-dashboard-next">
@@ -560,7 +625,7 @@ function FarmerHome({ user, records, online, navigate, onOpen, pendingChanges })
 
     {online && <section className="farmer-sync-banner">
       <Cloud size={22} />
-      <div><strong>{pendingChanges ? tr('{count} browser change(s) waiting', { count: pendingChanges }) : tr('Browser history is connected')}</strong><p>{tr('Scans sync automatically with your other devices while you are online.')}</p></div>
+      <div><strong>{pendingChanges ? tr('{count} scan(s) not uploaded yet', { count: pendingChanges }) : tr('Your scans are saved online')}</strong><p>{tr('You can see them on any phone or computer where you log in.')}</p></div>
     </section>}
 
     <section className="farmer-dashboard-lower">
@@ -568,7 +633,7 @@ function FarmerHome({ user, records, online, navigate, onOpen, pendingChanges })
         <div className="farmer-dashboard-photo-heading"><span><Camera size={20} /></span><div><h2>{tr('Before you scan')}</h2><p>{tr('A clear photo gives the scanner more to work with.')}</p></div></div>
         <Tips />
       </section>
-      <nav className="panel quick-help farmer-dashboard-links" aria-label="Farmer shortcuts">
+      <nav className="panel quick-help farmer-dashboard-links" aria-label={tr('Useful links')}>
         <h2>{tr('Useful links')}</h2>
         <button onClick={() => navigate('/farmer/diseases')}>
           <BookOpen size={19} />
@@ -594,14 +659,20 @@ function FarmerHome({ user, records, online, navigate, onOpen, pendingChanges })
 }
 
 function Tips() {
-  return <ul className="photo-checklist" aria-label="Photo checklist">
+  return <ul className="photo-checklist" aria-label={tr('Before you scan')}>
     <li><Check size={16} />{tr('Use bright, even light.')}</li>
     <li><Check size={16} />{tr('Center one leaf.')}</li>
     <li><Check size={16} />{tr('Keep symptoms in focus.')}</li>
   </ul>;
 }
 
-function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = true, autoStartCamera = true }) {
+// A guest's scan waits here while they log in or sign up, then it is saved to their history.
+const PENDING_SCAN_KEY = 'dahonmd-pending-scan';
+function keepPendingScan(scan) { try { window.sessionStorage.setItem(PENDING_SCAN_KEY, JSON.stringify(scan)); return true; } catch { return false; } }
+function hasPendingScan() { try { return Boolean(window.sessionStorage.getItem(PENDING_SCAN_KEY)); } catch { return false; } }
+function takePendingScan() { try { const raw = window.sessionStorage.getItem(PENDING_SCAN_KEY); window.sessionStorage.removeItem(PENDING_SCAN_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; } }
+
+function FarmerScan({ onSaved, navigate, online, onAuthRequired, autoStartCamera = true }) {
   const cameraInput = useRef(null); const galleryInput = useRef(null); const video = useRef(null); const cameraStream = useRef(null); const cameraRequest = useRef(0); const [image, setImage] = useState(null); const [imageFile, setImageFile] = useState(null); const [fileName, setFileName] = useState(''); const [stage, setStage] = useState('choose'); const [result, setResult] = useState(null); const [comparison, setComparison] = useState(null); const [error, setError] = useState(''); const [cameraStatus, setCameraStatus] = useState('idle');
   const stopCamera = useCallback(() => { cameraRequest.current += 1; cameraStream.current?.getTracks().forEach((track) => track.stop()); cameraStream.current = null; if (video.current) video.current.srcObject = null; }, []);
   const startCamera = useCallback(async () => {
@@ -623,13 +694,13 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
     if (autoStartCamera && window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) startCamera();
     return stopCamera;
   }, [autoStartCamera, startCamera, stopCamera]);
-  const useFile = (file) => { if (!file?.type.startsWith('image/')) { setError("We couldn't use this photo. Please choose another image."); return; } stopCamera(); if (image?.startsWith('blob:')) URL.revokeObjectURL(image); setImage(URL.createObjectURL(file)); setImageFile(file); setFileName(file.name); setStage('preview'); setError(''); };
+  const useFile = (file) => { if (!file?.type.startsWith('image/')) { setError(tr("We couldn't use this photo. Please choose another image.")); return; } stopCamera(); if (image?.startsWith('blob:')) URL.revokeObjectURL(image); setImage(URL.createObjectURL(file)); setImageFile(file); setFileName(file.name); setStage('preview'); setError(''); };
   const takePhoto = () => {
     const source = video.current;
-    if (!source?.videoWidth || !source?.videoHeight) { setError('The camera is still getting ready. Please try again.'); return; }
+    if (!source?.videoWidth || !source?.videoHeight) { setError(tr('The camera is still getting ready. Please try again.')); return; }
     const canvas = document.createElement('canvas'); canvas.width = source.videoWidth; canvas.height = source.videoHeight; canvas.getContext('2d').drawImage(source, 0, 0);
     stopCamera(); setCameraStatus('idle');
-    canvas.toBlob((blob) => { if (!blob) { setError("We couldn't capture this photo. Please try again."); return; } useFile(new File([blob], `banana-leaf-${Date.now()}.jpg`, { type: 'image/jpeg' })); }, 'image/jpeg', .92);
+    canvas.toBlob((blob) => { if (!blob) { setError(tr("We couldn't capture this photo. Please try again.")); return; } useFile(new File([blob], `banana-leaf-${Date.now()}.jpg`, { type: 'image/jpeg' })); }, 'image/jpeg', .92);
   };
   const reset = () => { if (image?.startsWith('blob:')) URL.revokeObjectURL(image); setImage(null); setImageFile(null); setFileName(''); setResult(null); setComparison(null); setStage('choose'); setError(''); setCameraStatus('idle'); if (autoStartCamera && window.matchMedia('(max-width: 760px), (pointer: coarse)').matches) startCamera(); };
   const check = async () => {
@@ -647,8 +718,20 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
       setResult(screening); setComparison(research); setStage('result');
     } catch { setError(tr('Something went wrong. Please try again.')); setStage('preview'); }
   };
-  const save = async (requestReview = false, farmerNotes = '') => { if (!onSaved) { onAuthRequired?.('login'); return; } try { const savedPhoto = imageFile ? await historyPhotoPreview(image) : image; await onSaved({ diseaseId: result.diseaseId, confidence: result.confidence, latency: result.latency, date: new Date().toISOString(), source: 'web', model: result.model, isSimulated: Boolean(result.is_simulated), inferenceReceipt: result.inference_receipt || null, probabilities: normalizeClassProbabilities(result), image: savedPhoto, farmerNotes }, imageFile, requestReview); navigate('/farmer/history'); } catch { setError(tr('The result or photo could not be saved in this browser. Please try again.')); } };
-  if (stage === 'result') return <FarmerResult image={image} result={result} comparison={comparison} onReset={reset} onSave={save} navigate={navigate} error={error} />;
+  const save = async (requestReview = false, farmerNotes = '') => {
+    try {
+      const savedPhoto = imageFile || !onSaved ? await historyPhotoPreview(image) : image;
+      const record = { diseaseId: result.diseaseId, confidence: result.confidence, latency: result.latency, date: new Date().toISOString(), source: 'web', model: result.model, isSimulated: Boolean(result.is_simulated), inferenceReceipt: result.inference_receipt || null, probabilities: normalizeClassProbabilities(result), image: savedPhoto, farmerNotes };
+      if (!onSaved) {
+        if (!keepPendingScan({ record, requestReview })) { setError(tr('This browser could not keep your scan. Log in first, then scan again.')); return; }
+        onAuthRequired?.('login');
+        return;
+      }
+      await onSaved(record, imageFile, requestReview);
+      navigate('/farmer/history');
+    } catch { setError(tr('The result or photo could not be saved in this browser. Please try again.')); }
+  };
+  if (stage === 'result') return <FarmerResult image={image} result={result} comparison={comparison} onReset={reset} onRetry={check} onSave={save} navigate={navigate} error={error} guest={!onSaved} />;
   return <div className="role-stack scan-page">
     <Heading title={tr('Scan a leaf')} text={image ? tr('Check the leaf and affected area before continuing.') : tr('Take or choose a clear banana leaf photo.')} />
     <section className="farmer-scan-layout">
@@ -656,7 +739,7 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
         {image ? (
           <figure className="selected-photo-card">
             <div className="selected-photo-frame">
-              <img src={image} alt="Selected banana leaf" />
+              <img src={image} alt={tr('Selected banana leaf')} />
             </div>
             <figcaption><FileImage size={15} />{fileName}</figcaption>
           </figure>
@@ -671,11 +754,11 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
             <video ref={video} autoPlay muted playsInline aria-label="Live rear camera preview" />
             <div className="camera-frame" aria-hidden="true"><i /><i /><i /><i /></div>
             {cameraStatus === 'starting' && <div className="camera-message"><RefreshCw className="spin" size={30} /><h2>{tr('Opening camera...')}</h2><p>{tr('Allow camera access when your browser asks.')}</p></div>}
-            {cameraStatus === 'unavailable' && <div className="camera-message"><span><Camera size={36} /></span><h2>{tr('Camera did not open')}</h2><p>{tr('Allow camera access, or use your phone\'s camera picker below.')}</p><button className="primary-button" onClick={() => cameraInput.current?.click()}><Camera size={18} />{tr('Use phone camera')}</button><button className="text-button" onClick={startCamera}>{tr('Try live camera again')}</button></div>}
+            {cameraStatus === 'unavailable' && <div className="camera-message"><span><Camera size={36} /></span><h2>{tr('Take a photo of the leaf')}</h2><p>{tr('Use your phone camera, or choose a photo you already took.')}</p><button className="primary-button" onClick={() => cameraInput.current?.click()}><Camera size={18} />{tr('Use phone camera')}</button><button className="secondary-button camera-gallery-button" onClick={() => galleryInput.current?.click()}><ImagePlus size={18} />{tr('Choose a photo')}</button><button className="text-button" onClick={startCamera}>{tr('Try live camera again')}</button></div>}
             {cameraStatus === 'active' && <div className="camera-live-controls"><small>{tr('Keep the affected area in focus')}</small><button className="camera-shutter" aria-label="Take photo" onClick={takePhoto}><span /></button></div>}
             <div className="camera-source-actions">
-              <button className="secondary-button" onClick={() => galleryInput.current?.click()}><ImagePlus size={18} />{tr('Choose from file')}</button>
-              <button className="sample-link" onClick={() => { stopCamera(); setImage('/assets/sigatoka-sample.webp'); setFileName('Development sample'); setStage('preview'); }}>Use development sample</button>
+              {cameraStatus !== 'unavailable' && <button className="secondary-button" onClick={() => galleryInput.current?.click()}><ImagePlus size={18} />{tr('Choose a photo')}</button>}
+              {SHOW_TEST_TOOLS && <button className="sample-link" onClick={() => { stopCamera(); setImage('/assets/sigatoka-sample.webp'); setFileName('Development sample'); setStage('preview'); }}>Use development sample</button>}
             </div>
           </div>
         )}
@@ -684,7 +767,7 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
           <button className="scan-source-gallery" onClick={() => galleryInput.current?.click()}><ImagePlus size={22} />{tr('Gallery')}</button>
         </div>}
         {!image && cameraStatus === 'idle' && <p className="scan-tip-row"><Lightbulb size={17} /><span>{tr('Keep the whole leaf visible and avoid shadows.')}</span></p>}
-        {!image && cameraStatus === 'idle' && <button className="scan-sample-link" onClick={() => { setImage('/assets/sigatoka-sample.webp'); setFileName('Development sample'); setStage('preview'); }}>Use development sample</button>}
+        {SHOW_TEST_TOOLS && !image && cameraStatus === 'idle' && <button className="scan-sample-link" onClick={() => { setImage('/assets/sigatoka-sample.webp'); setFileName('Development sample'); setStage('preview'); }}>Use development sample</button>}
         {image && stage !== 'checking' && <div className="scan-preview-actions"><button className="primary-button scan-check-button" onClick={check}><ScanLine size={22} />{tr('Check leaf')}</button><button className="text-button" onClick={reset}><RefreshCw size={16} />{tr('Choose a different photo')}</button></div>}
         {image && stage === 'checking' && <div className="scan-checking-card"><RefreshCw className="spin" size={18} /><span>{tr('Checking the leaf…')}</span></div>}
         <input ref={cameraInput} hidden type="file" accept="image/*" capture="environment" onChange={(event) => useFile(event.target.files[0])} />
@@ -701,7 +784,23 @@ function FarmerScan({ onSaved, navigate, online, onAuthRequired, showHeading = t
   </div>;
 }
 
-function FarmerResult({ image, result, comparison, onReset, onSave, navigate, error }) {
+// Shown on every scan result so a farmer never has to search for expert help.
+function AskExpertCard({ onSave, guest = false, emphasized = false }) {
+  const [open, setOpen] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [busy, setBusy] = useState(false);
+  const send = async () => { if (busy) return; setBusy(true); try { await onSave(true, notes); } finally { setBusy(false); } };
+  return <section className={`ask-expert-card${emphasized ? ' emphasized' : ''}`}>
+    <div className="ask-expert-intro"><span><ShieldCheck size={22} /></span><div><h3>{tr('Want an expert to check?')}</h3><p>{tr('An agriculturist looks at your photo and tells you what to do.')}</p></div></div>
+    {!open ? <button type="button" className={emphasized ? 'primary-button' : 'secondary-button'} onClick={() => setOpen(true)}><ShieldCheck size={18} />{tr('Ask an expert')}</button> : <div className="ask-expert-form">
+      <label className="farmer-review-notes">{tr('Tell the expert what you see (optional)')}<textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={tr('Example: the spots spread after rain.')} maxLength={1000} /></label>
+      <button type="button" className="primary-button full" disabled={busy} onClick={send}><Send size={17} />{busy ? tr('Sending…') : guest ? tr('Log in and send to an expert') : tr('Save and send to an expert')}</button>
+      {guest && <p className="ask-expert-note">{tr('You will be asked to log in or sign up. Your scan is kept.')}</p>}
+    </div>}
+  </section>;
+}
+
+function FarmerResult({ image, result, comparison, onReset, onRetry, onSave, navigate, error, guest = false }) {
   const screeningUnavailable = result?.service_status === 'unavailable' || result?.diseaseId === 'development-unconfigured';
   const proposedResult = screeningUnavailable && comparison?.status === 'ready' ? comparison.data.enhanced : null;
   const researchOnly = Boolean(proposedResult);
@@ -713,77 +812,47 @@ function FarmerResult({ image, result, comparison, onReset, onSave, navigate, er
   const uncertain = !unavailable && confidence < THRESHOLD;
   const healthy = activeDiseaseId === 'healthy';
   const [disease, setDisease] = useState(null);
-  const [farmerNotes, setFarmerNotes] = useState('');
+  const [retrying, setRetrying] = useState(false);
   useEffect(() => {
     if (unavailable) { setDisease(null); return undefined; }
-    api('/diseases').then((payload) => setDisease(payload.data.find((item) => item.slug === activeDiseaseId) || null)).catch(() => undefined);
+    api('/diseases').then((payload) => setDisease(payload.data.find((item) => item.slug === activeDiseaseId) || null)).catch(() => setDisease(OFFLINE_SCAN_GUIDES.find((item) => item.slug === activeDiseaseId) || null));
     return undefined;
   }, [activeDiseaseId, researchOnly, unavailable]);
-  const hasVerifiedGuidance = !researchOnly && !uncertain && disease?.is_verified;
-  const heading = unavailable
-    ? tr('Screening service unavailable')
-    : researchOnly
-      ? tr('Possible leaf problem')
-    : uncertain
-      ? tr('This scan needs another look')
-      : healthy
-        ? tr('No supported disease pattern was strongly detected')
-        : tr('Possible disease pattern found');
-  const resultName = unavailable
-    ? tr('No diagnosis produced')
-    : researchOnly
-      ? `Possible ${disease?.name || titleCase(activeDiseaseId)}`
-    : uncertain
-      ? tr('No confident match')
-      : disease?.name || titleCase(activeDiseaseId);
-  return <div className={`role-stack scan-result-page ${researchOnly ? 'research' : unavailable ? 'unavailable' : uncertain ? 'uncertain' : 'available'}`}>
+  const name = farmerName(activeDiseaseId, disease?.name);
+  const retry = async () => { setRetrying(true); try { await onRetry(); } finally { setRetrying(false); } };
+  const hasGuidance = !unavailable && !researchOnly && !uncertain && disease;
+  const state = unavailable ? 'unavailable' : researchOnly ? 'research' : uncertain ? 'uncertain' : healthy ? 'healthy' : 'available';
+  const heading = { unavailable: tr("We couldn't check this leaf right now"), research: tr('Possible leaf problem'), uncertain: tr("We're not sure about this photo"), healthy: tr('Your leaf looks healthy'), available: tr('This leaf may have {name}', { name }) }[state];
+  const intro = { unavailable: tr('Your photo is fine. The checking service is busy or offline. Please try again in a few minutes.'), research: tr('Here is what the photo may show and what you can safely do next.'), uncertain: tr("The photo didn't clearly match any of the conditions this app checks."), healthy: tr('We did not find signs of Sigatoka, Panama disease or Cordana leaf spot.'), available: tr('This is a first check, not a final diagnosis. Read what to do below.') }[state];
+  const cardTitle = { unavailable: tr('No result yet'), research: tr('Possible {name}', { name }), uncertain: tr('Not sure'), healthy: tr('Healthy'), available: name }[state];
+  const nextStep = { unavailable: tr('Try again now, or come back later.'), research: tr('Compare visible signs in the leaf guide. This experimental match is not a diagnosis.'), uncertain: tr('Take a new photo in daylight with the sick part of the leaf in focus, or ask an expert to look at it.'), healthy: tr('Keep checking the plant and scan again if the leaf changes.'), available: tr('Read the signs and care steps below. Ask an expert if you are unsure or the spots spread.') }[state];
+  return <div className={`role-stack scan-result-page ${state}`}>
     <section className="result-title scan-result-heading">
       <button className="text-button" onClick={onReset}><ArrowLeft size={18} />{tr('Back to scan')}</button>
       <h1>{heading}</h1>
-      <p>{unavailable ? tr('Your photo is safe, but the screening service did not return a classification.') : researchOnly ? tr('Here is what the photo may show and what you can safely do next.') : uncertain ? tr('The image did not match one supported class strongly enough for disease-specific guidance.') : tr('Review the screening result and recommended next steps below.')}</p>
+      <p>{intro}</p>
     </section>
 
     <section className="scan-result-hero">
       <figure className="panel scan-result-photo">
-        <img src={image} alt="Scanned banana leaf" />
-        <figcaption><FileImage size={15} />{tr('Photo submitted for screening')}</figcaption>
+        <img src={image} alt={tr('Scanned banana leaf')} />
+        <figcaption><FileImage size={15} />{tr('Your photo')}</figcaption>
       </figure>
 
       <article className="panel scan-result-card">
         <header className="scan-result-status">
-          {/* The percentage leads on the left so it is the first thing a farmer reads. */}
-          {!unavailable && !researchOnly
-            ? <span className={`scan-result-percent${uncertain ? ' uncertain' : ''}`} aria-label={`${Math.round(confidence)}%`}>{Math.round(confidence)}%</span>
-            : <span className="scan-result-status-icon"><AlertTriangle size={22} /></span>}
+          <span className={`scan-result-status-icon ${state}`}>{unavailable || uncertain || researchOnly ? <AlertTriangle size={24} /> : healthy ? <Check size={24} /> : <Leaf size={24} />}</span>
           <div>
-            <h2>{!unavailable && !uncertain && !researchOnly && !healthy ? `Possible ${resultName}` : resultName}</h2>
+            <h2>{cardTitle}</h2>
+            {uncertain && <p className="scan-result-closest">{tr('Closest match: {name}', { name })}</p>}
           </div>
           {!unavailable && !researchOnly && <div className="scan-result-score"><CertaintyBadge value={confidence} /></div>}
           {researchOnly && <div className="scan-result-match-label"><strong>{tr('Possible match')}</strong><small>{tr('not a diagnosis')}</small></div>}
         </header>
 
-        
-        <p className="scan-result-summary">{unavailable
-          ? tr('No screening result is available.')
-          : researchOnly
-            ? tr('Both model outputs are shown below for comparison.')
-          : uncertain
-              ? tr('DahonMD is not sure about this photo. Take another one in good light with the whole leaf in view.')
-              : tr('Review the model result before saving it.')}</p>
+        <div className="scan-next-step"><span><Lightbulb size={21} /></span><div><strong>{tr('What to do next')}</strong><p>{nextStep}</p></div></div>
 
-        <div className="scan-next-step"><span><Leaf size={21} /></span><div><strong>{tr('What to do next')}</strong><p>{unavailable ? tr('Try again when screening is available.') : uncertain ? tr('Retake the leaf in even light with the affected area in focus. If symptoms spread, ask a local agricultural expert.') : researchOnly ? tr('Compare visible signs in the leaf guide. This experimental match is not a diagnosis.') : healthy ? tr('Keep monitoring the plant and scan again if the leaf changes.') : tr('Compare the visible signs and read the care guidance below. Ask a local expert if symptoms spread.')}</p></div></div>
-
-        {researchOnly && <div className="farmer-result-information">
-          <section className="farmer-result-caution">
-            <span><Info size={19} /></span>
-            <div><strong>{tr('Research comparison')}</strong><p>{tr('These outputs are experimental and are not a diagnosis.')}</p></div>
-          </section>
-        </div>}
-
-        {unavailable && <div className="scan-service-notice">
-          <Info size={19} />
-          <div><strong>{tr('Screening unavailable')}</strong><p>{tr('Connect the model service to produce a result.')}</p></div>
-        </div>}
+        {researchOnly && <section className="farmer-result-caution"><span><Info size={19} /></span><div><strong>{tr('Research comparison')}</strong><p>{tr('These outputs are experimental and are not a diagnosis.')}</p></div></section>}
 
         {uncertain && <div className="scan-retry-guide">
           <strong>{tr('For a clearer second photo')}</strong>
@@ -791,50 +860,43 @@ function FarmerResult({ image, result, comparison, onReset, onSave, navigate, er
         </div>}
 
         <div className="scan-result-primary-actions">
-          {unavailable || uncertain || researchOnly ? <button className="primary-button" onClick={onReset}><Camera size={18} />{unavailable ? tr('Return to scan') : tr('Take another photo')}</button> : <button className="primary-button" onClick={() => onSave(false, '')}><Check size={18} />{tr('Save result')}</button>}
-          {!unavailable && !uncertain && !researchOnly && <button className="secondary-button" onClick={onReset}><Camera size={18} />{tr('Scan another leaf')}</button>}
-          {researchOnly && <button className="secondary-button" onClick={() => navigate('/farmer/diseases')}><BookOpen size={18} />{tr('Open leaf guide')}</button>}
-          {uncertain && !researchOnly && <button className="text-button" onClick={() => onSave(false, '')}>{tr('Save to history without review')}</button>}
+          {unavailable && <><button className="primary-button" disabled={retrying} onClick={retry}><RefreshCw className={retrying ? 'spin' : ''} size={18} />{retrying ? tr('Checking the leaf…') : tr('Try again')}</button><button className="secondary-button" onClick={onReset}><Camera size={18} />{tr('Take another photo')}</button></>}
+          {(uncertain || researchOnly) && <button className="primary-button" onClick={onReset}><Camera size={18} />{tr('Take another photo')}</button>}
+          {!unavailable && !uncertain && !researchOnly && <><button className="primary-button" onClick={() => onSave(false, '')}><Check size={18} />{tr('Save result')}</button><button className="secondary-button" onClick={onReset}><Camera size={18} />{tr('Scan another leaf')}</button></>}
+          {(researchOnly || unavailable) && !guest && <button className="text-button" onClick={() => navigate('/farmer/diseases')}><BookOpen size={18} />{tr('Open leaf guide')}</button>}
         </div>
+        {guest && !unavailable && !uncertain && !researchOnly && <p className="ask-expert-note">{tr('You will be asked to log in or sign up. Your scan is kept.')}</p>}
 
-        {!unavailable && probabilities.length > 0 && <details className="scan-model-details"><summary>{tr('See model scores')}<ChevronDown size={18} /></summary><ProbabilityBreakdown probabilities={probabilities} predictedClass={activeDiseaseId} /></details>}
+        {!unavailable && !researchOnly && <AskExpertCard onSave={onSave} guest={guest} emphasized={uncertain} />}
+        {uncertain && !researchOnly && <button className="text-button scan-save-plain" onClick={() => onSave(false, '')}>{tr('Save without asking an expert')}</button>}
 
-        {uncertain && !researchOnly && <details className="scan-review-request">
-          <summary><span><ShieldCheck size={19} /><span><strong>{tr('Ask an expert to check')}</strong><small>{tr('An expert looks at your photo and tells you what to do')}</small></span></span><ChevronDown size={18} /></summary>
-          <div>
-            <label className="farmer-review-notes">{tr('Tell the expert what you see (optional)')}<textarea value={farmerNotes} onChange={(event) => setFarmerNotes(event.target.value)} placeholder="Example: the spots spread after rain." maxLength={1000} /></label>
-            <button className="primary-button full" onClick={() => onSave(true, farmerNotes)}><ShieldCheck size={17} />{tr('Save & ask an expert')}</button>
-          </div>
-        </details>}
+        {!unavailable && probabilities.length > 0 && <details className="scan-model-details"><summary>{tr('How sure is the app?')}<ChevronDown size={18} /></summary><ProbabilityBreakdown probabilities={probabilities} predictedClass={activeDiseaseId} /></details>}
       </article>
     </section>
 
-    {comparison?.status === 'ready' && <details className="scan-comparison-details"><summary>{tr('Compare both models')}<ChevronDown size={18} /></summary><FarmerComparison image={image} comparison={comparison.data} /></details>}
+    {comparison?.status === 'ready' && <details className="scan-comparison-details"><summary>{tr('Research comparison (for researchers)')}<ChevronDown size={18} /></summary><FarmerComparison image={image} comparison={comparison.data} /></details>}
 
-    {hasVerifiedGuidance && <section className="result-guidance">
+    {hasGuidance && <section className="result-guidance">
       <header className="result-guidance-heading">
-        <h2>{tr('Understand the results and take the right steps')}</h2>
-        <p>{tr('Here\'s what this class means and how to manage it in your field.')}</p>
+        <h2>{tr('What this means and what to do')}</h2>
       </header>
       <div className="result-guidance-grid">
         <article className="panel result-guidance-card">
-          <header className="guidance-card-heading"><span><Leaf size={25} /></span><div><h3>{tr('What this class means')}</h3><p>{disease.name || titleCase(activeDiseaseId)}</p></div></header>
-          <p className="guidance-description">{healthy ? tr('No supported disease pattern was strongly detected in this image. The model covers only its trained classes, so continue monitoring the plant.') : disease.description}</p>
-          <div className="guidance-divider" />
-          <ul className="guidance-symptoms" aria-label="Visible symptoms">{disease.symptoms?.length ? disease.symptoms.map((symptom) => <li key={symptom}><span><Check size={16} /></span>{symptom}</li>) : <li>{tr('Insufficient verified evidence available.')}</li>}</ul>
+          <header className="guidance-card-heading"><span><Leaf size={25} /></span><div><h3>{tr('About {name}', { name })}</h3></div></header>
+          <p className="guidance-description">{healthy ? tr('We did not find signs of the diseases this app checks. Keep checking the plant, because a photo cannot prove a plant is free of disease.') : disease.description}</p>
+          {!healthy && <><div className="guidance-divider" /><h4 className="guidance-subheading">{tr('Signs to look for')}</h4><ul className="guidance-symptoms" aria-label={tr('Signs to look for')}>{disease.symptoms?.length ? disease.symptoms.map((symptom) => <li key={symptom}><span><Check size={16} /></span>{symptom}</li>) : <li>{tr('Insufficient verified evidence available.')}</li>}</ul></>}
         </article>
         <article className="panel result-guidance-card result-action">
-          <header className="guidance-card-heading"><span><ShieldCheck size={25} /></span><div><h3>{tr('Recommended action')}</h3><p>{tr('Keep your plants healthy and monitored')}</p></div></header>
+          <header className="guidance-card-heading"><span><ShieldCheck size={25} /></span><div><h3>{tr('What you can do')}</h3></div></header>
           <div className="guidance-action-list">
-            <section><span className="step-badge">1</span><div><h3>{tr('Follow good farm practices')}</h3><p>{disease.management || tr('Insufficient verified evidence available.')}</p></div></section>
-            <section><span className="step-badge">2</span><div><h3>{tr('Get expert advice when needed')}</h3><p>{disease.professional_referral || tr('Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.')}</p></div></section>
+            <section><span className="step-badge">1</span><div><h3>{healthy ? tr('Keep caring for the plant') : tr('Care for the plant')}</h3><p>{disease.management || tr('Insufficient verified evidence available.')}</p></div></section>
+            <section><span className="step-badge">2</span><div><h3>{tr('When to get expert help')}</h3><p>{disease.professional_referral || tr('Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.')}</p></div></section>
           </div>
         </article>
       </div>
     </section>}
     <Warning />
     {error && <div className="scan-error-card" role="alert"><AlertTriangle size={18} /><span>{error}</span></div>}
-    {!unavailable && !researchOnly && !uncertain && <div className="result-actions-bottom"><button className="primary-button" onClick={() => onSave(false, '')}>{tr('Save result')}</button></div>}
   </div>;
 }
 
@@ -857,19 +919,19 @@ function SectionHeading({ title, text }) {
 
 function ProbabilityBreakdown({ probabilities, predictedClass }) {
   if (probabilities.length !== 4) return null;
-  return <section className="class-probabilities" aria-label="All four model class scores">
-    <h3>All class scores</h3>
+  return <section className="class-probabilities" aria-label={tr('How closely the photo matched each condition')}>
+    <h3>{tr('How closely the photo matched each condition')}</h3>
     {probabilities.map(({ classKey, probability }) => {
       const barWidth = Math.min(100, Math.max(0, probability * 100));
       const rawPercent = percent(probability * 100, 2);
       const selected = classKey === predictedClass;
       return <div className={selected ? 'selected' : ''} key={classKey}>
-        <span><strong>{CLASS_NAMES[classKey]}</strong>{selected && <small>Selected result</small>}</span>
+        <span><strong>{farmerName(classKey, CLASS_NAMES[classKey])}</strong>{selected && <small>{tr('First guess')}</small>}</span>
         <b>{rawPercent}</b>
         <i role="img" aria-label={`${CLASS_NAMES[classKey]} ${rawPercent.replace('%', '')} percent${selected ? ', selected result' : ''}`}><em style={{ width: `${barWidth}%` }} /></i>
       </div>;
     })}
-    <p>Scores are relative model outputs and are not diagnostic certainty.</p>
+    <p>{tr('These numbers compare the conditions with each other. They are not a diagnosis.')}</p>
   </section>;
 }
 
@@ -987,92 +1049,112 @@ function FarmerComparison({ image, comparison }) {
 function FarmerHistory({ records, navigate, onOpen }) {
   const [query, setQuery] = useState(''); const [kind, setKind] = useState('all'); const [date, setDate] = useState(''); const [status, setStatus] = useState('all');
   const matchesStatus = (record, value) => value === 'all' || value === 'uncertain' && record.confidence < THRESHOLD || value === 'retry' && record.syncStatus === 'failed' || value === 'review' && record.review?.review_status === 'pending';
-  const statusOptions = [['all', tr('All scans')], ['uncertain', tr('Uncertain')], ['retry', tr('Needs retry')], ['review', tr('Review pending')]];
-  const filtered = records.filter((record) => { const reviewedClass = record.review?.review_status === 'confirmed' || record.review?.review_status === 'alternate_class' ? record.review.verified_label : null; const resultKind = (reviewedClass || record.diseaseId) === 'healthy' ? 'healthy' : 'disease'; return matchesStatus(record, status) && (kind === 'all' || kind === resultKind) && (!date || record.date?.slice(0, 10) === date) && `${record.disease?.name || record.diseaseId} ${reviewedClass ? FARMER_CLASS_NAMES[reviewedClass] || reviewedClass : ''} ${record.id}`.toLowerCase().includes(query.toLowerCase()); });
-  return <div className="role-stack"><Heading title={tr('History')} text={tr('{count} saved scan(s) · newest first.', { count: records.length })} /><section className="panel history-role-panel"><div className="history-status-filters" aria-label="Filter scans by status">{statusOptions.map(([value, label]) => <button key={value} type="button" className={status === value ? 'active' : ''} aria-pressed={status === value} onClick={() => setStatus(value)}>{label} {records.filter((record) => matchesStatus(record, value)).length}</button>)}</div><div className="friendly-filters"><label><Search size={18} /><input placeholder="Search scans" value={query} onChange={(event) => setQuery(event.target.value)} /></label><select aria-label="Filter by result" value={kind} onChange={(event) => setKind(event.target.value)}><option value="all">{tr('All results')}</option><option value="healthy">{tr('Healthy')}</option><option value="disease">{tr('Possible disease')}</option></select><input aria-label="Filter by date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></div>{filtered.map((record) => <RecentCard key={record.id} record={record} onOpen={onOpen} />)}{!filtered.length && <Empty icon={History} title={records.length ? tr('No matching scans') : tr('No saved scans yet')} text={records.length ? tr('Adjust your filters and try again.') : tr('Scan your first leaf to start your history.')} action={!records.length ? () => navigate('/farmer/scan') : undefined} actionLabel="Scan a leaf" />}</section></div>;
+  const statusOptions = [['all', tr('All scans')], ['uncertain', tr('Not sure')], ['review', tr('Waiting for expert')], ['retry', tr('Not uploaded yet')]];
+  // Hide a filter with nothing in it so farmers only see choices that lead somewhere.
+  const visibleOptions = statusOptions.filter(([value]) => value === 'all' || value === status || records.some((record) => matchesStatus(record, value)));
+  const filtered = records.filter((record) => { const reviewedClass = record.review?.review_status === 'confirmed' || record.review?.review_status === 'alternate_class' ? record.review.verified_label : null; const resultKind = (reviewedClass || record.diseaseId) === 'healthy' ? 'healthy' : 'disease'; return matchesStatus(record, status) && (kind === 'all' || kind === resultKind) && (!date || record.date?.slice(0, 10) === date) && `${scanTitle(record)} ${scanName(record)} ${record.disease?.name || ''} ${reviewedClass ? farmerName(reviewedClass) : ''} ${record.id}`.toLowerCase().includes(query.toLowerCase()); });
+  const filtersActive = Boolean(query || date || kind !== 'all' || status !== 'all');
+  return <div className="role-stack"><Heading title={tr('History')} text={tr('{count} saved scan(s) · newest first.', { count: records.length })} /><section className="panel history-role-panel">
+    {records.length > 0 && <>
+      {visibleOptions.length > 1 && <div className="history-status-filters" aria-label={tr('Filter scans')}>{visibleOptions.map(([value, label]) => <button key={value} type="button" className={status === value ? 'active' : ''} aria-pressed={status === value} onClick={() => setStatus(value)}>{label} {records.filter((record) => matchesStatus(record, value)).length}</button>)}</div>}
+      <div className="friendly-filters history-filters">
+        <label className="history-search"><Search size={18} /><input placeholder={tr('Search your scans')} aria-label={tr('Search your scans')} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+        <label className="history-filter-field"><span>{tr('Result')}</span><select value={kind} onChange={(event) => setKind(event.target.value)}><option value="all">{tr('All results')}</option><option value="healthy">{tr('Healthy')}</option><option value="disease">{tr('Possible disease')}</option></select></label>
+        <label className="history-filter-field"><span>{tr('Date')}</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+      </div>
+      {filtersActive && <button type="button" className="text-button history-clear" onClick={() => { setQuery(''); setDate(''); setKind('all'); setStatus('all'); }}><X size={15} />{tr('Clear filters')}</button>}
+    </>}
+    {filtered.map((record) => <RecentCard key={record.id} record={record} onOpen={onOpen} />)}
+    {!filtered.length && <Empty icon={History} title={records.length ? tr('No matching scans') : tr('No saved scans yet')} text={records.length ? tr('Adjust your filters and try again.') : tr('Scan your first leaf to start your history.')} action={!records.length ? () => navigate('/farmer/scan') : undefined} actionLabel={tr('Scan a leaf')} />}
+  </section></div>;
 }
+
+// Server guide records win; the built-in copies fill in what the server could not send.
+const mergeGuides = (serverGuides) => { const slugs = new Set(serverGuides.map((item) => item.slug)); return [...serverGuides, ...OFFLINE_SCAN_GUIDES.filter((item) => !slugs.has(item.slug)), ...ADDITIONAL_LEAF_GUIDES]; };
+const firstScanGuide = (guides, classKey) => guides.find((item) => classKey && item.model_class_key === classKey) || guides.find((item) => item.model_class_key && item.model_class_key !== 'healthy') || guides[0] || null;
 
 function DiseaseGuide({ initialClass = null, navigate, onOpenLibrary }) {
   const [items, setItems] = useState([]);
   const [selected, setSelected] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     api('/diseases')
-      .then((payload) => { const guides = [...payload.data, ...ADDITIONAL_LEAF_GUIDES]; setItems(guides); setSelected(guides.find((item) => item.model_class_key === initialClass) || guides[0] || null); })
-      .catch(() => { setItems(ADDITIONAL_LEAF_GUIDES); setSelected(ADDITIONAL_LEAF_GUIDES[0]); })
+      .then((payload) => { const guides = mergeGuides(payload.data); setItems(guides); setSelected(firstScanGuide(guides, initialClass)); })
+      .catch(() => { const guides = mergeGuides([]); setOffline(true); setItems(guides); setSelected(firstScanGuide(guides, initialClass)); })
       .finally(() => setLoading(false));
   }, [initialClass]);
 
-  if (loading) return <Loading text="Loading disease guide..." />;
+  if (loading) return <Loading text={tr('Loading the leaf guide…')} />;
 
   const media = selected ? GUIDE_MEDIA[selected.slug] : null;
   const guideImages = media?.images || (selected?.image_url ? [selected.image_url] : []);
   const coverImage = guideImages[0];
+  const selectedName = selected ? farmerName(selected.model_class_key, selected.name) : '';
+  const healthy = selected?.slug === 'healthy';
 
   return <div className="role-stack">
-    <Heading title={tr('Banana leaf guide')} text={tr('Browse leaf conditions and practical management steps. The scan identifies only its four trained classes.')} />
+    <Heading title={tr('Banana leaf guide')} text={tr('The scanner checks for 4 conditions: healthy leaf, Sigatoka, Panama disease and Cordana leaf spot. Other leaf problems are explained here too.')} />
     {navigate && <GuideTabs active="conditions" navigate={navigate} onOpenLibrary={onOpenLibrary} />}
-    {!items.length ? <Empty icon={BookOpen} title="DISEASE CONTENT PENDING" text="No source-verified disease guide records are available yet." /> : <section className="guide-role-layout">
+    {offline && <div className="farmer-sync-banner offline"><CloudOff size={20} /><div><strong>{tr('Showing the saved guide')}</strong><p>{tr('You are offline, so the guide built into this website is shown.')}</p></div></div>}
+    <section className="guide-role-layout">
       <label className="guide-mobile-picker">
-        <span><Leaf size={16} fill="currentColor" />Choose a leaf guide</span>
+        <span><Leaf size={16} fill="currentColor" />{tr('Choose a leaf condition')}</span>
         <div className="guide-picker-control">
           {coverImage ? <img src={coverImage} alt="" /> : <i><Leaf size={20} /></i>}
           <select value={selected?.id ?? ''} onChange={(event) => { setSelected(items.find((item) => String(item.id) === event.target.value) || items[0]); setMoreOpen(false); }}>
-            {items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            {items.map((item) => <option key={item.id} value={item.id}>{farmerName(item.model_class_key, item.name)}</option>)}
           </select>
           <ChevronDown size={18} aria-hidden="true" />
         </div>
       </label>
-      <div className="guide-role-list">{items.map((item) => { const itemImage = GUIDE_MEDIA[item.slug]?.images[0] || item.image_url; return <button className={selected?.id === item.id ? 'active' : ''} key={item.id} onClick={() => setSelected(item)}>{itemImage ? <img src={itemImage} alt="" /> : <span><Leaf size={23} /></span>}<div><strong>{item.name}</strong><small>{item.short_description || item.description}</small></div><ChevronRight size={18} /></button>; })}</div>
+      <div className="guide-role-list">{items.map((item) => { const itemImage = GUIDE_MEDIA[item.slug]?.images[0] || item.image_url; return <button className={selected?.id === item.id ? 'active' : ''} key={item.id} onClick={() => { setSelected(item); setMoreOpen(false); }}>{itemImage ? <img src={itemImage} alt="" /> : <span><Leaf size={23} /></span>}<div><strong>{farmerName(item.model_class_key, item.name)}</strong><small>{item.model_class_key ? tr('Checked by the scanner') : tr('Guide only')}</small></div><ChevronRight size={18} /></button>; })}</div>
       {selected && <article className="panel guide-role-detail">
         <header className="guide-detail-intro">
           <div>
-            <span className="guide-verified-badge"><Check size={12} />{selected.model_class_key ? 'Disease guide' : 'Guide only · not a scan result'}</span>
-            <h2>{selected.name}</h2>
+            <span className="guide-verified-badge"><Check size={12} />{selected.model_class_key ? tr('Checked by the scanner') : tr('Guide only · the scanner does not check this')}</span>
+            <h2>{selectedName}</h2>
             {selected.scientific_name && <p className="scientific-name">{selected.scientific_name}</p>}
           </div>
-          {coverImage && <img src={coverImage} alt={`Representative field example of ${selected.name}`} />}
+          {coverImage && <img src={coverImage} alt={tr('Example of {name}', { name: selectedName })} />}
         </header>
         <section className="guide-look-section">
           <span className="guide-section-icon"><Search size={21} /></span>
-          <div><h3>What it looks like</h3><p>{selected.description}</p></div>
+          <div><h3>{tr('What it looks like')}</h3><p>{selected.description}</p></div>
         </section>
-        <section className="guide-symptom-card">
+        {selected.symptoms?.length > 0 && <section className="guide-symptom-card">
           <div>
-            <h3><Leaf size={16} />Key symptoms</h3>
-            <ul>{selected.symptoms?.map((symptom) => <li key={symptom}><span><Check size={12} /></span>{symptom}</li>)}</ul>
+            <h3><Leaf size={16} />{tr('Signs to look for')}</h3>
+            <ul>{selected.symptoms.map((symptom) => <li key={symptom}><span><Check size={12} /></span>{symptom}</li>)}</ul>
           </div>
-          {guideImages[1] && <img src={guideImages[1]} alt={`${selected.name} symptom example`} loading="lazy" />}
+          {guideImages[1] && <img src={guideImages[1]} alt={tr('Example of {name}', { name: selectedName })} loading="lazy" />}
+        </section>}
+        <section className="guide-treatment-block guide-steps-visible">
+          <div className="guide-treatment-steps">
+            {!healthy && <section className="guide-step"><span className="step-badge">1</span><div><h3>{tr('What you can do')}</h3><p>{selected.management || tr('Insufficient verified evidence available.')}</p></div></section>}
+            {!healthy && <section className="guide-step"><span className="step-badge">2</span><div><h3>{tr('How to stop it spreading')}</h3><p>{selected.prevention || tr('Insufficient verified evidence available.')}</p></div></section>}
+            {healthy && <section className="guide-step"><span className="step-badge">1</span><div><h3>{tr('Keep caring for the plant')}</h3><p>{selected.management || tr('Keep up good routine care and check the plant regularly.')}</p></div></section>}
+            <section className="guide-step"><span className="step-badge">{healthy ? '2' : '3'}</span><div><h3>{tr('When to get expert help')}</h3><p>{selected.professional_referral || tr('Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.')}</p></div></section>
+          </div>
         </section>
         {guideImages.length > 0 && <section className="guide-gallery-section">
-          <div className="guide-gallery-heading"><span className="guide-section-icon"><FileImage size={20} /></span><h3>Sample images</h3></div>
-          <div className="guide-image-gallery">{guideImages.map((imageUrl, index) => <a key={imageUrl} href={imageUrl} target="_blank" rel="noreferrer"><img src={imageUrl} alt={`${selected.name} field example ${index + 1}`} loading="lazy" /></a>)}</div>
-          {media && <p className="guide-image-credit">Field examples from <a href={media.sourceUrl} target="_blank" rel="noreferrer">{media.source}</a>, <a href={media.license === 'CC0' ? 'https://creativecommons.org/publicdomain/zero/1.0/' : 'https://creativecommons.org/licenses/by/4.0/'} target="_blank" rel="noreferrer">{media.license || 'CC BY 4.0'}</a>. Reference images are not diagnostic confirmation.</p>}
+          <div className="guide-gallery-heading"><span className="guide-section-icon"><FileImage size={20} /></span><h3>{tr('Example photos')}</h3></div>
+          <div className="guide-image-gallery">{guideImages.map((imageUrl, index) => <a key={imageUrl} href={imageUrl} target="_blank" rel="noreferrer"><img src={imageUrl} alt={tr('Example {number} of {name}', { number: index + 1, name: selectedName })} loading="lazy" /></a>)}</div>
+          {media && <p className="guide-image-credit">{tr('Photos from')} <a href={media.sourceUrl} target="_blank" rel="noreferrer">{media.source}</a>, <a href={media.license === 'CC0' ? 'https://creativecommons.org/publicdomain/zero/1.0/' : 'https://creativecommons.org/licenses/by/4.0/'} target="_blank" rel="noreferrer">{media.license || 'CC BY 4.0'}</a>. {tr('Example photos cannot confirm a disease.')}</p>}
         </section>}
-        {selected.slug !== 'healthy' && <details className="guide-products"><summary>Show products used</summary>{GUIDE_PRODUCTS[selected.slug]?.length ? <><p>The Philippine FPA lists these products for banana and the matching condition. Confirm the diagnosis, current registration and label with an agriculturist before buying or spraying.</p>{GUIDE_PRODUCTS[selected.slug].map((product) => <div className="guide-product" key={product.name}><strong>{product.name}</strong><p>{product.description}</p><a href={product.sourceUrl} target="_blank" rel="noreferrer">Check FPA listing</a></div>)}</> : <p>No curative or condition-specific product is listed here. Follow the management steps and ask an agriculturist before using a pesticide.</p>}</details>}
+        {!healthy && <details className="guide-products"><summary>{tr('Products used for this')}</summary>{GUIDE_PRODUCTS[selected.slug]?.length ? <><p>{tr('The Philippine FPA lists these products for banana and this condition. Ask an agriculturist to confirm the problem and the label before buying or spraying.')}</p>{GUIDE_PRODUCTS[selected.slug].map((product) => <div className="guide-product" key={product.name}><strong>{product.name}</strong><p>{product.description}</p><a href={product.sourceUrl} target="_blank" rel="noreferrer">{tr('Check FPA listing')}</a></div>)}</> : <p>{tr('No product is listed for this. Follow the steps above and ask an agriculturist before using any pesticide.')}</p>}</details>}
         {onOpenLibrary && selected.model_class_key && <button type="button" className="secondary-button guide-library-link" onClick={() => onOpenLibrary(selected.model_class_key)}><Library size={18} />{tr('Read articles about this')}<ChevronRight size={17} /></button>}
-        <button type="button" className="guide-more-toggle" aria-expanded={moreOpen} aria-controls="guide-more-content" onClick={() => setMoreOpen((current) => !current)}>{moreOpen ? 'Hide detailed guidance' : 'View detailed guidance'}<ChevronDown size={18} /></button>
+        <button type="button" className="guide-more-toggle" aria-expanded={moreOpen} aria-controls="guide-more-content" onClick={() => setMoreOpen((current) => !current)}>{moreOpen ? tr('Hide more details') : tr('More details')}<ChevronDown size={18} /></button>
         <div id="guide-more-content" className={`guide-detail-more ${moreOpen ? 'open' : ''}`}>
-          {selected.slug === 'healthy' && <section className="guide-healthy-card">
-            <span><Check size={18} /></span>
-            <div><strong>Healthy Plant</strong><p>No treatment needed. Continue with regular care and monitoring.</p></div>
-          </section>}
-          <section className="guide-treatment-block">
-            <div className="guide-treatment-steps">
-              {selected.slug !== 'healthy' && <section className="guide-step"><span className="step-badge">1</span><div><h3>What you can do</h3><p>{selected.management || 'Insufficient verified evidence available.'}</p></div></section>}
-              {selected.slug !== 'healthy' && <section className="guide-step"><span className="step-badge">2</span><div><h3>How to help prevent spread</h3><p>{selected.prevention || 'Insufficient verified evidence available.'}</p></div></section>}
-              <section className="guide-step"><span className="step-badge">{selected.slug === 'healthy' ? '1' : '3'}</span><div><h3>When to seek expert help</h3><p>{selected.professional_referral || 'Ask a qualified agriculture professional when symptoms are severe, unusual, spreading rapidly, or uncertain.'}</p></div></section>
-            </div>
-          </section>
-          <section><h3>What causes it</h3><p>{selected.causal_agent || 'Not applicable for this non-disease visual class.'}</p></section>
-          <section><h3>Image-only limitations</h3><p>{selected.image_only_limitations || 'A leaf image cannot provide laboratory confirmation.'}</p></section>
-          <section><h3>Research sources</h3>{selected.sources?.length ? <ol className="guide-source-list">{selected.sources.map((source) => <li key={source.id}><strong>{source.authors} ({source.year || 'n.d.'}).</strong> {source.title}. <em>{source.journal_or_institution}</em>. {source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">Open source</a>}</li>)}</ol> : <p>Insufficient verified evidence available.</p>}</section>
+          <section><h3>{tr('What causes it')}</h3><p>{selected.causal_agent || tr('Not applicable for a healthy leaf.')}</p></section>
+          <section><h3>{tr('What a photo cannot tell')}</h3><p>{selected.image_only_limitations || tr('A leaf image cannot provide laboratory confirmation.')}</p></section>
+          <section><h3>{tr('Research sources')}</h3>{selected.sources?.length ? <ol className="guide-source-list">{selected.sources.map((source) => <li key={source.id}><strong>{source.authors} ({source.year || 'n.d.'}).</strong> {source.title}. <em>{source.journal_or_institution}</em>. {source.reference_url && <a href={source.reference_url} target="_blank" rel="noreferrer">{tr('Open source')}</a>}</li>)}</ol> : <p>{offline ? tr('Sources show when you are online.') : tr('Insufficient verified evidence available.')}</p>}</section>
           <Warning />
         </div>
       </article>}
-    </section>}
+    </section>
   </div>;
 }
 
@@ -1106,27 +1188,55 @@ function DiagnosisDialog({ record, onClose, onRequestReview, onDelete, onResearc
   const changeConsent = async (granted) => { setConsentBusy(true); setConsentError(''); try { await onResearchConsent(record, granted); } catch (exception) { setConsentError(exception.message); } finally { setConsentBusy(false); } };
   const sendReviewPhoto = async () => { setPhotoBusy(true); setPhotoError(''); try { await onRequestReview(record, record.farmerNotes); } catch (exception) { setPhotoError(exception.message || tr('The photo could not be sent.')); } finally { setPhotoBusy(false); } };
   useEffect(() => { setDeleteOpen(false); setConsentError(''); setPhotoError(''); }, [record?.id]);
+  // Escape closes the window unless the delete confirmation is on top of it.
+  useEffect(() => {
+    if (!record) return undefined;
+    const closeOnEscape = (event) => { if (event.key === 'Escape' && !deleteOpen) onClose(); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [record, deleteOpen, onClose]);
   if (!record) return null;
   const reviewed = record.review && record.review.review_status !== 'pending';
+  const outcome = reviewed ? farmerReviewOutcome(record.review, record.predictedClass) : null;
+  const expertName = record.review?.verified_label ? farmerName(record.review.verified_label) : null;
   return <>
-    <button className="dialog-scrim" aria-label="Close result" onClick={onClose} />
-    <aside className="diagnosis-dialog" role="dialog" aria-modal="true" aria-label="Saved scan result">
-      <header><div><h2>{reviewed ? farmerReviewOutcome(record.review, record.predictedClass).title : record.confidence < THRESHOLD ? tr('Uncertain result') : record.disease?.name || titleCase(record.diseaseId)}</h2></div><IconButton label="Close result" onClick={onClose}><X size={20} /></IconButton></header>
-      {record.image ? <img className="dialog-image" src={record.image} alt="Saved banana leaf" /> : <div className="dialog-image placeholder"><Leaf size={45} /></div>}
-      <div className="confidence-plain">{reviewed && <span className="original-ai-label">{tr('Original AI result: {name}', { name: record.disease?.name || titleCase(record.diseaseId) })}</span>}<CertaintyBadge value={record.confidence} /></div>
-      <dl><div><dt>{tr('Date')}</dt><dd>{formatDate(record.date, true)}</dd></div><div><dt>{tr('Source')}</dt><dd>{titleCase(record.source)}</dd></div><div><dt>{tr('Save status')}</dt><dd>{record.synced ? tr('Synced') : record.syncStatus === 'failed' ? tr('Needs retry') : tr('Waiting to sync')}</dd></div>{record.farmerNotes && <div><dt>{tr('Your notes')}</dt><dd>{record.farmerNotes}</dd></div>}</dl>
-      {record.followUpError && <section className="review-notice"><AlertTriangle size={20} /><div><strong>{tr('Your review request or photo did not finish sending')}</strong><p>{record.followUpError}</p><p>{tr('It is retried each time you sync.')}</p></div></section>}
+    <button className="dialog-scrim" aria-label={tr('Close')} onClick={onClose} />
+    <aside className="diagnosis-dialog" role="dialog" aria-modal="true" aria-label={tr('Saved scan')}>
+      <header><div><h2>{scanTitle(record)}</h2><p className="dialog-subtitle">{formatDate(record.date, true)} · {saveStatusText(record)}</p></div><IconButton label={tr('Close')} onClick={onClose}><X size={20} /></IconButton></header>
+
+      {reviewed && <section className="review-result review-answer-first">
+        <p className="review-answer-label"><ShieldCheck size={16} />{tr('Answer from the expert')}</p>
+        <p className="review-answer-message">{outcome.message}</p>
+        {record.review.farmer_message && <><p className="review-message-from">{tr('Message from {name}', { name: record.review.reviewer?.name || tr('the agriculturist') })}</p><p className="reviewer-message">{record.review.farmer_message}</p></>}
+        {outcome.steps.length > 0 && <><p className="review-message-from">{tr('What to do now')}</p><ol className="farmer-review-steps">{outcome.steps.map((step) => <li key={step}>{step}</li>)}</ol></>}
+        {(record.review.reviewer || record.review.reviewed_at) && <p className="review-meta">{record.review.reviewer ? tr('Checked by {name}', { name: record.review.reviewer.name }) : tr('Checked')}{record.review.reviewed_at ? ` · ${formatDate(record.review.reviewed_at, true)}` : ''}</p>}
+        {expertName && onOpenGuide && <button type="button" className="secondary-button" onClick={() => onOpenGuide(record.review.verified_label)}><BookOpen size={16} />{tr('Read about {name} in the guide', { name: expertName })}</button>}
+        {record.synced && onReply && <ReviewReplyForm onSubmit={(text, file) => onReply(record, text, file)} />}
+      </section>}
+
+      {record.review?.review_status === 'pending' && <section className="review-notice"><ShieldCheck size={20} /><div><strong>{tr(reviewInProgress(record) ? 'An expert is reviewing your {item} now' : 'Waiting for an expert to pick up your {item}', { item: record.serverImage ? tr('photo') : tr('note') })}</strong><FarmerReviewProgress inProgress={reviewInProgress(record)} /><p>{tr('You will see the answer here.')}</p>{!record.serverImage && <p>{tr('The expert cannot see the photo yet.')}</p>}{record.review.requested_at && <p className="review-meta">{tr('Sent {date}', { date: formatDate(record.review.requested_at, true) })}</p>}{!record.serverImage && record.syncUuid && record.image?.startsWith('data:image/') && <button type="button" className="secondary-button" disabled={photoBusy} onClick={sendReviewPhoto}>{photoBusy ? tr('Sending…') : tr('Send photo to expert')}</button>}{photoError && <p className="form-error" role="alert">{photoError}</p>}{record.review.farmer_reply && <p><strong>{tr('Your reply:')}</strong> {record.review.farmer_reply}</p>}</div></section>}
+
+      {record.image ? <img className="dialog-image" src={record.image} alt={tr('Saved banana leaf')} /> : <div className="dialog-image placeholder"><Leaf size={45} /></div>}
+      {!reviewed && <div className="confidence-plain"><CertaintyBadge value={record.confidence} /></div>}
+      {record.farmerNotes && <p className="dialog-notes"><strong>{tr('Your notes')}:</strong> {record.farmerNotes}</p>}
+
+      {record.followUpError && <section className="review-notice"><AlertTriangle size={20} /><div><strong>{tr('Your review request or photo did not finish sending')}</strong><p>{record.followUpError}</p><p>{tr('We try again each time you are online.')}</p></div></section>}
       {record.deletionError && <section className="review-notice"><AlertTriangle size={20} /><div><strong>{tr('This scan could not be deleted')}</strong><p>{record.deletionError}</p></div></section>}
-      {!record.synced && <section className="review-notice"><CloudOff size={20} /><div><strong>{tr('Safely stored in this browser')}</strong><p>{tr('Reconnect to upload this record before requesting another review action.')}</p></div></section>}
-      {record.review?.review_status === 'pending' && <section className="review-notice"><ShieldCheck size={20} /><div><strong>{tr(reviewInProgress(record) ? 'An expert is reviewing your {item} now' : 'Waiting for an expert to pick up your {item}', { item: record.serverImage ? tr('photo') : tr('note') })}</strong><FarmerReviewProgress inProgress={reviewInProgress(record)} /><p>{tr('You will see the answer here.')}</p>{!record.serverImage && <p>{tr('The expert cannot see the photo yet.')}</p>}{record.review.requested_at && <p className="review-meta">Sent {formatDate(record.review.requested_at, true)}</p>}{!record.serverImage && record.syncUuid && record.image?.startsWith('data:image/') && <button type="button" className="secondary-button" disabled={photoBusy} onClick={sendReviewPhoto}>{photoBusy ? tr('Sending…') : tr('Send photo to expert')}</button>}{photoError && <p className="form-error" role="alert">{photoError}</p>}{record.review.farmer_reply && <p><strong>{tr('Your reply:')}</strong> {record.review.farmer_reply}</p>}</div></section>}
-      {reviewed && (() => { const outcome = farmerReviewOutcome(record.review, record.predictedClass); return <section className="review-result"><h3>{outcome.title}</h3><p>{outcome.message}</p>{record.review.farmer_message && <><p><strong>{tr('Message from {name}', { name: record.review.reviewer?.name || tr('the agriculturist') })}</strong></p><p className="reviewer-message">{record.review.farmer_message}</p></>}{outcome.steps.length > 0 && <><p><strong>{tr('What to do now')}</strong></p><ol className="farmer-review-steps">{outcome.steps.map((step) => <li key={step}>{step}</li>)}</ol></>}{(record.review.reviewer || record.review.reviewed_at) && <p className="review-meta">{record.review.reviewer ? tr('Checked by {name}', { name: record.review.reviewer.name }) : tr('Checked')}{record.review.reviewed_at ? ` · ${formatDate(record.review.reviewed_at, true)}` : ''}</p>}{record.review.verified_label && onOpenGuide && <button type="button" className="secondary-button" onClick={() => onOpenGuide(record.review.verified_label)}><BookOpen size={16} />{tr('Read about {name} in the guide', { name: titleCase(record.review.verified_label) })}</button>}{record.synced && onReply && <ReviewReplyForm onSubmit={(text, file) => onReply(record, text, file)} />}</section>; })()}
+      {!record.synced && <section className="review-notice"><CloudOff size={20} /><div><strong>{tr('Saved on this device')}</strong><p>{tr('It uploads by itself when you are online. You can ask an expert after that.')}</p></div></section>}
+
       {!record.review && record.synced && <ReviewRequestForm initialNotes={record.farmerNotes} hasPhoto={Boolean(record.serverImage || record.syncUuid && record.image?.startsWith('data:image/'))} onSubmit={(notes) => onRequestReview(record, notes)} />}
-      {record.synced && record.researchConsent && <section className="review-notice"><Database size={20} /><div><strong>{tr(record.researchConsentCurrent ? 'Research consent granted' : 'Research consent needs renewal')}</strong><p>{tr('If approved, a private research copy remains after scan deletion. You can withdraw consent and remove the copy at any time.')}</p>{consentError && <p className="form-error">{consentError}</p>}<button className="secondary-button" disabled={consentBusy} onClick={() => changeConsent(false)}>{consentBusy ? tr('Saving…') : tr('Withdraw research consent')}</button></div></section>}
-      {record.synced && onAskAssistant && <button className="secondary-button full" onClick={() => onAskAssistant(record)}><MessageCircle size={17} />{tr('Ask Dahon about this scan')}</button>}
-      <button className="danger-button full" onClick={() => setDeleteOpen(true)}><Trash2 size={17} />{tr('Delete saved scan')}</button>
-      <Warning />
+      <details className="dialog-more" key={record.id}>
+        <summary>{tr('More options')}<ChevronDown size={18} /></summary>
+        <div className="dialog-more-body">
+          <p className="original-ai-label">{reviewed ? tr('First app result: {name}', { name: scanName(record) }) : tr('App result: {name}', { name: scanName(record) })} · {confidenceText(record.confidence)}</p>
+          {record.synced && onAskAssistant && <button className="secondary-button full" onClick={() => onAskAssistant(record)}><MessageCircle size={17} />{tr('Ask Dahon about this scan')}</button>}
+          {record.synced && record.researchConsent && <div className="dialog-research"><p><Database size={16} /> {tr(record.researchConsentCurrent ? 'Shared for research' : 'Research sharing needs renewal')}</p>{consentError && <p className="form-error">{consentError}</p>}<button className="secondary-button" disabled={consentBusy} onClick={() => changeConsent(false)}>{consentBusy ? tr('Saving…') : tr('Stop sharing this scan')}</button></div>}
+          <Warning />
+          <div className="dialog-danger-zone"><button className="danger-link" onClick={() => setDeleteOpen(true)}><Trash2 size={16} />{tr('Delete this scan')}</button></div>
+        </div>
+      </details>
     </aside>
-    <ConfirmDialog open={deleteOpen} title="Delete saved scan?" text="This removes the scan and its normal photo. Any separately approved research copy remains; remove it from your profile if you want to withdraw it." confirmLabel="Delete scan" danger onCancel={() => setDeleteOpen(false)} onConfirm={() => { setDeleteOpen(false); onDelete(record); }} />
+    <ConfirmDialog open={deleteOpen} title={tr('Delete this scan?')} text={tr('This removes the scan and its photo from your history. An approved research copy stays until you remove it in Profile.')} confirmLabel={tr('Delete scan')} danger onCancel={() => setDeleteOpen(false)} onConfirm={() => { setDeleteOpen(false); onDelete(record); }} />
   </>;
 }
 
@@ -1136,15 +1246,20 @@ function FarmerResearchPhotos() {
   useEffect(() => { load(); }, [load]);
   const remove = async (item) => { setBusy(true); setError(''); try { await api(`/research-images/${item.id}`, { method: 'DELETE' }); await load(); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
   const visible = items.filter((item) => !item.revoked_at || item.file_removal_pending);
-  return <section className="panel role-form"><h2>{tr('Approved research photos')}</h2><p>{tr('These private copies remain after you delete a scan. You can remove them here at any time. Keep the photo ID if you may request removal after account deletion.')}</p>{error && <p className="form-error">{error}</p>}{visible.map((item) => <div key={item.id} className="review-notice"><Database size={20} /><div><strong>#{item.id} · {titleCase(item.verified_label)}</strong><p>{item.file_removal_pending ? tr('Photo removal is pending; retry below.') : formatDate(item.approved_at, true)}</p><button type="button" className="danger-button" disabled={busy} onClick={() => remove(item)}>{tr(item.file_removal_pending ? 'Retry photo removal' : 'Remove research photo')}</button></div></div>)}{!visible.length && <p>{tr('No approved research photos are retained.')}</p>}</section>;
+  // Nothing to manage: keep the page short.
+  if (!visible.length && !error) return null;
+  return <div className="profile-research-photos"><h3>{tr('Approved research photos')}</h3><p>{tr('These private copies remain after you delete a scan. You can remove them here at any time. Keep the photo ID if you may request removal after account deletion.')}</p>{error && <p className="form-error">{error}</p>}{visible.map((item) => <div key={item.id} className="review-notice"><Database size={20} /><div><strong>#{item.id} · {farmerName(item.verified_label)}</strong><p>{item.file_removal_pending ? tr('Photo removal is pending; retry below.') : formatDate(item.approved_at, true)}</p><button type="button" className="danger-button" disabled={busy} onClick={() => remove(item)}>{tr(item.file_removal_pending ? 'Retry photo removal' : 'Remove research photo')}</button></div></div>)}</div>;
 }
 
+const LANGUAGE_CHOICES = [['en', 'English'], ['fil', 'Filipino'], ['ceb', 'Bisaya']];
+
 function ProfilePage({ user, onUser, onAccountDeleted, onResearchPreferenceChanged }) {
+  const farmer = user.role === 'farmer';
   const [profile, setProfile] = useState({ name: user.name, email: user.email, current_password: '' }); const [passwords, setPasswords] = useState({ current_password: '', password: '', password_confirmation: '' }); const [deletePassword, setDeletePassword] = useState(''); const [removeResearchCopies, setRemoveResearchCopies] = useState(false); const [deleteOpen, setDeleteOpen] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState(''); const [error, setError] = useState('');
   const emailChanged = profile.email.trim().toLowerCase() !== user.email.toLowerCase();
   const save = async (event) => { event.preventDefault(); try { const payload = await api('/profile', { method: 'PUT', body: JSON.stringify(profile) }); onUser(payload.data.user); setProfile({ name: payload.data.user.name, email: payload.data.user.email, current_password: '' }); setMessage(tr('Profile updated.')); setError(''); } catch (exception) { setError(exception.message); } }; const change = async (event) => { event.preventDefault(); try { await api('/profile/password', { method: 'PUT', body: JSON.stringify(passwords) }); setPasswords({ current_password: '', password: '', password_confirmation: '' }); setMessage(tr('Password updated.')); setError(''); } catch (exception) { setError(exception.message); } }; const remove = async () => { setBusy(true); try { await api('/profile', { method: 'DELETE', body: JSON.stringify({ current_password: deletePassword, remove_research_copies: removeResearchCopies }) }); setToken(null); await onAccountDeleted(); } catch (exception) { setError(exception.message); setDeleteOpen(false); } finally { setBusy(false); } };
   const resendVerification = async () => { try { const payload = await api('/auth/verification-notification', { method: 'POST' }); setMessage(payload.message); setError(''); } catch (exception) { setError(exception.message); } };
-  const changeResearchPreference = async (enabled) => { setBusy(true); setError(''); try { const payload = await api('/profile/research-consent', { method: 'PUT', body: JSON.stringify({ research_photo_consent: enabled }) }); onUser(payload.data.user); await onResearchPreferenceChanged?.(); setMessage(enabled ? 'Future account scans will be shared for research consideration.' : 'Research sharing is off. Existing consent has been withdrawn.'); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
+  const changeResearchPreference = async (enabled) => { setBusy(true); setError(''); try { const payload = await api('/profile/research-consent', { method: 'PUT', body: JSON.stringify({ research_photo_consent: enabled }) }); onUser(payload.data.user); await onResearchPreferenceChanged?.(); setMessage(enabled ? tr('Future account scans will be shared for research consideration.') : tr('Research sharing is off. Existing consent has been withdrawn.')); } catch (exception) { setError(exception.message); } finally { setBusy(false); } };
   const [photoBusy, setPhotoBusy] = useState(false);
   const changePhoto = async (file) => {
     if (!file) return;
@@ -1155,7 +1270,18 @@ function ProfilePage({ user, onUser, onAccountDeleted, onResearchPreferenceChang
     catch (exception) { setError(exception.message); } finally { setPhotoBusy(false); }
   };
   const removePhoto = async () => { setPhotoBusy(true); try { const payload = await api('/profile/avatar', { method: 'DELETE' }); onUser(payload.data.user); setMessage(tr('Profile photo removed.')); setError(''); } catch (exception) { setError(exception.message); } finally { setPhotoBusy(false); } };
-  return <div className="role-stack"><Heading title={tr('Profile')} text={tr('Keep your account information simple and up to date.')} /><section className="panel language-panel" aria-label={tr('Language')}><h2>{tr('Language')} / {getLanguage() === 'fil' ? 'Language' : 'Wika'}</h2><div className="language-options">{[['en', 'English'], ['fil', 'Filipino']].map(([value, label]) => <button key={value} type="button" className={getLanguage() === value ? 'active' : ''} aria-pressed={getLanguage() === value} onClick={() => setLanguage(value)}>{label}</button>)}</div></section><section className="panel profile-photo-panel"><span className="profile-photo"><AvatarContent user={user} /></span><div><h2>{tr('Profile photo')}</h2><p>{tr('Optional. Use a clear photo of your face. JPG, PNG, or WebP up to 5 MB.')}</p><div className="profile-photo-actions"><label className={`secondary-button${photoBusy ? ' disabled' : ''}`}><Camera size={17} />{photoBusy ? 'Saving…' : user.avatar_url ? tr('Change photo') : tr('Upload photo')}<input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={photoBusy} onChange={(event) => { changePhoto(event.target.files?.[0]); event.target.value = ''; }} /></label>{user.avatar_url && <button type="button" className="text-button" disabled={photoBusy} onClick={removePhoto}>{tr('Remove photo')}</button>}</div></div></section>{!user.email_verified_at && <section className="review-notice"><Mail size={20} /><div><strong>{tr('Verify your email address')}</strong><p>{tr(user.role === 'farmer' ? 'Verify your email so you can reset your password if you forget it. You can still scan and ask an expert without it. Open the link sent to {email}.' : 'Agriculturist and administrator tools need a verified email. Open the link sent to {email}.', { email: user.email })}</p><button type="button" className="secondary-button" onClick={resendVerification}>{tr('Resend verification email')}</button></div></section>}<section className="profile-role-grid"><form className="panel role-form" onSubmit={save}><h2>{tr('Edit Profile')}</h2><label>{tr('Name')}<input value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} required /></label><label>{tr('Email')}<input type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} required /></label><label>{emailChanged ? tr('Current password') : tr('Current password (required only to change email)')}<input type="password" autoComplete="current-password" value={profile.current_password} onChange={(event) => setProfile({ ...profile, current_password: event.target.value })} required={emailChanged} /></label><button className="primary-button">{tr('Save Profile')}</button></form><form className="panel role-form" onSubmit={change}><h2>{tr('Change Password')}</h2><label>{tr('Current password')}<input type="password" value={passwords.current_password} onChange={(event) => setPasswords({ ...passwords, current_password: event.target.value })} required /></label><label>{tr('New password')}<input type="password" value={passwords.password} onChange={(event) => setPasswords({ ...passwords, password: event.target.value })} required /></label><label>{tr('Confirm new password')}<input type="password" value={passwords.password_confirmation} onChange={(event) => setPasswords({ ...passwords, password_confirmation: event.target.value })} required /></label><button className="secondary-button">{tr('Update Password')}</button><button type="button" className="danger-button" onClick={() => setDeleteOpen(true)}>{tr('Delete Account')}</button></form></section>{user.role === 'farmer' && <section className="panel role-form"><h2>{tr('Research photo sharing')}</h2><p>{tr('Optional. When on, your future account scan photos are automatically considered for research after expert review. An approved private copy may remain after you delete a scan. Turning this off withdraws consent from your existing scans.')}</p><label className="research-preference"><input type="checkbox" checked={Boolean(user.research_photo_consent)} disabled={busy} onChange={(event) => changeResearchPreference(event.target.checked)} />{tr('Share my future account scan photos for research')}</label></section>}{user.role === 'farmer' && <FarmerResearchPhotos key={user.research_photo_consent ? 'research-on' : 'research-off'} />}{message && <div className="success-message">{message}</div>}{error && <div className="form-error">{error}</div>}<ConfirmDialog open={deleteOpen} title={tr('Permanently delete account?')} text={tr(user.role === 'farmer' ? 'This deletes your account and scans. Approved private research copies remain unless you choose to remove them below.' : 'This deletes the account and its associated diagnosis records. Confirm your current password to continue.')} confirmLabel="Delete My Account" danger busy={busy} confirmDisabled={!deletePassword} onCancel={() => { setDeleteOpen(false); setDeletePassword(''); }} onConfirm={remove}><label className="role-form">{tr('Current password')}<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label>{user.role === 'farmer' && <label className="role-form"><input type="checkbox" checked={removeResearchCopies} onChange={(event) => setRemoveResearchCopies(event.target.checked)} />{tr('Also remove my approved research photos')}</label>}</ConfirmDialog></div>;
+  return <div className="role-stack profile-page">
+    <Heading title={tr('Profile')} text={tr('Keep your account information simple and up to date.')} />
+    {(message || error) && <div className={error ? 'form-error' : 'success-message'} role="status">{error || message}</div>}
+    <section className="panel language-panel" aria-label={tr('Language')}><h2>{tr('Language')}</h2><div className="language-options">{LANGUAGE_CHOICES.map(([value, label]) => <button key={value} type="button" className={getLanguage() === value ? 'active' : ''} aria-pressed={getLanguage() === value} onClick={() => setLanguage(value)}>{label}</button>)}</div></section>
+    <section className="panel profile-photo-panel"><span className="profile-photo"><AvatarContent user={user} /></span><div><h2>{user.name}</h2><p>{tr('Optional. Use a clear photo of your face. JPG, PNG, or WebP up to 5 MB.')}</p><div className="profile-photo-actions"><label className={`secondary-button${photoBusy ? ' disabled' : ''}`}><Camera size={17} />{photoBusy ? tr('Saving…') : user.avatar_url ? tr('Change photo') : tr('Upload photo')}<input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={photoBusy} onChange={(event) => { changePhoto(event.target.files?.[0]); event.target.value = ''; }} /></label>{user.avatar_url && <button type="button" className="text-button" disabled={photoBusy} onClick={removePhoto}>{tr('Remove photo')}</button>}</div></div></section>
+    <form className="panel role-form" onSubmit={save}><h2>{tr('Your name and email')}</h2><label>{tr('Name')}<input value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} required /></label><label>{tr('Email')}<input type="email" value={profile.email} onChange={(event) => setProfile({ ...profile, email: event.target.value })} required /></label>{emailChanged && <label>{tr('Current password')}<small className="field-hint">{tr('Needed to change your email.')}</small><input type="password" autoComplete="current-password" value={profile.current_password} onChange={(event) => setProfile({ ...profile, current_password: event.target.value })} required /></label>}<button className="primary-button">{tr('Save changes')}</button></form>
+    {!user.email_verified_at && <section className="review-notice"><Mail size={20} /><div><strong>{tr('Verify your email address')}</strong><p>{tr(farmer ? 'Verify your email so you can reset your password if you forget it. You can still scan and ask an expert without it. Open the link sent to {email}.' : 'Agriculturist and administrator tools need a verified email. Open the link sent to {email}.', { email: user.email })}</p><button type="button" className="secondary-button" onClick={resendVerification}>{tr('Resend verification email')}</button></div></section>}
+    <details className="panel profile-section"><summary><LockKeyhole size={19} /><span><strong>{tr('Change password')}</strong><small>{tr('Use this if you want a new password.')}</small></span><ChevronDown size={18} /></summary><form className="role-form" onSubmit={change}><label>{tr('Current password')}<input type="password" autoComplete="current-password" value={passwords.current_password} onChange={(event) => setPasswords({ ...passwords, current_password: event.target.value })} required /></label><label>{tr('New password')}<input type="password" autoComplete="new-password" value={passwords.password} onChange={(event) => setPasswords({ ...passwords, password: event.target.value })} required /></label><label>{tr('Confirm new password')}<input type="password" autoComplete="new-password" value={passwords.password_confirmation} onChange={(event) => setPasswords({ ...passwords, password_confirmation: event.target.value })} required /></label><button className="secondary-button">{tr('Update Password')}</button></form></details>
+    {farmer && <details className="panel profile-section"><summary><Database size={19} /><span><strong>{tr('Research photo sharing')}</strong><small>{user.research_photo_consent ? tr('On: checked scan photos may help research.') : tr('Off')}</small></span><ChevronDown size={18} /></summary><div className="role-form"><p>{tr('When on, your future scan photos may be used for research after an expert checks them. An approved private copy may stay after you delete a scan. Turning this off also stops sharing your existing scans.')}</p><label className="research-preference"><input type="checkbox" checked={Boolean(user.research_photo_consent)} disabled={busy} onChange={(event) => changeResearchPreference(event.target.checked)} /><span>{tr('Share my future scan photos for research')}</span></label><FarmerResearchPhotos key={user.research_photo_consent ? 'research-on' : 'research-off'} /></div></details>}
+    <details className="panel profile-section profile-danger"><summary><Trash2 size={19} /><span><strong>{tr('Delete account')}</strong><small>{tr('Removes your account and scans for good.')}</small></span><ChevronDown size={18} /></summary><div className="role-form"><p>{tr(farmer ? 'This deletes your account and scans. Approved private research copies remain unless you choose to remove them below.' : 'This deletes the account and its associated diagnosis records. Confirm your current password to continue.')}</p><button type="button" className="danger-button" onClick={() => setDeleteOpen(true)}>{tr('Delete Account')}</button></div></details>
+    <ConfirmDialog open={deleteOpen} title={tr('Permanently delete account?')} text={tr(farmer ? 'This deletes your account and scans. Approved private research copies remain unless you choose to remove them below.' : 'This deletes the account and its associated diagnosis records. Confirm your current password to continue.')} confirmLabel={tr('Delete My Account')} danger busy={busy} confirmDisabled={!deletePassword} onCancel={() => { setDeleteOpen(false); setDeletePassword(''); }} onConfirm={remove}><label className="role-form">{tr('Current password')}<input type="password" autoComplete="current-password" value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} /></label>{farmer && <label className="role-form research-preference"><input type="checkbox" checked={removeResearchCopies} onChange={(event) => setRemoveResearchCopies(event.target.checked)} /><span>{tr('Also remove my approved research photos')}</span></label>}</ConfirmDialog>
+  </div>;
 }
 
 function Stat({ label, value, note, icon: Icon }) { return <article className="admin-stat-card"><span><Icon size={21} /></span><div><h3>{label}</h3><strong>{value}</strong><p>{note}</p></div></article>; }
@@ -1852,105 +1978,65 @@ const HOME_BENEFITS = [
   ['Disease guide', 'Signs, prevention and care for each disease, plus short articles.'],
 ];
 
-// Fades sections in as they scroll into view, and marks the header once the page has scrolled.
-function useLandingMotion(root) {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    const items = [...(root.current?.querySelectorAll('[data-reveal]') || [])];
-    if (!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      items.forEach((item) => item.classList.add('is-visible'));
-      return () => window.removeEventListener('scroll', onScroll);
-    }
-    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      entry.target.classList.add('is-visible');
-      observer.unobserve(entry.target);
-    }), { rootMargin: '0px 0px -8% 0px', threshold: .12 });
-    items.forEach((item) => observer.observe(item));
-    return () => { observer.disconnect(); window.removeEventListener('scroll', onScroll); };
-  }, [root]);
-  return scrolled;
-}
-// Moves the soft highlight on a card to follow the pointer.
-const trackSpotlight = (event) => { const box = event.currentTarget.getBoundingClientRect(); event.currentTarget.style.setProperty('--spot-x', `${event.clientX - box.left}px`); event.currentTarget.style.setProperty('--spot-y', `${event.clientY - box.top}px`); };
 const HOME_STEP_ICONS = [Camera, ScanLine, ShieldCheck];
 const HOME_BENEFIT_ICONS = [History, ShieldCheck, CloudOff, BookOpen];
 const HOME_LINKS = [['how', 'How it works'], ['conditions', 'Diseases'], ['scan', 'Try a scan'], ['features', 'Features']];
 
+// A calm, high-contrast homepage: large text and buttons, no decorative motion.
 function PublicLanding({ online, authMode, onAuthMode, onAuthenticated }) {
-  const root = useRef(null);
-  const scrolled = useLandingMotion(root);
+  const scrolled = useScrolled();
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const goToScan = () => scrollTo('scan');
   const sectionLinks = HOME_LINKS.map(([id, label]) => <a key={id} href={`#${id}`} onClick={(event) => { event.preventDefault(); scrollTo(id); }}>{tr(label)}</a>);
-  return <div className="public-app landing" ref={root}>
-    <div className="landing-progress" aria-hidden="true" />
+  return <div className="public-app landing">
     <header className={`public-header landing-header ${scrolled ? 'scrolled' : ''}`}>
       <a className="public-brand" href="/" onClick={(event) => { event.preventDefault(); onAuthMode(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><span><LogoMark /></span><div><strong>DahonMD</strong></div></a>
       <nav className="landing-nav" aria-label={tr('Page sections')}>{sectionLinks}</nav>
-      <div className="public-auth-actions"><select className="public-language" aria-label={tr('Language')} value={getLanguage()} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="fil">Filipino</option></select><button className="secondary-button" onClick={() => onAuthMode('login')}><CircleUserRound size={17} />{tr('Log in')}</button><button className="primary-button" onClick={() => onAuthMode('register')}><Plus size={17} />{tr('Sign up')}</button></div>
+      <div className="public-auth-actions"><select className="public-language" aria-label={tr('Language')} value={getLanguage()} onChange={(event) => setLanguage(event.target.value)}><option value="en">English</option><option value="fil">Filipino</option><option value="ceb">Bisaya</option></select><button className="secondary-button" onClick={() => onAuthMode('login')}><CircleUserRound size={18} />{tr('Log in')}</button><button className="primary-button" onClick={() => onAuthMode('register')}>{tr('Sign up')}</button></div>
     </header>
     <main>
       <section className="home-hero">
-        <div className="landing-backdrop" aria-hidden="true"><i className="blob one" /><i className="blob two" /><i className="blob three" /><i className="grid" /></div>
         <div className="home-hero-text">
-          <span className="landing-eyebrow"><Sparkles size={14} />{tr('AI leaf screening for banana farmers')}</span>
+          <p className="landing-eyebrow">{tr('For banana farmers')}</p>
           <h1>{tr('Check your banana leaves with one photo.')}</h1>
           <p>{tr('DahonMD helps banana farmers spot common leaf diseases early. Take a photo, see the result in seconds, and ask an agriculturist when you need help.')}</p>
           <div className="home-hero-actions">
-            <button type="button" className="primary-button landing-cta" onClick={goToScan}><ScanLine size={18} />{tr('Scan a leaf now')}<ArrowRight className="landing-cta-arrow" size={17} /></button>
+            <button type="button" className="primary-button" onClick={goToScan}><Camera size={22} />{tr('Scan a leaf now')}</button>
             <button type="button" className="secondary-button" onClick={() => onAuthMode('register')}>{tr('Create a free account')}</button>
           </div>
-          <small>{tr('Free to use. No account needed to try a scan.')}</small>
-          <dl className="landing-stats">
-            <div><dt>{tr('Leaf conditions')}</dt><dd>4</dd></div>
-            <div><dt>{tr('Photo needed')}</dt><dd>1</dd></div>
-            <div><dt>{tr('Price')}</dt><dd>{tr('Free')}</dd></div>
-          </dl>
+          <p className="landing-free-note"><Check size={20} />{tr('Free to use. No account needed to try a scan.')}</p>
         </div>
-        <div className="landing-visual">
-          <div className="landing-photo">
-            <img className="home-hero-image" src="/assets/disease-guide/sigatoka-2.webp" alt={tr('Banana leaf with Sigatoka spots')} />
-            <span className="landing-scanline" aria-hidden="true" />
-            {['tl', 'tr', 'bl', 'br'].map((corner) => <span key={corner} className={`landing-corner ${corner}`} aria-hidden="true" />)}
-          </div>
-          <div className="landing-chip result" aria-hidden="true"><span><Leaf size={16} /></span><div><strong>Sigatoka</strong><small>{tr('Likely')}</small></div><span className="certainty-bars"><i className="on" /><i className="on" /><i /></span></div>
-          <div className="landing-chip expert" aria-hidden="true"><span><ShieldCheck size={16} /></span><div><strong>{tr('Expert review')}</strong><small>{tr('Ask an agriculturist')}</small></div></div>
-          <div className="landing-chip offline" aria-hidden="true"><span><CloudOff size={16} /></span><div><strong>{tr('Works offline')}</strong></div></div>
-        </div>
+        <figure className="landing-photo">
+          <img className="home-hero-image" src="/assets/disease-guide/sigatoka-2.webp" alt={tr('Banana leaf with Sigatoka spots')} />
+          <figcaption>{tr('Example: a banana leaf with Sigatoka spots')}</figcaption>
+        </figure>
       </section>
 
-      <div className="landing-marquee" aria-hidden="true"><div>{[0, 1].map((copy) => <span key={copy}>{HOME_CONDITIONS.map(([key, name]) => <b key={key}><Leaf size={15} />{tr(name)}</b>)}<b><ShieldCheck size={15} />{tr('Answers from agriculturists')}</b><b><CloudOff size={15} />{tr('Works offline')}</b><b><BookOpen size={15} />{tr('Disease guide')}</b></span>)}</div></div>
-
       <section className="home-section" id="how">
-        <header className="landing-section-head" data-reveal><span className="landing-kicker">01</span><h2>{tr('How it works')}</h2></header>
-        <ol className="home-steps">{HOME_STEPS.map(([title, text], index) => { const Icon = HOME_STEP_ICONS[index]; return <li key={title} data-reveal style={{ '--reveal-delay': `${index * 110}ms` }} onPointerMove={trackSpotlight}><span className="landing-step-icon"><Icon size={22} /></span><span className="landing-step-number">{String(index + 1).padStart(2, '0')}</span><h3>{tr(title)}</h3><p>{tr(text)}</p></li>; })}</ol>
+        <h2>{tr('How it works')}</h2>
+        <ol className="home-steps">{HOME_STEPS.map(([title, text], index) => { const Icon = HOME_STEP_ICONS[index]; return <li key={title}><span className="landing-step-number" aria-hidden="true">{index + 1}</span><div><h3><Icon size={22} />{tr(title)}</h3><p>{tr(text)}</p></div></li>; })}</ol>
       </section>
 
       <section className="home-section" id="conditions">
-        <header className="landing-section-head" data-reveal><span className="landing-kicker">02</span><h2>{tr('What DahonMD can check')}</h2><p className="home-section-text">{tr('The scanner looks for these leaf conditions. More diseases are explained in the guide after you sign up.')}</p></header>
-        <div className="home-conditions">{HOME_CONDITIONS.map(([key, name, text], index) => <article key={key} data-reveal style={{ '--reveal-delay': `${index * 90}ms` }}><div className="landing-condition-photo"><img src={GUIDE_MEDIA[key].images[0]} alt="" loading="lazy" /></div><div className="landing-condition-copy"><h3>{tr(name)}</h3><p>{tr(text)}</p></div></article>)}</div>
+        <h2>{tr('What DahonMD can check')}</h2>
+        <p className="home-section-text">{tr('The scanner looks for these leaf conditions. More diseases are explained in the guide after you sign up.')}</p>
+        <div className="home-conditions">{HOME_CONDITIONS.map(([key, name, text]) => <article key={key}><img src={GUIDE_MEDIA[key].images[0]} alt="" loading="lazy" /><div className="landing-condition-copy"><h3>{tr(name)}</h3><p>{tr(text)}</p></div></article>)}</div>
       </section>
 
       <section className="home-section landing-try" id="scan">
-        <header className="landing-section-head" data-reveal><span className="landing-kicker">03</span></header>
-        <div className="landing-try-frame" data-reveal>
+        <div className="landing-try-frame">
           <FarmerScan onSaved={null} online={online} onAuthRequired={onAuthMode} navigate={() => onAuthMode('login')} autoStartCamera={false} />
         </div>
       </section>
 
       <section className="home-section" id="features">
-        <header className="landing-section-head" data-reveal><span className="landing-kicker">04</span><h2>{tr('With a free account')}</h2></header>
-        <dl className="home-benefits">{HOME_BENEFITS.map(([title, text], index) => { const Icon = HOME_BENEFIT_ICONS[index]; return <div key={title} data-reveal style={{ '--reveal-delay': `${index * 90}ms` }} onPointerMove={trackSpotlight}><span className="landing-benefit-icon"><Icon size={22} /></span><dt>{tr(title)}</dt><dd>{tr(text)}</dd></div>; })}</dl>
+        <h2>{tr('With a free account')}</h2>
+        <dl className="home-benefits">{HOME_BENEFITS.map(([title, text], index) => { const Icon = HOME_BENEFIT_ICONS[index]; return <div key={title}><span className="landing-benefit-icon"><Icon size={24} /></span><div><dt>{tr(title)}</dt><dd>{tr(text)}</dd></div></div>; })}</dl>
       </section>
 
-      <section className="landing-cta-band" data-reveal>
-        <div className="landing-backdrop" aria-hidden="true"><i className="blob one" /><i className="blob two" /></div>
-        <div><h2>{tr('Ready to check your leaves?')}</h2><p>{tr('Save your scans and keep them in sync across devices.')}</p></div>
-        <div className="landing-cta-actions"><button type="button" className="primary-button home-signup-button" onClick={() => onAuthMode('register')}>{tr('Sign up')}<ArrowRight size={17} /></button><button type="button" className="secondary-button" onClick={goToScan}><ScanLine size={17} />{tr('Scan a leaf now')}</button></div>
+      <section className="landing-cta-band">
+        <div><h2>{tr('Need help with a sick plant?')}</h2><p>{tr('An agriculturist can look at your photo and tell you what to do.')}</p></div>
+        <div className="landing-cta-actions"><button type="button" className="primary-button" onClick={() => onAuthMode('register')}>{tr('Create a free account')}</button><button type="button" className="secondary-button" onClick={goToScan}><Camera size={20} />{tr('Scan a leaf now')}</button></div>
       </section>
 
       <footer className="home-footer">
@@ -1962,7 +2048,7 @@ function PublicLanding({ online, authMode, onAuthMode, onAuthenticated }) {
         <small>© {new Date().getFullYear()} DahonMD</small>
       </footer>
     </main>
-    <AuthModal mode={authMode} onClose={() => onAuthMode(null)} onMode={onAuthMode} onAuthenticated={onAuthenticated} />
+    <AuthModal mode={authMode} onClose={() => onAuthMode(null)} onMode={onAuthMode} onAuthenticated={onAuthenticated} pendingScan={Boolean(authMode) && hasPendingScan()} />
     <AssistantWidget user={null} online={online} onLogin={() => onAuthMode('login')} />
   </div>;
 }
@@ -1981,7 +2067,8 @@ export default function RoleApp() {
       if (!online) throw new Error('Offline');
       if (!syncInFlight.current) {
         syncInFlight.current = (async () => {
-          await flushWebDiagnosisOutbox(user.id);
+          // A queued scan that cannot upload must not block expert answers from arriving.
+          await flushWebDiagnosisOutbox(user.id).catch(() => undefined);
           await pullWebDiagnosisChanges(user.id, mapDiagnosis);
         })().finally(() => { syncInFlight.current = null; });
       }
@@ -1997,14 +2084,21 @@ export default function RoleApp() {
       return false;
     }
   }, [user?.id, user?.role, online]);
+  // Check for expert answers every 15 seconds while one is awaited, otherwise every minute,
+  // and right away when the farmer comes back to the tab or the connection returns.
+  const awaitingReview = records.some((record) => record.review?.review_status === 'pending');
+  useEffect(() => { loadRecords(); }, [loadRecords]);
   useEffect(() => {
-    loadRecords();
     if (user?.role !== 'farmer') return undefined;
     const refresh = () => { if (document.visibilityState === 'visible') loadRecords(); };
-    const timer = setInterval(refresh, 60000);
+    const timer = setInterval(refresh, awaitingReview ? 15000 : 60000);
     document.addEventListener('visibilitychange', refresh);
-    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', refresh); };
-  }, [loadRecords, user?.role]);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', refresh); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
+  }, [loadRecords, user?.role, awaitingReview]);
+  // Opening Home or History always shows the newest answers.
+  useEffect(() => { if (user?.role === 'farmer' && ['/farmer/dashboard', '/farmer/history'].includes(path)) loadRecords(); }, [path]);
   useEffect(() => { if (user?.role === 'farmer' && records.length) cacheHistory(user.id, records.filter((record) => record.synced)).catch(() => undefined); }, [user?.id, user?.role, records]);
   useEffect(() => { if (!loading && !user && !['/', '/login', '/signup'].includes(path)) navigate('/', true); }, [loading, user, path, navigate]);
   useEffect(() => { if (!user) return; const legacy = ['/', '/dashboard', '/diagnose', '/history', '/profile'].includes(path); const prefix = user.role === 'admin' ? '/admin' : user.role === 'agricultural_expert' ? '/expert' : '/farmer'; const wrong = !path.startsWith(prefix); if (legacy || wrong) navigate(roleHome(user.role), true); }, [user, path, navigate]);
@@ -2073,6 +2167,23 @@ export default function RoleApp() {
       setSelected((current) => current?.id === updated.id ? updated : current);
     }).catch(() => undefined);
   };
+  // A scan a guest made before logging in is saved to their history once they are signed in.
+  const pendingSaveStarted = useRef(false);
+  useEffect(() => {
+    if (!user) { pendingSaveStarted.current = false; return; }
+    if (user.role !== 'farmer') { takePendingScan(); return; }
+    if (pendingSaveStarted.current) return;
+    const pending = takePendingScan();
+    if (!pending?.record?.image) return;
+    pendingSaveStarted.current = true;
+    (async () => {
+      try {
+        const blob = await (await fetch(pending.record.image)).blob();
+        await save(pending.record, new File([blob], 'banana-leaf.jpg', { type: blob.type || 'image/jpeg' }), Boolean(pending.requestReview));
+        navigate('/farmer/history', true);
+      } catch { keepPendingScan(pending); pendingSaveStarted.current = false; }
+    })();
+  }, [user]);
   const logoutDialogs = <><ConfirmDialog open={logoutPending !== null} title="Discard unsynchronized changes?" text={`${logoutPending ?? 0} unsynchronized change${logoutPending === 1 ? '' : 's'} will be removed from this browser when you log out.`} confirmLabel="Discard and log out" danger onCancel={() => setLogoutPending(null)} onConfirm={finishSignOut} /><ModalShell open={Boolean(logoutError)} title="Could not log out" description={logoutError} onClose={() => setLogoutError('')} size="small"><div className="confirm-actions"><button type="button" className="primary-button" onClick={() => setLogoutError('')}>Close</button></div></ModalShell></>;
   if (loading) return <Loading text="Restoring your secure session..." />; if (!user) { const authMode = path === '/login' ? 'login' : path === '/signup' ? 'register' : null; const setAuthMode = (mode) => navigate(mode === 'login' ? '/login' : mode === 'register' ? '/signup' : '/', true); const authenticated = (nextUser) => { setUser(nextUser); navigate(roleHome(nextUser.role), true); }; return <PublicLanding online={online} authMode={authMode} onAuthMode={setAuthMode} onAuthenticated={authenticated} />; }
   if (user.role === 'farmer') { const requestReview = async (record, farmerNotes = '') => {
